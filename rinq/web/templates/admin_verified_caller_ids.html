@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+.action-icon {
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+    font-size: 1.2em;
+    background: none;
+    border: none;
+    padding: 2px 6px;
+}
+.action-icon:hover {
+    opacity: 1;
+}
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2 style="margin: 0;">Verified Caller IDs</h2>
+        <div style="display: flex; gap: 10px;">
+            <a href="{{ url_for('web.admin') }}" class="btn" style="background: #6c757d;">Back to Admin</a>
+            <form method="POST" action="{{ url_for('web.sync_verified_caller_ids') }}" style="margin: 0;">
+                <button type="submit" class="btn">Sync from Twilio</button>
+            </form>
+        </div>
+    </div>
+
+    <p class="text-muted">
+        External numbers verified in Twilio but not owned/ported. These can be used as outbound caller ID.
+    </p>
+
+    <div class="help-tip" style="margin: 15px 0;">
+        <strong>To add a new verified caller ID:</strong>
+        <ol style="margin: 10px 0 0 0; padding-left: 20px;">
+            <li>Go to <a href="https://console.twilio.com/us1/develop/phone-numbers/manage/verified" target="_blank">Twilio Console &rarr; Verified Caller IDs</a></li>
+            <li>Click "Add a New Caller ID" and complete their verification process</li>
+            <li>Click "Sync from Twilio" above to import the number</li>
+            <li>Add a friendly name and section assignment</li>
+        </ol>
+    </div>
+
+    {% if verified_caller_ids %}
+    <table>
+        <thead>
+            <tr>
+                <th>Number</th>
+                <th>Name</th>
+                <th>Section</th>
+                <th>Status</th>
+                <th>Notes</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for vcid in verified_caller_ids %}
+            <tr>
+                <td style="font-family: monospace;">{{ vcid.phone_number }}</td>
+                <td>{{ vcid.friendly_name or '-' }}</td>
+                <td>
+                    {% if vcid.section %}
+                    <span class="badge badge-info">{{ vcid.section }}</span>
+                    {% else %}
+                    <span class="text-muted">-</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if vcid.is_active %}
+                    <span class="badge badge-success">Active</span>
+                    {% else %}
+                    <span class="badge">Inactive</span>
+                    {% endif %}
+                </td>
+                <td class="text-muted">{{ vcid.notes or '-' }}</td>
+                <td style="white-space: nowrap;">
+                    <button type="button" class="action-icon" onclick="openVcidModal('{{ vcid.phone_number }}', '{{ vcid.friendly_name or '' }}', '{{ vcid.section or '' }}', {{ 'true' if vcid.is_active else 'false' }}, '{{ vcid.notes or '' }}')" title="Edit">✏️</button>
+                    <form method="POST" action="{{ url_for('web.delete_verified_caller_id', phone_number=vcid.phone_number) }}" style="display: inline;">
+                        <button type="submit" class="action-icon" onclick="return confirm('Delete this verified caller ID?')" title="Delete">🗑️</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <p class="text-muted">No verified caller IDs yet. Click "Sync from Twilio" to import numbers that have been verified in Twilio.</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Edit Verified Caller ID Modal -->
+<div id="vcidModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 25px; border-radius: 8px; width: 400px; max-width: 90%;">
+        <h3 style="margin-top: 0;">Edit Verified Caller ID</h3>
+        <form id="vcidEditForm" method="POST">
+            <div class="form-group">
+                <label>Phone Number</label>
+                <input type="text" id="vcidModalPhone" readonly style="background: #f8f9fa;">
+            </div>
+            <div class="form-group">
+                <label for="vcidModalName">Name</label>
+                <input type="text" id="vcidModalName" name="friendly_name">
+            </div>
+            <div class="form-group">
+                <label for="vcidModalSection">Section</label>
+                <select id="vcidModalSection" name="section">
+                    <option value="">-- None --</option>
+                    {% for section in sections %}
+                    <option value="{{ section.name }}">{{ section.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="vcidModalActive" name="is_active" value="1">
+                    Active
+                </label>
+            </div>
+            <div class="form-group">
+                <label for="vcidModalNotes">Notes</label>
+                <input type="text" id="vcidModalNotes" name="notes">
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 15px;">
+                <button type="submit" class="btn">Save</button>
+                <button type="button" class="btn" style="background: #6c757d;" onclick="closeVcidModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function openVcidModal(phone, name, section, isActive, notes) {
+    document.getElementById('vcidModalPhone').value = phone;
+    document.getElementById('vcidModalName').value = name;
+    document.getElementById('vcidModalSection').value = section;
+    document.getElementById('vcidModalActive').checked = isActive;
+    document.getElementById('vcidModalNotes').value = notes;
+    document.getElementById('vcidEditForm').action = '/admin/verified-caller-ids/' + encodeURIComponent(phone) + '/update';
+    document.getElementById('vcidModal').style.display = 'block';
+}
+
+function closeVcidModal() {
+    document.getElementById('vcidModal').style.display = 'none';
+}
+
+// Close modal on background click
+document.getElementById('vcidModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeVcidModal();
+    }
+});
+
+// Close modal on Escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeVcidModal();
+    }
+});
+
+// Loading states for form submissions
+document.querySelectorAll('form').forEach(form => {
+    form.addEventListener('submit', function() {
+        const btn = this.querySelector('button[type="submit"]');
+        if (btn && !btn.disabled) {
+            btn.disabled = true;
+            btn.dataset.originalText = btn.textContent;
+            if (btn.textContent.toLowerCase().includes('save')) {
+                btn.textContent = 'Saving...';
+            } else {
+                btn.textContent = 'Processing...';
+            }
+            btn.style.opacity = '0.7';
+        }
+    });
+});
+</script>
+{% endblock %}

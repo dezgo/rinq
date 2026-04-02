@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+.routing-info {
+    background: #e8f4f8;
+    border-left: 4px solid #3498db;
+    padding: 10px 15px;
+    margin: 10px 0;
+    border-radius: 0 4px 4px 0;
+}
+.queue-members {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 5px;
+}
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2 style="margin: 0;">Phone Numbers</h2>
+        <div style="display: flex; gap: 10px;">
+            <a href="{{ url_for('web.admin') }}" class="btn" style="background: #6c757d;">Back to Admin</a>
+            <form method="post" action="{{ url_for('web.sync') }}" style="margin: 0;">
+                <button type="submit" class="btn">Sync from Twilio</button>
+            </form>
+        </div>
+    </div>
+
+    {% if phone_numbers %}
+        {% for number in phone_numbers %}
+        <div class="phone-card">
+            <div class="phone-number">
+                {{ number.phone_number }}
+                {% if number.friendly_name %}
+                    <span style="font-weight: normal; color: #6c757d;"> - {{ number.friendly_name }}</span>
+                {% endif %}
+            </div>
+
+            {% if number.call_flow %}
+            <!-- === CALL FLOW ROUTING === -->
+            <div class="routing-info">
+                <strong>Call Flow:</strong> {{ number.call_flow.name }}
+                {% if number.queue %}
+                    &rarr; Queue: <strong>{{ number.queue.name }}</strong>
+                    <div class="queue-members">
+                        {% for m in number.queue.get('members', []) %}
+                        <span class="badge badge-info">{{ m.user_email.split('@')[0] }}</span>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+
+            <details style="margin-top: 10px;">
+                <summary style="cursor: pointer; color: #6c757d; font-size: 0.9em;">Change or remove call flow</summary>
+                <div style="padding: 10px; background: #f8f9fa; border-radius: 5px; margin-top: 5px;">
+                    <form method="post" action="{{ url_for('web.assign_call_flow', sid=number.sid) }}" class="inline-form">
+                        <select name="call_flow_id" style="padding: 6px; min-width: 200px;">
+                            <option value="">-- Remove Call Flow --</option>
+                            {% for flow in call_flows %}
+                            <option value="{{ flow.id }}" {% if number.call_flow.id == flow.id %}selected{% endif %}>
+                                {{ flow.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-small">Update</button>
+                    </form>
+                    <p class="text-muted" style="margin: 5px 0 0; font-size: 0.85em;">Remove the call flow to assign this number directly to a user instead.</p>
+                </div>
+            </details>
+
+            {% elif number.assignments %}
+            <!-- === DIRECT USER ROUTING === -->
+            <div class="routing-info">
+                <strong>Rings:</strong>
+                {% for a in number.assignments %}
+                <span class="badge badge-info">{{ a.staff_email.split('@')[0] }}</span>
+                {% endfor %}
+            </div>
+
+            <details style="margin-top: 10px;" open>
+                <summary style="cursor: pointer; color: #6c757d; font-size: 0.9em;">
+                    Manage assigned users ({{ number.assignments|length }})
+                </summary>
+                <div style="padding: 10px; background: #f8f9fa; border-radius: 5px; margin-top: 5px;">
+                    <div style="margin-bottom: 10px; padding-left: 10px; border-left: 3px solid #e9ecef;">
+                        {% for a in number.assignments %}
+                        <div style="display: flex; align-items: center; gap: 10px; margin-top: 5px;">
+                            <span>{{ a.staff_email.split('@')[0] }}</span>
+                            <form method="post" action="{{ url_for('web.remove_assignment', assignment_id=a.id) }}" style="margin: 0;">
+                                <button type="submit" class="btn btn-small btn-danger confirm-delete">Remove</button>
+                            </form>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    {% set assigned_emails = number.assignments | map(attribute='staff_email') | list %}
+                    {% set available_users = all_users | selectattr('staff_email') | rejectattr('staff_email', 'in', assigned_emails) | list %}
+                    {% if available_users %}
+                    <form method="post" action="{{ url_for('web.add_assignment', sid=number.sid) }}" class="inline-form" style="margin-top: 5px;">
+                        <select name="staff_email" required style="padding: 6px; min-width: 200px;">
+                            <option value="">-- Add user --</option>
+                            {% for u in available_users %}
+                            <option value="{{ u.staff_email }}">{{ u.friendly_name or u.staff_email.split('@')[0] }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-small">Assign</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </details>
+
+            {% else %}
+            <!-- === NO ROUTING === -->
+            <div class="routing-info" style="background: #fdecea; border-left-color: #e74c3c;">
+                <strong>No routing configured</strong> - Calls will get a "not configured" message
+            </div>
+
+            <div style="margin-top: 10px; display: flex; gap: 20px; align-items: flex-start;">
+                <!-- Option A: Assign to call flow -->
+                <div style="flex: 1; padding: 10px; background: #f8f9fa; border-radius: 5px;">
+                    <strong style="font-size: 0.9em;">Route via call flow</strong>
+                    <p class="text-muted" style="margin: 4px 0 8px; font-size: 0.85em;">For shared numbers routed to a queue/team</p>
+                    <form method="post" action="{{ url_for('web.assign_call_flow', sid=number.sid) }}" class="inline-form">
+                        <select name="call_flow_id" required style="padding: 6px; min-width: 180px;">
+                            <option value="">-- Select --</option>
+                            {% for flow in call_flows %}
+                            <option value="{{ flow.id }}">{{ flow.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-small">Set</button>
+                    </form>
+                </div>
+
+                <div style="display: flex; align-items: center; padding-top: 30px; color: #6c757d; font-weight: bold;">OR</div>
+
+                <!-- Option B: Assign to user -->
+                <div style="flex: 1; padding: 10px; background: #f8f9fa; border-radius: 5px;">
+                    <strong style="font-size: 0.9em;">Assign to user</strong>
+                    <p class="text-muted" style="margin: 4px 0 8px; font-size: 0.85em;">For direct numbers that ring a specific person</p>
+                    <form method="post" action="{{ url_for('web.add_assignment', sid=number.sid) }}" class="inline-form">
+                        <select name="staff_email" required style="padding: 6px; min-width: 180px;">
+                            <option value="">-- Select user --</option>
+                            {% for u in all_users %}
+                            {% if u.staff_email %}
+                            <option value="{{ u.staff_email }}">{{ u.friendly_name or u.staff_email.split('@')[0] }}</option>
+                            {% endif %}
+                            {% endfor %}
+                        </select>
+                        <input type="hidden" name="can_receive" value="1">
+                        <input type="hidden" name="can_make" value="1">
+                        <button type="submit" class="btn btn-small">Assign</button>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Section (for Caller ID) - only needed for call flow numbers -->
+            {% if not number.assignments %}
+            <form method="post" action="{{ url_for('web.update_phone_section', sid=number.sid) }}" class="inline-form" style="margin-top: 8px;">
+                {% if sections %}
+                <select name="section" style="padding: 6px; min-width: 200px;">
+                    <option value="">-- No Section --</option>
+                    {% for section in sections %}
+                    <option value="{{ section.name }}" {% if number.section == section.name %}selected{% endif %}>
+                        {{ section.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-small">Set Section</button>
+                {% if number.section %}
+                <span class="badge badge-info" style="margin-left: 8px;">Caller ID: {{ number.section }}</span>
+                {% endif %}
+                {% else %}
+                <span class="text-muted">Cannot load sections from Peter</span>
+                {% if number.section %}
+                <span class="badge badge-info" style="margin-left: 8px;">Current: {{ number.section }}</span>
+                {% endif %}
+                {% endif %}
+            </form>
+            {% endif %}
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="empty-state">
+            <h3>No phone numbers found</h3>
+            <p class="text-muted">Click "Sync from Twilio" to import your phone numbers.</p>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Caller ID Coverage Report -->
+{% if uncovered_users %}
+<div class="card" style="margin-top: 20px; border-left: 4px solid #e74c3c;">
+    <h3 style="color: #e74c3c;">Caller ID Coverage Gap</h3>
+    <p class="text-muted">
+        These {{ product_name }} users have sections in Peter that don't have a phone number assigned.
+        They won't get an auto-selected caller ID when using the softphone.
+    </p>
+    <table>
+        <thead>
+            <tr>
+                <th>User</th>
+                <th>Extension</th>
+                <th>Section (from Peter)</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for user in uncovered_users %}
+            <tr>
+                <td>{{ user.email.split('@')[0] }}</td>
+                <td>{{ user.extension }}</td>
+                <td><span class="badge badge-warning">{{ user.section }}</span></td>
+                <td class="text-muted">Assign a phone number to section "{{ user.section }}" above</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% elif peter_available and covered_sections %}
+<div class="card" style="margin-top: 20px; border-left: 4px solid #27ae60;">
+    <h3 style="color: #27ae60;">Caller ID Coverage Complete</h3>
+    <p class="text-muted">
+        All {{ product_name }} users with sections have matching phone numbers for caller ID.
+        Covered sections:
+        {% for section in covered_sections %}
+        <span class="badge badge-success">{{ section }}</span>
+        {% endfor %}
+    </p>
+</div>
+{% elif not peter_available %}
+<div class="card" style="margin-top: 20px; border-left: 4px solid #f39c12;">
+    <h3 style="color: #f39c12;">Peter Unavailable</h3>
+    <p class="text-muted">
+        Cannot check caller ID coverage - Peter is not responding.
+        Section assignments will use cached values.
+    </p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Loading states for form submissions
+document.querySelectorAll('form').forEach(form => {
+    form.addEventListener('submit', function() {
+        const btn = this.querySelector('button[type="submit"]');
+        if (btn && !btn.disabled) {
+            btn.disabled = true;
+            btn.dataset.originalText = btn.textContent;
+            btn.textContent = 'Processing...';
+            btn.style.opacity = '0.7';
+        }
+    });
+});
+</script>
+{% endblock %}

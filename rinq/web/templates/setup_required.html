@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title_suffix %} - Setup Required{% endblock %}
+
+{% block content %}
+<div class="setup-guide">
+    <div class="setup-icon">📞</div>
+    <h3>Twilio Not Configured</h3>
+    <p>
+        To use {{ product_name }}, you need to configure your Twilio credentials.
+    </p>
+
+    <div style="text-align: left; max-width: 500px; margin: 20px auto;">
+        <h4>Setup Steps:</h4>
+        <ol style="line-height: 2;">
+            <li>Log in to <a href="https://console.twilio.com" target="_blank">console.twilio.com</a></li>
+            <li>Find your <strong>Account SID</strong> and <strong>Auth Token</strong></li>
+            <li>Add them to your <code>.env</code> file:
+                <pre style="background: #f8f9fa; padding: 10px; border-radius: 5px; margin-top: 5px;">
+TWILIO_ACCOUNT_SID=ACxxxxxxxx...
+TWILIO_AUTH_TOKEN=your-auth-token</pre>
+            </li>
+            <li>Restart {{ product_name }}</li>
+        </ol>
+    </div>
+</div>
+{% endblock %}

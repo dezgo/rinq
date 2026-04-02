@@ -1,0 +1,626 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+.settings-card {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+.settings-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+}
+.settings-header h3 {
+    margin: 0;
+    font-size: 1em;
+}
+.settings-body {
+    display: none;
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #ddd;
+}
+.settings-body.active {
+    display: block;
+}
+.current-voice {
+    color: #27ae60;
+    font-weight: 600;
+}
+.tts-form label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 5px;
+    font-size: 0.9em;
+}
+.tts-form textarea {
+    width: 100%;
+    min-height: 120px;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 1em;
+    font-family: inherit;
+    resize: vertical;
+}
+.tts-form select {
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 1em;
+}
+.preview-section {
+    margin-top: 15px;
+    padding: 15px;
+    background: #e8f8e8;
+    border-radius: 8px;
+    border: 1px solid #c3e6c3;
+}
+.preview-section audio {
+    width: 100%;
+    margin-top: 10px;
+}
+.action-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+.loading {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    color: #6c757d;
+    margin-top: 10px;
+}
+.loading.active {
+    display: flex;
+}
+.spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+.error-message {
+    color: #dc3545;
+    font-size: 0.9em;
+    margin-top: 10px;
+    display: none;
+}
+.error-message.visible {
+    display: block;
+}
+.btn-active {
+    background: #2980b9 !important;
+    color: white !important;
+    border-color: #2471a3 !important;
+}
+.type-row:hover {
+    background: #f0f7ff;
+}
+.type-row-selected {
+    background: #e3f2fd !important;
+}
+.type-play-btn {
+    background: none;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 2px 8px;
+    cursor: pointer;
+    font-size: 0.85em;
+    color: #555;
+}
+.type-play-btn:hover {
+    background: #f0f0f0;
+    border-color: #999;
+}
+.not-configured {
+    padding: 20px;
+    background: #f8d7da;
+    border-radius: 5px;
+    color: #721c24;
+    text-align: center;
+}
+{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <div>
+        <h2 style="margin: 0;">🎙️ AI Voice Generator</h2>
+        <p class="text-muted" style="margin: 5px 0 0 0;">
+            Generate consistent voice messages using your default voice settings.
+        </p>
+    </div>
+    <a href="{{ url_for('web.admin_audio') }}" class="btn btn-secondary">← Back to Audio Files</a>
+</div>
+
+<!-- Voice Settings (collapsed by default) -->
+<div class="settings-card">
+    <div class="settings-header" onclick="toggleSettings()">
+        <h3>⚙️ Voice Settings</h3>
+        <div>
+            <span class="current-voice">{{ current_voice_name }}</span>
+            <span style="margin-left: 10px; color: #666;">▼</span>
+        </div>
+    </div>
+    <div class="settings-body" id="settings-body">
+        <form method="post" action="{{ url_for('web.save_tts_settings') }}">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div>
+                    <label style="display: block; font-weight: 600; margin-bottom: 8px;">Provider</label>
+                    <select name="provider" id="settings-provider" onchange="updateVoiceOptions()" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                        {% if elevenlabs_available %}
+                        <option value="elevenlabs" {% if default_provider == 'elevenlabs' %}selected{% endif %}>ElevenLabs (Premium)</option>
+                        {% endif %}
+                        {% if cartesia_available %}
+                        <option value="cartesia" {% if default_provider == 'cartesia' %}selected{% endif %}>Cartesia Sonic 3</option>
+                        {% endif %}
+                        {% if google_available %}
+                        <option value="google" {% if default_provider == 'google' %}selected{% endif %}>Google Cloud TTS</option>
+                        {% endif %}
+                    </select>
+                </div>
+                <div>
+                    <label style="display: block; font-weight: 600; margin-bottom: 8px;">Voice</label>
+                    <select name="voice" id="settings-voice" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                        <!-- Populated by JavaScript -->
+                    </select>
+                </div>
+            </div>
+            <div style="margin-top: 15px;">
+                <button type="submit" class="btn">Save Voice Settings</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if not elevenlabs_available and not cartesia_available and not google_available %}
+<div class="not-configured">
+    <h3>TTS Not Configured</h3>
+    <p>No TTS providers are available. Please configure:</p>
+    <ul style="text-align: left; display: inline-block;">
+        <li><strong>Cartesia:</strong> Add <code>CARTESIA_API_KEY</code> to your .env</li>
+        <li><strong>ElevenLabs:</strong> Add <code>ELEVENLABS_API_KEY</code> to your .env</li>
+        <li><strong>Google TTS:</strong> Add credentials to <code>/bot-team/.secrets/google/credentials.json</code></li>
+    </ul>
+</div>
+{% else %}
+
+<!-- Audio Type Picker -->
+<div class="card" style="margin-bottom: 20px;">
+    <h3 style="margin: 0 0 5px 0;">What are you recording?</h3>
+    <p class="text-muted" style="margin: 0 0 15px 0; font-size: 0.85em;">
+        Select a type to pre-fill the script. The type and name are auto-set when you save.
+    </p>
+    <table style="font-size: 0.9em; width: 100%;">
+        {% set current_category = {'val': ''} %}
+        {% for t in audio_type_defs %}
+        {% if t.category != current_category.val %}
+        {% if current_category.update({'val': t.category}) %}{% endif %}
+        <tr>
+            <td colspan="3" style="padding: 8px 0 4px 0; font-weight: 600; font-size: 0.8em; color: #1565c0; text-transform: uppercase; border-bottom: 1px solid #e0e0e0;">{{ t.category }}</td>
+        </tr>
+        {% endif %}
+        <tr id="type-row-{{ t.value }}" class="type-row {% if t.value == prefill_type %}type-row-selected{% endif %}"
+            onclick="selectAudioType('{{ t.value }}')" style="cursor: pointer;">
+            <td style="padding: 8px 10px; width: 40px; text-align: center;">
+                {% if t.per_flow %}
+                {% if t.count > 0 %}
+                <span style="color: #27ae60; font-weight: bold; font-size: 0.85em;">{{ t.count }}</span>
+                {% else %}
+                <span style="color: #ccc; font-size: 1.1em;">&#9711;</span>
+                {% endif %}
+                {% elif t.has_recording %}
+                <span style="color: #27ae60; font-weight: bold; font-size: 1.1em;">&#10003;</span>
+                {% else %}
+                <span style="color: #ccc; font-size: 1.1em;">&#9711;</span>
+                {% endif %}
+            </td>
+            <td style="padding: 8px 10px;">
+                <strong>{{ t.label }}</strong>
+                {% if t.per_flow %}<span style="color: #888; font-size: 0.75em; margin-left: 4px;">per flow</span>{% endif %}
+                <br><span style="color: #666; font-size: 0.85em;">{{ t.description }}</span>
+                {% if t.per_flow and t.recordings %}
+                <br>
+                {% for rec in t.recordings %}
+                <span style="font-size: 0.8em; color: #444; margin-right: 10px;">
+                    {{ rec.name }}
+                    {% if rec.url %}<button type="button" class="type-play-btn" onclick="event.stopPropagation(); playTypeAudio(this, '{{ rec.url }}')" style="font-size: 0.9em; padding: 0 5px;">&#9654;</button>{% endif %}
+                </span>
+                {% endfor %}
+                {% endif %}
+            </td>
+            <td style="padding: 8px 10px; white-space: nowrap;">
+                {% if not t.per_flow %}
+                    {% if t.has_recording and t.audio_url %}
+                    <button type="button" class="type-play-btn" onclick="event.stopPropagation(); playTypeAudio(this, '{{ t.audio_url }}')" title="Play current recording">&#9654; Play</button>
+                    {% else %}
+                    <span style="color: #999; font-size: 0.85em;">Robot voice</span>
+                    {% endif %}
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+
+<div class="card">
+    <h3 style="margin: 0 0 15px 0;">Generate Audio</h3>
+
+    <form class="tts-form" id="tts-form">
+        <input type="hidden" id="selected-type" value="{{ prefill_type or '' }}">
+        <div style="margin-bottom: 15px;">
+            <label>Text to speak</label>
+            <textarea name="text" id="tts-text" placeholder="Select an audio type above, or enter custom text...">{{ prefill_text or '' }}</textarea>
+        </div>
+
+        <div style="margin-bottom: 15px;">
+            <label>Style</label>
+            <select name="style" id="tts-style">
+                <option value="0.3">Expressive (more variation)</option>
+                <option value="0.5" selected>Balanced</option>
+                <option value="0.7">Stable (more consistent)</option>
+            </select>
+            <small class="text-muted" style="display: block; margin-top: 5px;">
+                Controls voice consistency. More stable = less variation between generations.
+            </small>
+        </div>
+
+        <div class="action-buttons">
+            <button type="button" class="btn" onclick="previewTTS()" style="flex: 2;">🔊 Preview</button>
+            <button type="button" class="btn btn-secondary" onclick="saveTTS()" style="flex: 1;">💾 Save</button>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <span>Generating audio...</span>
+        </div>
+
+        <div class="error-message" id="error"></div>
+
+        <div class="preview-section" id="preview" style="display: none;">
+            <strong>✓ Preview ready:</strong>
+            <audio controls id="audio"></audio>
+        </div>
+    </form>
+</div>
+
+{% endif %}
+
+<!-- Save Modal -->
+<div id="save-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+    <div style="background: white; padding: 30px; border-radius: 10px; max-width: 500px; width: 90%;">
+        <h3 style="margin: 0 0 20px 0;">💾 Save Audio File</h3>
+        <form id="save-form" method="post" action="{{ url_for('web.save_tts_audio') }}">
+            <input type="hidden" name="provider" id="save-provider" value="{{ default_provider }}">
+            <input type="hidden" name="voice" id="save-voice" value="{{ default_voice }}">
+            <input type="hidden" name="text" id="save-text">
+            <input type="hidden" name="stability" id="save-stability">
+            <input type="hidden" name="speed" id="save-speed">
+
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; font-weight: 600; margin-bottom: 5px;">Name</label>
+                <input type="text" name="name" id="save-name" required
+                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;"
+                       placeholder="e.g., Canberra Closed Message">
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; font-weight: 600; margin-bottom: 5px;">Type</label>
+                <select name="file_type" id="save-file-type" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                    <optgroup label="Call Flow">
+                        <option value="greeting">Greeting</option>
+                        <option value="closed">Closed Message</option>
+                        <option value="voicemail">Voicemail Prompt</option>
+                    </optgroup>
+                    <optgroup label="Queue">
+                        <option value="hold_music">Hold Music</option>
+                        <option value="queue_welcome_vm_cb">Queue Welcome (VM + Callback)</option>
+                        <option value="queue_welcome_vm">Queue Welcome (Voicemail Only)</option>
+                        <option value="queue_welcome_cb">Queue Welcome (Callback Only)</option>
+                        <option value="callback_reminder">Callback Reminder</option>
+                    </optgroup>
+                    <optgroup label="Queue Exit">
+                        <option value="voicemail_escape">Voicemail Escape</option>
+                        <option value="callback_confirm">Callback Confirm</option>
+                        <option value="queue_no_agents">Queue No Agents</option>
+                    </optgroup>
+                    <optgroup label="Extension">
+                        <option value="ext_prompt">Extension Prompt</option>
+                        <option value="ext_unavailable">Extension Unavailable</option>
+                    </optgroup>
+                </select>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; font-weight: 600; margin-bottom: 5px;">Description</label>
+                <input type="text" name="description" id="save-description"
+                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;"
+                       placeholder="Optional description">
+            </div>
+
+            <div style="display: flex; gap: 10px;">
+                <button type="submit" class="btn" style="flex: 1;">Save Audio File</button>
+                <button type="button" class="btn btn-secondary" onclick="closeSaveModal()" style="flex: 1;">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Voice data from server
+const voices = {
+    elevenlabs: {{ elevenlabs_voices | tojson | safe }},
+    cartesia: {{ cartesia_voices | tojson | safe }},
+    google: {{ google_voices | tojson | safe }}
+};
+
+const defaultProvider = '{{ default_provider }}';
+const defaultVoice = '{{ default_voice }}';
+
+// Store previewed audio blob
+let previewedAudio = null;
+
+function toggleSettings() {
+    document.getElementById('settings-body').classList.toggle('active');
+}
+
+function updateVoiceOptions() {
+    const provider = document.getElementById('settings-provider').value;
+    const voiceSelect = document.getElementById('settings-voice');
+    const providerVoices = voices[provider] || {};
+
+    voiceSelect.innerHTML = '';
+
+    for (const [group, voiceList] of Object.entries(providerVoices)) {
+        const optgroup = document.createElement('optgroup');
+        optgroup.label = group;
+
+        for (const [voiceId, info] of voiceList) {
+            const option = document.createElement('option');
+            option.value = voiceId;
+            option.textContent = `${info.name} (${info.gender || info.accent || ''})`;
+            if (voiceId === defaultVoice) {
+                option.selected = true;
+            }
+            optgroup.appendChild(option);
+        }
+
+        voiceSelect.appendChild(optgroup);
+    }
+}
+
+async function previewTTS() {
+    const text = document.getElementById('tts-text').value.trim();
+    if (!text) {
+        showError('Please enter some text to convert to speech.');
+        return;
+    }
+
+    const loading = document.getElementById('loading');
+    const error = document.getElementById('error');
+    const preview = document.getElementById('preview');
+    const audio = document.getElementById('audio');
+
+    loading.classList.add('active');
+    error.classList.remove('visible');
+    preview.style.display = 'none';
+    previewedAudio = null;
+
+    try {
+        const formData = new FormData();
+        formData.append('provider', defaultProvider);
+        formData.append('text', text);
+        formData.append('voice', defaultVoice);
+
+        const style = document.getElementById('tts-style').value;
+        if (defaultProvider === 'elevenlabs') {
+            formData.append('stability', style);
+        } else {
+            // For Cartesia/Google, map style to speed (0.3->0.9, 0.5->1.0, 0.7->1.1)
+            const speed = style === '0.3' ? '0.9' : style === '0.7' ? '1.1' : '1.0';
+            formData.append('speed', speed);
+        }
+
+        const response = await fetch('{{ url_for("web.preview_tts") }}', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.error || 'Failed to generate audio');
+        }
+
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+
+        previewedAudio = blob;
+        audio.src = url;
+        preview.style.display = 'block';
+        audio.play();
+
+    } catch (err) {
+        showError(err.message);
+    } finally {
+        loading.classList.remove('active');
+    }
+}
+
+function showError(message) {
+    const error = document.getElementById('error');
+    error.textContent = 'Error: ' + message;
+    error.classList.add('visible');
+}
+
+function saveTTS() {
+    const text = document.getElementById('tts-text').value.trim();
+    if (!text) {
+        showError('Please enter some text first.');
+        return;
+    }
+
+    if (!previewedAudio) {
+        showError('Please preview the audio first before saving.');
+        return;
+    }
+
+    document.getElementById('save-text').value = text;
+
+    const style = document.getElementById('tts-style').value;
+    if (defaultProvider === 'elevenlabs') {
+        document.getElementById('save-stability').value = style;
+        document.getElementById('save-speed').value = '';
+    } else {
+        document.getElementById('save-stability').value = '';
+        const speed = style === '0.3' ? '0.9' : style === '0.7' ? '1.1' : '1.0';
+        document.getElementById('save-speed').value = speed;
+    }
+    document.getElementById('save-provider').value = defaultProvider;
+
+    // Auto-select type if one was chosen from the picker
+    const selectedType = document.getElementById('selected-type').value;
+    if (selectedType) {
+        const typeSelect = document.getElementById('save-file-type');
+        typeSelect.value = selectedType;
+        // Auto-fill name from type label
+        const typeDef = audioTypeDefs.find(t => t.value === selectedType);
+        if (typeDef && !document.getElementById('save-name').value) {
+            document.getElementById('save-name').value = typeDef.label;
+        }
+    }
+
+    document.getElementById('save-modal').style.display = 'flex';
+    document.getElementById('save-name').focus();
+}
+
+async function submitSave(event) {
+    event.preventDefault();
+
+    if (!previewedAudio) {
+        alert('No previewed audio to save. Please preview first.');
+        return;
+    }
+
+    const form = document.getElementById('save-form');
+    const formData = new FormData(form);
+    formData.append('audio_data', previewedAudio, 'audio.mp3');
+
+    try {
+        const response = await fetch('{{ url_for("web.save_tts_audio") }}', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (response.redirected) {
+            window.location.href = response.url;
+        } else if (!response.ok) {
+            const text = await response.text();
+            alert('Failed to save: ' + text);
+        } else {
+            window.location.href = '{{ url_for("web.admin_audio") }}';
+        }
+    } catch (err) {
+        alert('Failed to save: ' + err.message);
+    }
+}
+
+function closeSaveModal() {
+    document.getElementById('save-modal').style.display = 'none';
+}
+
+document.getElementById('save-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeSaveModal();
+});
+
+document.getElementById('save-form').addEventListener('submit', submitSave);
+
+// Inline audio player for existing recordings
+let currentTypeAudio = null;
+function playTypeAudio(btn, url) {
+    // Stop any currently playing
+    if (currentTypeAudio) {
+        currentTypeAudio.pause();
+        currentTypeAudio = null;
+        // Reset all play buttons
+        document.querySelectorAll('.type-play-btn').forEach(b => b.innerHTML = '&#9654; Play');
+    }
+    const audio = new Audio(url);
+    currentTypeAudio = audio;
+    btn.innerHTML = '&#9632; Stop';
+    audio.play();
+    audio.onended = () => {
+        btn.innerHTML = '&#9654; Play';
+        currentTypeAudio = null;
+    };
+    btn.onclick = function(e) {
+        e.stopPropagation();
+        audio.pause();
+        btn.innerHTML = '&#9654; Play';
+        currentTypeAudio = null;
+        btn.onclick = function(e2) { e2.stopPropagation(); playTypeAudio(btn, url); };
+    };
+}
+
+// Audio type data from server
+const audioTypeDefs = {{ audio_type_defs | tojson | safe }};
+
+function selectAudioType(typeValue) {
+    const typeDef = audioTypeDefs.find(t => t.value === typeValue);
+    if (!typeDef) return;
+
+    // Update hidden field
+    document.getElementById('selected-type').value = typeValue;
+
+    // Pre-fill text (use existing tts_text if replacing, otherwise default script)
+    const textarea = document.getElementById('tts-text');
+    textarea.value = typeDef.existing_text;
+
+    // Highlight selected row
+    document.querySelectorAll('.type-row').forEach(row => row.classList.remove('type-row-selected'));
+    const row = document.getElementById('type-row-' + typeValue);
+    if (row) row.classList.add('type-row-selected');
+
+    // Clear any previous preview
+    document.getElementById('preview').style.display = 'none';
+    previewedAudio = null;
+
+    // Scroll to the text area
+    textarea.focus();
+}
+
+// Initialize voice dropdown
+document.addEventListener('DOMContentLoaded', function() {
+    updateVoiceOptions();
+
+    // Pre-populate from URL params (for regenerate)
+    const params = new URLSearchParams(window.location.search);
+    const text = params.get('text');
+    if (text) {
+        document.getElementById('tts-text').value = text;
+    }
+
+    // If a type was pre-selected via URL, highlight it
+    const prefillType = '{{ prefill_type or '' }}';
+    if (prefillType) {
+        selectAudioType(prefillType);
+        // Re-apply URL text if present (overrides type default)
+        if (text) {
+            document.getElementById('tts-text').value = text;
+        }
+    }
+});
+</script>
+{% endblock %}

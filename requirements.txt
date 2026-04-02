@@ -1,0 +1,21 @@
+# Rinq — Cloud Phone System
+# Core
+flask>=3.0
+gunicorn>=21.0
+python-dotenv>=1.0
+pyyaml>=6.0
+werkzeug>=3.0
+
+# Auth
+google-auth>=2.0
+google-auth-oauthlib>=1.0
+google-auth-httplib2>=0.2
+
+# Google APIs (Drive, Gmail for recordings)
+google-api-python-client>=2.0
+
+# Twilio
+twilio>=9.0
+
+# HTTP
+requests>=2.31

@@ -1,0 +1,22 @@
+name: Rinq
+product_name: Rinq
+description: Cloud Phone System
+version: 1.0.0
+personality: Reliable and professional, powering communications
+
+server:
+  host: 0.0.0.0
+  port: 5000
+
+auth:
+  mode: standalone
+
+# Twilio configuration
+twilio:
+  # Account SID and Auth Token come from environment variables
+  # TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN
+
+# Call recording settings
+recordings:
+  group_email: ""
+  default_enabled: true

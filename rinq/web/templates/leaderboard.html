@@ -1,0 +1,315 @@
+{% extends "base.html" %}
+{% set page_title = "Leaderboard" %}
+{% set active_nav = "leaderboard" %}
+
+{% block extra_css %}
+<style>
+    .leaderboard-header {
+        text-align: center;
+        margin-bottom: 25px;
+    }
+
+    .leaderboard-header h2 {
+        font-size: 2em;
+        margin: 0 0 5px 0;
+        color: #2c3e50;
+    }
+
+    .leaderboard-header p {
+        color: #6c757d;
+        margin: 0;
+    }
+
+    /* Filters row */
+    .filters-row {
+        display: flex;
+        gap: 15px;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin-bottom: 30px;
+    }
+
+    .period-tabs {
+        display: flex;
+        gap: 8px;
+    }
+
+    .period-tabs a {
+        padding: 10px 20px;
+        border-radius: 25px;
+        text-decoration: none;
+        color: #6c757d;
+        background: #f8f9fa;
+        border: 2px solid #e9ecef;
+        font-weight: 600;
+        transition: all 0.2s;
+        font-size: 0.9em;
+    }
+
+    .period-tabs a:hover {
+        border-color: #e67e22;
+        color: #e67e22;
+    }
+
+    .period-tabs a.active {
+        background: #e67e22;
+        border-color: #e67e22;
+        color: white;
+    }
+
+    /* Section headers */
+    .section-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 30px 0 15px 0;
+        padding-bottom: 10px;
+        border-bottom: 2px solid #e9ecef;
+    }
+
+    .section-header:first-of-type {
+        margin-top: 0;
+    }
+
+    .section-header h3 {
+        margin: 0;
+        font-size: 1.3em;
+        color: #2c3e50;
+    }
+
+    .section-header .emoji {
+        font-size: 1.5em;
+    }
+
+    /* Leaderboard table */
+    .leaderboard-table {
+        background: white;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+    }
+
+    .leaderboard-table table {
+        margin: 0;
+        table-layout: fixed;
+        width: 100%;
+    }
+
+    .leaderboard-table th {
+        background: #f8f9fa;
+        padding: 12px 15px;
+        font-size: 0.85em;
+        text-transform: uppercase;
+        color: #6c757d;
+    }
+
+    .leaderboard-table td {
+        padding: 14px 15px;
+        vertical-align: middle;
+    }
+
+    .leaderboard-table tbody tr:hover {
+        background: #fef9e7;
+    }
+
+    /* Column widths */
+    .col-rank { width: 70px; }
+    .col-value { width: 100px; text-align: right; font-weight: 600; color: #2c3e50; }
+    .col-bar { width: 150px; }
+
+    /* Rank badges */
+    .rank-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        font-weight: bold;
+        font-size: 1.1em;
+    }
+
+    .rank-badge.gold {
+        background: linear-gradient(135deg, #f1c40f, #f39c12);
+        color: white;
+        box-shadow: 0 2px 8px rgba(241, 196, 15, 0.4);
+    }
+
+    .rank-badge.silver {
+        background: linear-gradient(135deg, #bdc3c7, #95a5a6);
+        color: white;
+        box-shadow: 0 2px 8px rgba(189, 195, 199, 0.4);
+    }
+
+    .rank-badge.bronze {
+        background: linear-gradient(135deg, #d35400, #e67e22);
+        color: white;
+        box-shadow: 0 2px 8px rgba(211, 84, 0, 0.4);
+    }
+
+    .rank-badge.default {
+        background: #e9ecef;
+        color: #6c757d;
+    }
+
+    .agent-name {
+        font-weight: 600;
+        color: #2c3e50;
+    }
+
+    /* Bar */
+    .bar-track {
+        background: #e9ecef;
+        border-radius: 4px;
+        height: 8px;
+        width: 100%;
+    }
+
+    .bar-fill {
+        height: 100%;
+        border-radius: 4px;
+        background: #e67e22;
+        transition: width 0.3s;
+    }
+
+    /* Empty state */
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: #6c757d;
+    }
+
+    .empty-state h3 {
+        color: #2c3e50;
+        margin-bottom: 10px;
+    }
+
+    @media (max-width: 768px) {
+        .period-tabs { flex-wrap: wrap; justify-content: center; }
+        .col-bar { display: none; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="leaderboard-header">
+    <h2>Leaderboard</h2>
+    <p>See who's leading the phones!</p>
+</div>
+
+<div class="filters-row">
+    <div class="period-tabs">
+        <a href="{{ url_for('web.leaderboard', period='today', queue=current_queue) }}" class="{{ 'active' if period == 'today' else '' }}">Today</a>
+        <a href="{{ url_for('web.leaderboard', period='yesterday', queue=current_queue) }}" class="{{ 'active' if period == 'yesterday' else '' }}">Yesterday</a>
+        <a href="{{ url_for('web.leaderboard', period='this_week', queue=current_queue) }}" class="{{ 'active' if period == 'this_week' else '' }}">This Week</a>
+        <a href="{{ url_for('web.leaderboard', period='this_month', queue=current_queue) }}" class="{{ 'active' if period == 'this_month' else '' }}">This Month</a>
+    </div>
+    {% if queues | length > 1 %}
+    <select onchange="window.location.href='{{ url_for('web.leaderboard', period=period) }}&queue='+this.value"
+            style="padding: 8px 12px; border: 1px solid #dee2e6; border-radius: 20px; font-size: 0.9em;">
+        <option value="">All Queues</option>
+        {% for q in queues %}
+        <option value="{{ q.id }}" {% if current_queue == q.id|string %}selected{% endif %}>{{ q.name }}</option>
+        {% endfor %}
+    </select>
+    {% endif %}
+</div>
+
+{% if by_calls and by_calls[0].answered_calls > 0 %}
+
+{% set max_calls = by_calls[0].answered_calls if by_calls else 1 %}
+{% set max_time = by_talk_time[0].total_duration_seconds if by_talk_time else 1 %}
+
+<!-- Most Calls Answered -->
+<div class="section-header">
+    <span class="emoji">📞</span>
+    <h3>Most Calls Answered</h3>
+</div>
+<div class="leaderboard-table">
+    <table>
+        <thead>
+            <tr>
+                <th class="col-rank">Rank</th>
+                <th>Agent</th>
+                <th class="col-value">Calls</th>
+                <th class="col-bar"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for agent in by_calls %}
+            {% if agent.answered_calls > 0 %}
+            <tr>
+                <td>
+                    <span class="rank-badge {% if loop.index == 1 %}gold{% elif loop.index == 2 %}silver{% elif loop.index == 3 %}bronze{% else %}default{% endif %}">
+                        {{ loop.index }}
+                    </span>
+                </td>
+                <td><span class="agent-name">{{ agent.display_name }}</span></td>
+                <td class="col-value">{{ agent.answered_calls }}</td>
+                <td class="col-bar">
+                    <div class="bar-track">
+                        <div class="bar-fill" style="width: {{ (agent.answered_calls / max_calls * 100) | round(1) }}%"></div>
+                    </div>
+                </td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Most Talk Time -->
+<div class="section-header">
+    <span class="emoji">🎙️</span>
+    <h3>Most Talk Time</h3>
+</div>
+<div class="leaderboard-table">
+    <table>
+        <thead>
+            <tr>
+                <th class="col-rank">Rank</th>
+                <th>Agent</th>
+                <th class="col-value">Time</th>
+                <th class="col-bar"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for agent in by_talk_time %}
+            {% if agent.total_duration_seconds > 0 %}
+            <tr>
+                <td>
+                    <span class="rank-badge {% if loop.index == 1 %}gold{% elif loop.index == 2 %}silver{% elif loop.index == 3 %}bronze{% else %}default{% endif %}">
+                        {{ loop.index }}
+                    </span>
+                </td>
+                <td><span class="agent-name">{{ agent.display_name }}</span></td>
+                <td class="col-value">{{ format_duration(agent.total_duration_seconds) }}</td>
+                <td class="col-bar">
+                    <div class="bar-track">
+                        <div class="bar-fill" style="width: {{ (agent.total_duration_seconds / max_time * 100) | round(1) }}%"></div>
+                    </div>
+                </td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% else %}
+<div class="empty-state">
+    <h3>No call data yet</h3>
+    <p>Start making and taking calls to see the leaderboard!</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+{% if period == 'today' %}
+setTimeout(function() { window.location.reload(); }, 60000);
+{% endif %}
+</script>
+{% endblock %}

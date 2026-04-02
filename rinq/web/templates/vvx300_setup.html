@@ -1,0 +1,357 @@
+{% extends "base.html" %}
+
+{% block title_suffix %} - Polycom VVX 300 Setup{% endblock %}
+
+{% block extra_css %}
+.setup-guide {
+    max-width: 800px;
+}
+
+.step-card {
+    background: #fff;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 25px;
+    margin-bottom: 20px;
+}
+
+.step-card h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
+}
+
+.step-number {
+    display: inline-block;
+    background: #007bff;
+    color: #fff;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 28px;
+    font-weight: 600;
+    font-size: 0.9em;
+    margin-right: 8px;
+}
+
+.settings-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 10px 0;
+}
+
+.settings-table th,
+.settings-table td {
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+}
+
+.settings-table th {
+    background: #f8f9fa;
+    font-weight: 600;
+    color: #555;
+    width: 45%;
+}
+
+.settings-table td {
+    font-family: monospace;
+    font-size: 0.95em;
+}
+
+.settings-table .note {
+    font-family: inherit;
+    color: #6c757d;
+    font-style: italic;
+    font-size: 0.9em;
+}
+
+.your-creds {
+    background: #e8f4fd;
+    border: 1px solid #bee5eb;
+    border-radius: 6px;
+    padding: 15px;
+    margin-bottom: 20px;
+}
+
+.your-creds h4 {
+    margin: 0 0 10px 0;
+    color: #0c5460;
+}
+
+.credential-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+}
+
+.credential-item .label {
+    font-weight: 600;
+    color: #555;
+    min-width: 100px;
+}
+
+.credential-item .value {
+    font-family: monospace;
+    background: #fff;
+    padding: 3px 8px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+}
+
+.copy-icon {
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 1em;
+    background: none;
+    border: none;
+    padding: 2px 6px;
+    color: #666;
+}
+
+.copy-icon:hover {
+    color: #333;
+    transform: scale(1.1);
+}
+
+.copy-icon::before {
+    content: "\29C9";
+    font-weight: bold;
+}
+
+.copy-icon.copied::before {
+    content: "\2713";
+    color: #28a745;
+}
+
+.warning-box {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 6px;
+    padding: 12px 15px;
+    margin: 15px 0;
+    color: #856404;
+}
+
+.nav-path {
+    color: #6c757d;
+    font-size: 0.9em;
+    margin-bottom: 5px;
+}
+
+.nav-path strong {
+    color: #333;
+}
+
+.password-field {
+    font-family: monospace;
+    background: #fff;
+    padding: 3px 8px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    display: inline-block;
+}
+
+.action-icon {
+    cursor: pointer;
+    background: none;
+    border: none;
+    padding: 2px 6px;
+    color: #666;
+}
+
+.action-icon:hover {
+    color: #333;
+}
+{% endblock %}
+
+{% block content %}
+<div class="setup-guide">
+    <h2>Polycom VVX 300 Setup</h2>
+    <p class="text-muted">Step-by-step guide for configuring a Polycom VVX 300 desk phone with Twilio SIP.</p>
+    <p class="text-muted">Access your phone's web interface by entering its IP address in a browser.
+        You can find the IP on the phone screen: <strong>Settings &gt; Status &gt; Network &gt; TCP/IP Parameters</strong>.</p>
+
+    {% if credential %}
+    <div class="your-creds">
+        <h4>Your SIP Credentials</h4>
+        <p class="text-muted" style="margin: 0 0 10px 0;">You'll need these values during setup.</p>
+        <div class="credential-item">
+            <span class="label">Username</span>
+            <span class="value">{{ credential.username }}</span>
+            <span class="copy-icon" onclick="copyText('{{ credential.username }}', this)" title="Copy"></span>
+        </div>
+        {% if stored_password %}
+        <div class="credential-item">
+            <span class="label">Password</span>
+            <span class="password-field">
+                <span id="passwordDots">••••••••</span>
+                <span id="passwordText" style="display: none;">{{ stored_password }}</span>
+            </span>
+            <span class="action-icon" onclick="togglePassword(this)" title="Show/Hide">👁️</span>
+            <span class="copy-icon" onclick="copyText('{{ stored_password }}', this)" title="Copy"></span>
+        </div>
+        {% endif %}
+        {% if sip_domain %}
+        <div class="credential-item">
+            <span class="label">Domain</span>
+            <span class="value">{{ sip_domain }}</span>
+            <span class="copy-icon" onclick="copyText('{{ sip_domain }}', this)" title="Copy"></span>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Step 1: SIP Settings -->
+    <div class="step-card">
+        <h3><span class="step-number">1</span> SIP Settings</h3>
+        <p class="nav-path"><strong>Settings &gt; SIP</strong></p>
+
+        <h4>Local Settings</h4>
+        <table class="settings-table">
+            <tr><th>Local SIP Port</th><td>0 <span class="note">(auto)</span></td></tr>
+            <tr><th>Calls Per Line Key</th><td>24</td></tr>
+        </table>
+
+        <p>Scroll down to the <strong>Outbound Proxy</strong> and <strong>Server 1</strong> sections.</p>
+
+        <h4>Outbound Proxy</h4>
+        <table class="settings-table">
+            <tr><th>Address</th><td>{{ (sip_domain or 'yourdomain.sip.twilio.com') | replace('.sip.twilio.com', '.sip.sydney.twilio.com') }} <span class="copy-icon" onclick="copyText('{{ (sip_domain or 'yourdomain.sip.twilio.com') | replace('.sip.twilio.com', '.sip.sydney.twilio.com') }}', this)" title="Copy"></span></td></tr>
+            <tr><th>Port</th><td>5060</td></tr>
+            <tr><th>Transport</th><td>DNSnaptr <span class="note">(default — leave as-is)</span></td></tr>
+        </table>
+
+        <h4>Server 1</h4>
+        <table class="settings-table">
+            <tr><th>Address</th><td>{{ sip_domain or 'yourdomain.sip.twilio.com' }} <span class="copy-icon" onclick="copyText('{{ sip_domain or 'yourdomain.sip.twilio.com' }}', this)" title="Copy"></span></td></tr>
+            <tr><th>Port</th><td>5060</td></tr>
+            <tr><th>Transport</th><td>DNSnaptr</td></tr>
+            <tr><th>Expires (s)</th><td>600 <span class="note">(Twilio minimum — do not set lower)</span></td></tr>
+            <tr><th>Subscription Expires (s)</th><td>600</td></tr>
+            <tr><th>Register</th><td>Yes</td></tr>
+        </table>
+
+        <p>Click <strong>Save</strong> at the bottom of the page.</p>
+    </div>
+
+    <!-- Step 2: Line 1 Settings -->
+    <div class="step-card">
+        <h3><span class="step-number">2</span> Line 1 Settings</h3>
+        <p class="nav-path"><strong>Settings &gt; Lines &gt; Line 1</strong></p>
+
+        <h4>Identification</h4>
+        <table class="settings-table">
+            <tr><th>Display Name</th><td><span class="note">Your extension number (shown on phone screen)</span></td></tr>
+            <tr><th>Address</th><td>{{ credential.username if credential else 'your_sip_username' }} <span class="note">(your SIP username)</span></td></tr>
+            <tr><th>Type</th><td>Private</td></tr>
+            <tr><th>Number of Line Keys</th><td>1</td></tr>
+            <tr><th>Calls Per Line</th><td>24</td></tr>
+            <tr><th>Enable SRTP</th><td>Yes</td></tr>
+            <tr><th>Offer SRTP</th><td>No</td></tr>
+            <tr><th>Require SRTP</th><td>No</td></tr>
+            <tr><th>Server Auto Discovery</th><td>Enable</td></tr>
+        </table>
+
+        <h4>Authentication</h4>
+        <table class="settings-table">
+            <tr><th>Use Login Credentials</th><td>Disable</td></tr>
+            <tr><th>Domain</th><td>{{ sip_domain or 'yourdomain.sip.twilio.com' }} <span class="copy-icon" onclick="copyText('{{ sip_domain or 'yourdomain.sip.twilio.com' }}', this)" title="Copy"></span></td></tr>
+            <tr><th>User ID</th><td>{{ credential.username if credential else 'your_sip_username' }}</td></tr>
+            <tr><th>Password</th><td><span class="note">Your SIP password (see credentials above)</span></td></tr>
+        </table>
+
+        <div class="warning-box">
+            <strong>Important:</strong> The Domain field must be exactly <code>{{ sip_domain or 'yourdomain.sip.twilio.com' }}</code> — do NOT add a port number (e.g. <code>:5060</code>). Adding a port will break inbound calls.
+        </div>
+
+        <h4>Outbound Proxy</h4>
+        <table class="settings-table">
+            <tr><th>Address</th><td><span class="note">(leave blank — inherits from SIP settings)</span></td></tr>
+            <tr><th>Port</th><td>0</td></tr>
+            <tr><th>Transport</th><td>DNSnaptr <span class="note">(default)</span></td></tr>
+        </table>
+
+        <h4>Server 1</h4>
+        <table class="settings-table">
+            <tr><th>Address</th><td>{{ (sip_domain or 'yourdomain') | replace('.sip.twilio.com', '') }}.sip.sydney.twilio.com <span class="copy-icon" onclick="copyText('{{ (sip_domain or 'yourdomain') | replace('.sip.twilio.com', '') }}.sip.sydney.twilio.com', this)" title="Copy"></span></td></tr>
+            <tr><th>Port</th><td>5060</td></tr>
+            <tr><th>Transport</th><td>UDPOnly</td></tr>
+            <tr><th>Expires (s)</th><td>600</td></tr>
+            <tr><th>Subscription Expires (s)</th><td>600</td></tr>
+        </table>
+
+        <p>Click <strong>Save</strong>. The phone will reboot and register with Twilio.</p>
+    </div>
+
+    <!-- Step 3: Verify -->
+    <div class="step-card">
+        <h3><span class="step-number">3</span> Verify Registration</h3>
+        <p>After the phone reboots, check that it registered successfully:</p>
+        <ul>
+            <li>On the phone screen: <strong>Settings &gt; Status &gt; Lines &gt; Line 1</strong> should show <strong>Registered</strong></li>
+            <li>Try making a test call to confirm outbound works</li>
+            <li>Have someone call you to confirm inbound works</li>
+        </ul>
+    </div>
+
+    <!-- Troubleshooting -->
+    <div class="step-card">
+        <h3>Troubleshooting</h3>
+        <table class="settings-table">
+            <tr>
+                <th>Line shows "Unregistered"</th>
+                <td class="note" style="font-family: inherit;">Check username and password match your SIP credentials. Verify Expires is set to 600 or higher.</td>
+            </tr>
+            <tr>
+                <th>Outbound works, inbound doesn't</th>
+                <td class="note" style="font-family: inherit;">Check the Authentication Domain doesn't have a port suffix (e.g. <code>:5060</code>). This is the most common cause.</td>
+            </tr>
+            <tr>
+                <th>Audio cuts out or one-way audio</th>
+                <td class="note" style="font-family: inherit;">Try disabling SIP ALG on your office router. Check that UDP ports 10000-20000 are not blocked.</td>
+            </tr>
+            <tr>
+                <th>423 "Interval too brief"</th>
+                <td class="note" style="font-family: inherit;">Expires must be at least 600. Twilio rejects shorter registration intervals.</td>
+            </tr>
+            <tr>
+                <th>High latency / poor audio</th>
+                <td class="note" style="font-family: inherit;">Ensure the Outbound Proxy and Line 1 Server use the Sydney edge (<code>sip.sydney.twilio.com</code>). Without it, traffic routes through the US.</td>
+            </tr>
+        </table>
+    </div>
+
+    <p style="margin-top: 20px;"><a href="{{ url_for('web.my_devices') }}">&larr; Back to My Devices</a></p>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function togglePassword(btn) {
+    const dots = document.getElementById('passwordDots');
+    const text = document.getElementById('passwordText');
+    if (dots.style.display !== 'none') {
+        dots.style.display = 'none';
+        text.style.display = 'inline';
+        if (btn) btn.textContent = '🙈';
+    } else {
+        dots.style.display = 'inline';
+        text.style.display = 'none';
+        if (btn) btn.textContent = '👁️';
+    }
+}
+
+function copyText(text, element) {
+    navigator.clipboard.writeText(text).then(function() {
+        element.classList.add('copied');
+        setTimeout(function() {
+            element.classList.remove('copied');
+        }, 1500);
+    });
+}
+</script>
+{% endblock %}

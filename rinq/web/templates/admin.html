@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+.admin-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 15px;
+}
+.admin-card {
+    display: block;
+    padding: 20px;
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.2s;
+}
+.admin-card:hover {
+    background: #e9ecef;
+    border-color: #dee2e6;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+.admin-card h3 {
+    margin: 0 0 5px 0;
+    color: #333;
+}
+.admin-card .text-muted {
+    font-size: 0.9em;
+}
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="admin-grid">
+        <a href="{{ url_for('web.admin_staff') }}" class="admin-card">
+            <h3>Staff</h3>
+            <p class="text-muted" style="margin: 0;">
+                Extensions · Activate/deactivate {{ product_name }} users
+            </p>
+        </a>
+        <a href="{{ url_for('web.admin_phone_numbers') }}" class="admin-card">
+            <h3>Phone Numbers</h3>
+            <p class="text-muted" style="margin: 0;">
+                {{ phone_numbers_count }} number{% if phone_numbers_count != 1 %}s{% endif %}
+                · Manage routing & caller ID
+            </p>
+        </a>
+        <a href="{{ url_for('web.admin_verified_caller_ids') }}" class="admin-card">
+            <h3>Verified Caller IDs</h3>
+            <p class="text-muted" style="margin: 0;">
+                {{ verified_caller_ids_count }} ID{% if verified_caller_ids_count != 1 %}s{% endif %}
+                · External numbers for outbound
+            </p>
+        </a>
+        <a href="{{ url_for('web.admin_caller_id_overview') }}" class="admin-card">
+            <h3>Caller ID Overview</h3>
+            <p class="text-muted" style="margin: 0;">
+                Which outbound caller ID each user gets
+            </p>
+        </a>
+        <a href="{{ url_for('web.admin_call_flows') }}" class="admin-card">
+            <h3>Call Flows</h3>
+            <p class="text-muted" style="margin: 0;">
+                {{ call_flows|length }} flow{% if call_flows|length != 1 %}s{% endif %}
+                · Route calls to queues with schedules
+            </p>
+        </a>
+        <a href="{{ url_for('web.admin_queues') }}" class="admin-card">
+            <h3>Queues</h3>
+            <p class="text-muted" style="margin: 0;">
+                {{ queues|length }} queue{% if queues|length != 1 %}s{% endif %}
+                · Team groups for call routing
+            </p>
+        </a>
+        <a href="{{ url_for('web.admin_schedules') }}" class="admin-card">
+            <h3>Schedules</h3>
+            <p class="text-muted" style="margin: 0;">
+                {{ schedules|length }} schedule{% if schedules|length != 1 %}s{% endif %}
+                · Business hours & holidays
+            </p>
+        </a>
+        <a href="{{ url_for('web.admin_templates') }}" class="admin-card">
+            <h3>Holiday Templates</h3>
+            <p class="text-muted" style="margin: 0;">
+                {{ holiday_templates|length }} template{% if holiday_templates|length != 1 %}s{% endif %}
+                · Public holidays for syncing
+            </p>
+        </a>
+        <a href="{{ url_for('web.admin_audio') }}" class="admin-card">
+            <h3>Audio Files</h3>
+            <p class="text-muted" style="margin: 0;">
+                {{ audio_files|length }} file{% if audio_files|length != 1 %}s{% endif %}
+                · Greetings, hold music, messages
+            </p>
+        </a>
+        <a href="{{ url_for('web.visualizer') }}" class="admin-card">
+            <h3>Call Flow Visualizer</h3>
+            <p class="text-muted" style="margin: 0;">
+                See how calls flow through the system
+            </p>
+        </a>
+        <a href="{{ url_for('web.desk_phones') }}" class="admin-card">
+            <h3>Desk Phones</h3>
+            <p class="text-muted" style="margin: 0;">
+                View all SIP credentials
+            </p>
+        </a>
+        <a href="{{ url_for('web.activity') }}" class="admin-card">
+            <h3>Activity Log</h3>
+            <p class="text-muted" style="margin: 0;">
+                Audit trail of system changes
+            </p>
+        </a>
+        <a href="{{ url_for('web.admin_settings') }}" class="admin-card">
+            <h3>Settings</h3>
+            <p class="text-muted" style="margin: 0;">
+                Drive storage & bot configuration
+            </p>
+        </a>
+        <a href="{{ url_for('web.setup') }}" class="admin-card">
+            <h3>Setup</h3>
+            <p class="text-muted" style="margin: 0;">
+                Twilio connection & webhooks
+            </p>
+        </a>
+    </div>
+</div>
+
+{% if account_info and not account_info.get('error') %}
+<div class="card" style="margin-top: 20px;">
+    <h3 style="margin: 0 0 15px 0;">Twilio Account</h3>
+    <p style="margin: 0;">
+        <strong>{{ account_info.friendly_name }}</strong>
+        <span class="badge {% if account_info.status == 'active' %}badge-success{% else %}badge-warning{% endif %}" style="margin-left: 10px;">
+            {{ account_info.status }}
+        </span>
+        <span class="text-muted" style="margin-left: 10px;">{{ account_info.type }}</span>
+    </p>
+</div>
+{% endif %}
+{% endblock %}

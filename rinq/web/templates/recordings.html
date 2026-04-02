@@ -1,0 +1,456 @@
+{% extends "base.html" %}
+
+{% block title_suffix %} - Recordings{% endblock %}
+
+{% block extra_css %}
+.recordings-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.recordings-header h2 {
+    margin: 0;
+}
+
+.recording-settings {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.toggle-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.toggle-switch {
+    position: relative;
+    width: 50px;
+    height: 26px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: 0.3s;
+    border-radius: 26px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 20px;
+    width: 20px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: 0.3s;
+    border-radius: 50%;
+}
+
+input:checked + .toggle-slider {
+    background-color: #27ae60;
+}
+
+input:checked + .toggle-slider:before {
+    transform: translateX(24px);
+}
+
+.filter-form {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+    align-items: center;
+}
+
+.filter-form select {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 0.9em;
+}
+
+.call-type-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.75em;
+    font-weight: 600;
+}
+
+.call-type-badge.inbound {
+    background: #d4edda;
+    color: #155724;
+}
+
+.call-type-badge.outbound {
+    background: #cce5ff;
+    color: #004085;
+}
+
+.call-type-badge.unknown {
+    background: #e9ecef;
+    color: #495057;
+}
+
+.duration-cell {
+    font-family: monospace;
+    white-space: nowrap;
+}
+
+.google-link {
+    color: var(--bot-primary);
+    text-decoration: none;
+}
+
+.google-link:hover {
+    text-decoration: underline;
+}
+
+.staff-cell {
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Expandable detail row */
+.rec-row { cursor: pointer; }
+.rec-row:hover { background: #f8f9fa; }
+.detail-row td {
+    padding: 8px 16px !important;
+    background: #f8f9fa;
+    border-top: none !important;
+}
+.detail-row .detail-grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 16px;
+    font-size: 0.9em;
+}
+.detail-row .detail-label {
+    font-weight: 600;
+    color: #666;
+    white-space: nowrap;
+}
+
+.play-btn {
+    background: var(--bot-primary);
+    color: white;
+    border: none;
+    padding: 4px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85em;
+}
+
+.play-btn:hover {
+    background: var(--bot-primary-hover);
+}
+
+.play-btn:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
+.audio-player-row {
+    background: #f8f9fa;
+}
+
+.audio-player-row td {
+    padding: 15px 20px !important;
+}
+
+.audio-player-container {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.audio-player-container audio {
+    flex-grow: 1;
+    max-width: 400px;
+}
+
+.close-player {
+    background: none;
+    border: none;
+    font-size: 1.2em;
+    cursor: pointer;
+    color: #666;
+    padding: 5px;
+}
+
+.close-player:hover {
+    color: #333;
+}
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="recordings-header">
+        <h2>Call Recordings</h2>
+        <div class="recording-settings">
+            <div class="toggle-container">
+                <span>Record my calls by default:</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="recordingDefault" {% if recording_enabled %}checked{% endif %}>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <div class="help-tip" style="margin-bottom: 20px;">
+        <strong>How it works:</strong>
+        {% if is_admin %}
+        You can view all staff recordings or filter to your own using the dropdown below.
+        {% else %}
+        This page shows recordings from your calls only.
+        {% endif %}
+        Call recordings are saved locally (3 weeks), on Google Drive (12 months), and in Google Groups (forever).
+        Click <strong>Play</strong> to listen - recordings are fetched from Drive if not cached locally.
+        Use the toggle above to enable/disable auto-recording for your calls.
+    </div>
+
+    <div class="filter-form">
+        <input type="search" id="searchInput" placeholder="Search by name or phone..."
+               style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 5px; width: 200px;"
+               oninput="filterRecordings()">
+        <label for="typeFilter">Type:</label>
+        <select id="typeFilter" onchange="filterRecordings()">
+            <option value="">All</option>
+            <option value="inbound" {% if filter_type == 'inbound' %}selected{% endif %}>Inbound</option>
+            <option value="outbound" {% if filter_type == 'outbound' %}selected{% endif %}>Outbound</option>
+        </select>
+        {% if is_admin %}
+        <label for="staffFilter">Staff:</label>
+        <select id="staffFilter" onchange="filterRecordings()">
+            <option value="">All staff</option>
+            <option value="mine" {% if filter_staff == 'mine' %}selected{% endif %}>My recordings</option>
+        </select>
+        {% endif %}
+    </div>
+
+    {% if recordings %}
+    <table>
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>Type</th>
+                <th>Who</th>
+                <th>Duration</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody id="recordingsTable">
+            {% for rec in recordings %}
+            <tr class="rec-row" data-searchable="{{ (rec.caller_name or '')|lower }} {{ (rec.from_number or '')|lower }} {{ (rec.to_number or '')|lower }} {{ (rec.staff_name or '')|lower }} {{ (rec.staff_email or '')|lower }}" data-type="{{ rec.call_type or '' }}" onclick="toggleDetail('{{ rec.recording_sid }}')">
+                <td class="text-muted" style="white-space: nowrap;" title="{{ rec.created_at }}">
+                    {{ time_ago(rec.created_at) }}
+                </td>
+                <td>
+                    {% if rec.call_type == 'inbound' %}
+                    <span class="call-type-badge inbound">Inbound</span>
+                    {% elif rec.call_type == 'outbound' %}
+                    <span class="call-type-badge outbound">Outbound</span>
+                    {% else %}
+                    <span class="call-type-badge unknown">{{ rec.call_type or 'Unknown' }}</span>
+                    {% endif %}
+                </td>
+                <td style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                    {{ rec.caller_name or rec.from_number or '-' }}
+                </td>
+                <td class="duration-cell">
+                    {% set mins = (rec.duration_seconds // 60)|int %}
+                    {% set secs = (rec.duration_seconds % 60)|int %}
+                    {{ '%d:%02d'|format(mins, secs) }}
+                </td>
+                <td>
+                    {% if rec.local_file_path or rec.drive_file_id %}
+                    <button class="play-btn" onclick="event.stopPropagation(); playRecording('{{ rec.recording_sid }}')" title="Play recording{% if rec.local_file_path %} (cached locally){% elif rec.drive_file_id %} (from Drive){% endif %}">
+                        ▶ Play
+                    </button>
+                    {% elif rec.google_message_id %}
+                    <span class="badge badge-info" title="Archived in Google Groups">Archived</span>
+                    {% else %}
+                    <span class="badge badge-warning">Processing</span>
+                    {% endif %}
+                </td>
+            </tr>
+            <!-- Detail row (hidden by default) -->
+            <tr class="detail-row" id="detail-{{ rec.recording_sid }}" style="display: none;">
+                <td colspan="5">
+                    <div class="detail-grid">
+                        {% if rec.caller_name %}
+                        <span class="detail-label">Caller</span>
+                        <span>{{ rec.caller_name }}</span>
+                        {% endif %}
+                        <span class="detail-label">From</span>
+                        <span>{{ rec.from_number or '-' }}</span>
+                        <span class="detail-label">To</span>
+                        <span>{{ rec.to_number or '-' }}</span>
+                        <span class="detail-label">Staff</span>
+                        <span>{{ rec.staff_name or (rec.staff_email.split('@')[0] if rec.staff_email else '-') }}{% if rec.staff_email %} ({{ rec.staff_email }}){% endif %}</span>
+                    </div>
+                </td>
+            </tr>
+            <!-- Audio player row (hidden by default) -->
+            <tr class="audio-player-row" id="player-row-{{ rec.recording_sid }}" style="display: none;">
+                <td colspan="5">
+                    <div class="audio-player-container">
+                        <audio id="audio-{{ rec.recording_sid }}" controls preload="none">
+                            <source src="/api/recordings/{{ rec.recording_sid }}/audio" type="audio/mpeg">
+                            Your browser does not support audio playback.
+                        </audio>
+                        <button class="close-player" onclick="closePlayer('{{ rec.recording_sid }}')" title="Close player">✕</button>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <h3>No recordings found</h3>
+        <p class="text-muted">
+            {% if is_admin and filter_staff != 'mine' %}
+            No call recordings found for any staff member.
+            {% else %}
+            You don't have any call recordings yet.
+            Recordings will appear here when you record calls from the softphone.
+            Make sure recording is enabled using the toggle above.
+            {% endif %}
+        </p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Handle recording default toggle
+const recordingToggle = document.getElementById('recordingDefault');
+if (recordingToggle) {
+    recordingToggle.addEventListener('change', async function() {
+        const enabled = this.checked;
+        try {
+            const response = await fetch('/api/users/me/recording-default', {
+                method: 'PUT',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled: enabled })
+            });
+
+            if (!response.ok) {
+                const data = await response.json();
+                alert('Failed to update setting: ' + (data.error || 'Unknown error'));
+                this.checked = !enabled;  // Revert
+            }
+        } catch (error) {
+            console.error('Error updating recording setting:', error);
+            alert('Error updating setting: ' + error.message);
+            this.checked = !enabled;  // Revert
+        }
+    });
+}
+
+// Toggle detail row visibility
+function toggleDetail(recordingSid) {
+    const row = document.getElementById('detail-' + recordingSid);
+    if (row) {
+        row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+    }
+}
+
+// Handle filter changes - client-side filtering for instant results
+function filterRecordings() {
+    const searchQuery = (document.getElementById('searchInput')?.value || '').toLowerCase().trim();
+    const typeFilter = document.getElementById('typeFilter').value;
+
+    const tableBody = document.getElementById('recordingsTable');
+    if (!tableBody) return;
+
+    const rows = tableBody.querySelectorAll('tr.rec-row');
+    let visibleCount = 0;
+
+    rows.forEach(row => {
+        const searchable = row.getAttribute('data-searchable') || '';
+        const rowType = row.getAttribute('data-type') || '';
+
+        // Check search query matches
+        const matchesSearch = !searchQuery || searchable.includes(searchQuery);
+
+        // Check type filter
+        const matchesType = !typeFilter || rowType === typeFilter;
+
+        if (matchesSearch && matchesType) {
+            row.style.display = '';
+            visibleCount++;
+        } else {
+            row.style.display = 'none';
+            // Also hide associated detail and player rows
+            const recordingSid = row.querySelector('.play-btn')?.getAttribute('onclick')?.match(/playRecording\('([^']+)'\)/)?.[1];
+            if (recordingSid) {
+                const detailRow = document.getElementById('detail-' + recordingSid);
+                if (detailRow) detailRow.style.display = 'none';
+                const playerRow = document.getElementById('player-row-' + recordingSid);
+                if (playerRow) playerRow.style.display = 'none';
+            }
+        }
+    });
+}
+
+// Track currently playing audio
+let currentlyPlayingSid = null;
+
+function playRecording(recordingSid) {
+    // Close any currently playing audio
+    if (currentlyPlayingSid && currentlyPlayingSid !== recordingSid) {
+        closePlayer(currentlyPlayingSid);
+    }
+
+    // Show the player row
+    const playerRow = document.getElementById('player-row-' + recordingSid);
+    const audio = document.getElementById('audio-' + recordingSid);
+
+    if (playerRow && audio) {
+        playerRow.style.display = 'table-row';
+        audio.play();
+        currentlyPlayingSid = recordingSid;
+    }
+}
+
+function closePlayer(recordingSid) {
+    const playerRow = document.getElementById('player-row-' + recordingSid);
+    const audio = document.getElementById('audio-' + recordingSid);
+
+    if (audio) {
+        audio.pause();
+        audio.currentTime = 0;
+    }
+
+    if (playerRow) {
+        playerRow.style.display = 'none';
+    }
+
+    if (currentlyPlayingSid === recordingSid) {
+        currentlyPlayingSid = null;
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+.settings-section {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+.settings-section h3 {
+    margin: 0 0 15px 0;
+    color: #333;
+}
+.settings-description {
+    color: #6c757d;
+    font-size: 0.9em;
+    margin-bottom: 15px;
+}
+.setting-row {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 10px;
+}
+.setting-row label {
+    min-width: 180px;
+    font-weight: 500;
+}
+.setting-row input[type="text"] {
+    flex: 1;
+    max-width: 450px;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-family: monospace;
+}
+.setting-row input[type="text"]:focus {
+    outline: none;
+    border-color: var(--bot-primary);
+    box-shadow: 0 0 0 2px var(--bot-primary-light);
+}
+.drive-folder-help {
+    background: #e8f4f8;
+    border-left: 4px solid #3498db;
+    padding: 15px;
+    margin-top: 15px;
+    border-radius: 0 4px 4px 0;
+    font-size: 0.9em;
+}
+.drive-folder-help ol {
+    margin: 10px 0 0 0;
+    padding-left: 20px;
+}
+.drive-folder-help li {
+    margin: 5px 0;
+}
+.drive-folder-help code {
+    background: #d4edda;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: monospace;
+}
+.status-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 0.85em;
+}
+.status-indicator.configured {
+    background: #d4edda;
+    color: #155724;
+}
+.status-indicator.not-configured {
+    background: #fff3cd;
+    color: #856404;
+}
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2 style="margin: 0;">Settings</h2>
+        <a href="{{ url_for('web.admin') }}" class="btn" style="background: #6c757d;">&larr; Back to Admin</a>
+    </div>
+
+    <form method="post" action="{{ url_for('web.save_admin_settings') }}">
+        <!-- Google Drive Storage -->
+        <div class="settings-section">
+            <h3>Google Drive Storage</h3>
+            <p class="settings-description">
+                Call recordings are uploaded to Google Drive for 12-month retention.
+                You must create the folder manually and paste its ID here.
+            </p>
+
+            <div class="setting-row">
+                <label for="drive_folder_id">Drive Folder ID:</label>
+                <input type="text" id="drive_folder_id" name="drive_recordings_folder_id"
+                       value="{{ settings.get('drive_recordings_folder_id', {}).get('value') or '' }}"
+                       placeholder="e.g., 1ABCdef123456789xyz">
+                {% if settings.get('drive_recordings_folder_id', {}).get('value') %}
+                <span class="status-indicator configured">Configured</span>
+                {% else %}
+                <span class="status-indicator not-configured">Not configured</span>
+                {% endif %}
+            </div>
+
+            <div class="drive-folder-help">
+                <strong>Setup Steps:</strong>
+                <ol>
+                    <li>
+                        <strong>Enable the Google Drive API</strong><br>
+                        In <a href="https://console.cloud.google.com/apis/library/drive.googleapis.com" target="_blank">Google Cloud Console</a>,
+                        ensure the Drive API is enabled for your project.
+                    </li>
+                    <li>
+                        <strong>Add Drive scope to domain-wide delegation</strong><br>
+                        In <a href="https://admin.google.com/ac/owl/domainwidedelegation" target="_blank">Google Workspace Admin</a> → Security → API Controls → Domain-wide Delegation,
+                        find the service account and add this scope:<br>
+                        <code>https://www.googleapis.com/auth/drive.file</code>
+                    </li>
+                    <li>
+                        <strong>Create a folder in Google Drive</strong><br>
+                        Go to <a href="https://drive.google.com" target="_blank">Google Drive</a> and create a new folder (e.g., "{{ product_name }} Recordings").
+                        Copy the folder ID from the URL: <code>drive.google.com/drive/folders/<strong>FOLDER_ID</strong></code>
+                    </li>
+                    <li>
+                        <strong>Share the folder with the service account</strong><br>
+                        Right-click the folder → Share → Add <code>fred-bot@bot-team-478101.iam.gserviceaccount.com</code> with <strong>Editor</strong> access.
+                    </li>
+                    <li>
+                        <strong>Paste the folder ID above and save</strong>
+                    </li>
+                </ol>
+                <p style="margin-top: 10px; margin-bottom: 0; color: #856404;">
+                    <strong>⚠️ Note:</strong> After making changes in Google Cloud Console or Admin Console,
+                    it may take a few minutes for changes to propagate. Restart {{ product_name }} after configuration.
+                </p>
+            </div>
+        </div>
+
+        <!-- Extension Directory -->
+        <div class="settings-section">
+            <h3>Extension Directory</h3>
+            <p class="settings-description">
+                The phone number callers dial to reach staff by extension. Shown on each staff member's My Numbers page.
+            </p>
+            <div class="setting-row">
+                <label for="ext_dir_number">Dial-in number:</label>
+                <input type="text" id="ext_dir_number" name="extension_directory_number"
+                       value="{{ settings.get('extension_directory_number', {}).get('value') or '' }}"
+                       placeholder="e.g., +61261059686"
+                       style="font-family: inherit;">
+            </div>
+            <div class="setting-row" style="margin-top: 10px;">
+                <label for="connecting_prefix">"Connecting you to" audio:</label>
+                {% set current_prefix = settings.get('connecting_prefix_audio_path', {}).get('value') or '' %}
+                <select id="connecting_prefix" name="connecting_prefix_audio_path" style="font-family: inherit;">
+                    <option value="">None (use Polly.Nicole voice)</option>
+                    {% for audio in audio_files %}
+                    <option value="{{ audio.file_url }}" {% if audio.file_url == current_prefix %}selected{% endif %}>
+                        {{ audio.name }}{% if audio.file_type %} ({{ audio.file_type }}){% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+                <p class="settings-description" style="margin-top: 4px; font-size: 0.85em;">
+                    Pre-recorded "Connecting you to" clip. Played before the staff member's name audio.
+                    Generate one via the <a href="{{ url_for('web.admin_tts') }}">AI Voice Generator</a>.
+                </p>
+            </div>
+        </div>
+
+        <button type="submit" class="btn">Save Settings</button>
+    </form>
+</div>
+{% endblock %}

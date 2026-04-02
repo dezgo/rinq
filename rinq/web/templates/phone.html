@@ -1,0 +1,4938 @@
+{% extends "base.html" %}
+
+{% block title_suffix %} - Softphone{% endblock %}
+
+{% block extra_css %}
+/* Queue Dashboard Styles */
+.queue-dashboard {
+    max-width: 800px;
+    margin: 0 auto 30px auto;
+}
+
+.queue-alert {
+    background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+    color: white;
+    padding: 15px 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    animation: pulse-border 2s infinite;
+}
+
+@keyframes pulse-border {
+    0% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(231, 76, 60, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0); }
+}
+
+.queue-alert-hidden {
+    display: none;
+}
+
+.queue-alert-content {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.queue-alert-icon {
+    font-size: 2em;
+}
+
+.queue-alert-text h3 {
+    margin: 0;
+    font-size: 1.1em;
+}
+
+.queue-alert-text p {
+    margin: 5px 0 0 0;
+    opacity: 0.9;
+    font-size: 0.9em;
+}
+
+.queue-callers {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+}
+
+.queue-callers-header {
+    background: #f8f9fa;
+    padding: 15px 20px;
+    border-bottom: 1px solid #e9ecef;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.queue-callers-header h3 {
+    margin: 0;
+    font-size: 1em;
+    color: #495057;
+}
+
+.queue-caller {
+    padding: 15px 20px;
+    border-bottom: 1px solid #e9ecef;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.queue-caller:last-child {
+    border-bottom: none;
+}
+
+.queue-caller.priority-high {
+    background: #fff5f5;
+    border-left: 4px solid #e74c3c;
+}
+
+.queue-caller.priority-medium {
+    background: #fffbf0;
+    border-left: 4px solid #f39c12;
+}
+
+.queue-caller.priority-normal {
+    border-left: 4px solid #3498db;
+}
+
+.queue-caller.priority-unknown {
+    border-left: 4px solid #95a5a6;
+}
+
+.caller-info {
+    flex: 1;
+}
+
+.caller-name {
+    font-weight: 600;
+    font-size: 1.1em;
+    color: #2c3e50;
+}
+
+.caller-number {
+    color: #6c757d;
+    font-size: 0.9em;
+    margin-top: 3px;
+}
+
+.caller-details {
+    display: flex;
+    gap: 15px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
+
+.caller-detail {
+    font-size: 0.85em;
+    color: #495057;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.caller-detail.priority-high {
+    color: #e74c3c;
+    font-weight: 600;
+}
+
+.caller-detail.priority-medium {
+    color: #f39c12;
+}
+
+.caller-wait-time {
+    text-align: center;
+    padding: 0 20px;
+    min-width: 80px;
+}
+
+.wait-label {
+    font-size: 0.75em;
+    color: #6c757d;
+    text-transform: uppercase;
+}
+
+.wait-time {
+    font-size: 1.3em;
+    font-weight: 600;
+    color: #2c3e50;
+    font-family: monospace;
+}
+
+.wait-time.long-wait {
+    color: #e74c3c;
+}
+
+.caller-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.btn-answer-queue {
+    background: #27ae60;
+    color: white;
+    border: none;
+    padding: 12px 25px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.95em;
+    transition: all 0.2s;
+}
+
+.btn-answer-queue:hover {
+    background: #219a52;
+    transform: translateY(-1px);
+}
+
+.btn-answer-queue:disabled {
+    background: #95a5a6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Callback card styles */
+.callback-item {
+    padding: 12px 20px;
+    border-bottom: 1px solid #e9ecef;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-left: 4px solid #f0ad4e;
+    background: #fffdf5;
+}
+.callback-item:last-child {
+    border-bottom: none;
+}
+.callback-actions {
+    display: flex;
+    gap: 8px;
+}
+.btn-callback-call {
+    background: #3498db;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.85em;
+    transition: all 0.2s;
+}
+.btn-callback-call:hover {
+    background: #2980b9;
+}
+.btn-callback-done {
+    background: #27ae60;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85em;
+    transition: all 0.2s;
+}
+.btn-callback-done:hover {
+    background: #219a52;
+}
+.btn-callback-fail {
+    background: #e9ecef;
+    color: #666;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85em;
+    transition: all 0.2s;
+}
+.btn-callback-fail:hover {
+    background: #dc3545;
+    color: white;
+}
+
+.queue-empty {
+    padding: 40px 20px;
+    text-align: center;
+    color: #6c757d;
+}
+
+.queue-empty-icon {
+    font-size: 3em;
+    margin-bottom: 10px;
+}
+
+.priority-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.75em;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.priority-badge.high {
+    background: #e74c3c;
+    color: white;
+}
+
+.priority-badge.medium {
+    background: #f39c12;
+    color: white;
+}
+
+/* Phone Container */
+.phone-container {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+/* Phone Workspace - flex container for context pane + phone controls */
+.phone-workspace {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+}
+
+/* Customer Context Pane */
+.customer-context-pane {
+    flex: 0 0 320px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    align-self: flex-start;
+}
+
+.context-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 15px 20px;
+}
+
+.context-header h3 {
+    margin: 0;
+    font-size: 1.1em;
+    font-weight: 600;
+}
+
+.context-body {
+    padding: 20px;
+}
+
+.context-empty {
+    text-align: center;
+    color: #6c757d;
+    padding: 30px 15px;
+}
+
+.context-empty p {
+    margin: 0;
+    font-size: 0.9em;
+}
+
+.context-section {
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #eee;
+}
+
+.context-section:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.context-section h4 {
+    margin: 0 0 10px 0;
+    font-size: 0.85em;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.customer-name {
+    font-size: 1.3em;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 5px;
+}
+
+.customer-email, .customer-phone {
+    color: #6c757d;
+    font-size: 0.9em;
+    margin-top: 3px;
+}
+
+/* Priority badges in context pane */
+.context-priority-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 0.75em;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.context-priority-badge.high {
+    background: #fee;
+    color: #c0392b;
+}
+
+.context-priority-badge.medium {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.context-priority-reason {
+    display: block;
+    margin-top: 8px;
+    font-size: 0.85em;
+    color: #6c757d;
+}
+
+/* Orders section in context */
+.context-orders-content {
+    font-size: 0.95em;
+    color: #333;
+}
+
+.context-orders-content div {
+    margin-bottom: 5px;
+}
+
+.context-orders-content div:last-child {
+    margin-bottom: 0;
+}
+
+/* Call history in context */
+.history-count {
+    font-weight: normal;
+    color: #999;
+    font-size: 0.9em;
+}
+
+.history-summary {
+    color: #333;
+    margin-bottom: 10px;
+    font-size: 0.95em;
+}
+
+.history-list {
+    max-height: 180px;
+    overflow-y: auto;
+}
+
+.history-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 0.85em;
+}
+
+.history-item:last-child {
+    border-bottom: none;
+}
+
+.history-left {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.history-right {
+    text-align: right;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.history-date {
+    color: #6c757d;
+}
+
+.history-duration {
+    color: #333;
+    font-weight: 500;
+}
+
+.history-agent {
+    color: #6c757d;
+    font-size: 0.9em;
+}
+
+.history-direction {
+    font-size: 0.75em;
+    padding: 2px 6px;
+    border-radius: 3px;
+    display: inline-block;
+}
+
+.history-direction.inbound {
+    background: #e3f2fd;
+    color: #1976d2;
+}
+
+.history-direction.outbound {
+    background: #e8f5e9;
+    color: #388e3c;
+}
+
+.btn-expand-history {
+    background: none;
+    border: none;
+    color: #667eea;
+    cursor: pointer;
+    font-size: 0.85em;
+    padding: 8px 0 0 0;
+    text-align: left;
+}
+
+.btn-expand-history:hover {
+    text-decoration: underline;
+}
+
+/* Phone controls - the actual phone panel */
+.phone-controls {
+    flex: 0 0 400px;
+}
+
+/* Responsive: stack on smaller screens */
+@media (max-width: 900px) {
+    .phone-workspace {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .customer-context-pane {
+        flex: none;
+        width: 100%;
+        max-width: 400px;
+        order: -1;
+    }
+
+    .phone-controls {
+        flex: none;
+        width: 100%;
+        max-width: 400px;
+    }
+}
+
+.phone-panel {
+    background: #f8f9fa;
+    border-radius: 12px;
+    padding: 30px;
+    text-align: center;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.phone-status {
+    padding: 10px 20px;
+    border-radius: 20px;
+    display: inline-block;
+    margin-bottom: 20px;
+    font-weight: 500;
+}
+
+.phone-info-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    font-size: 0.82em;
+    color: #6c757d;
+}
+
+.phone-info-bar.dnd-active {
+    background: #fff3cd;
+    border: 1px solid #ffeaa0;
+}
+
+.phone-ext-info {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.phone-ext-info .ext-number {
+    font-weight: 700;
+    color: #495057;
+    font-size: 1.1em;
+}
+
+.phone-info-bar.dnd-active .ext-number {
+    color: #856404;
+}
+
+.dnd-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+
+.dnd-toggle-track {
+    position: relative;
+    width: 36px;
+    height: 20px;
+    background: #ccc;
+    border-radius: 20px;
+    transition: background 0.2s;
+}
+
+.dnd-toggle-track.active {
+    background: #e67e22;
+}
+
+.dnd-toggle-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.2s;
+}
+
+.dnd-toggle-track.active .dnd-toggle-thumb {
+    transform: translateX(16px);
+}
+
+.dnd-label {
+    font-weight: 600;
+    font-size: 0.95em;
+    color: #6c757d;
+}
+
+.dnd-label.active {
+    color: #e67e22;
+}
+
+.status-offline {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.status-ready {
+    background: #d4edda;
+    color: #155724;
+}
+
+.status-connecting {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.status-busy {
+    background: #cce5ff;
+    color: #004085;
+}
+
+.phone-display {
+    background: #2c3e50;
+    color: #2ecc71;
+    font-family: 'Courier New', monospace;
+    font-size: 1.8em;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    min-height: 50px;
+    letter-spacing: 2px;
+}
+
+.phone-display.empty {
+    color: #7f8c8d;
+}
+
+.dialpad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.dialpad button {
+    padding: 14px;
+    font-size: 1.3em;
+    border: none;
+    border-radius: 8px;
+    background: white;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.dialpad button:hover {
+    background: #ecf0f1;
+    transform: scale(1.05);
+}
+
+.dialpad button:active {
+    transform: scale(0.95);
+}
+
+.dialpad-actions {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+    margin: 6px 0;
+}
+.dialpad-action-btn {
+    background: none;
+    border: none;
+    font-size: 0.8em;
+    cursor: pointer;
+    color: #adb5bd;
+    padding: 4px 10px;
+}
+.dialpad-action-btn:hover {
+    color: #495057;
+}
+.dialpad button .letters {
+    display: block;
+    font-size: 0.4em;
+    color: #7f8c8d;
+    margin-top: 3px;
+}
+
+.call-buttons {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+.btn-call {
+    padding: 15px 40px;
+    font-size: 1.2em;
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-call-start {
+    background: #27ae60;
+    color: white;
+}
+
+.btn-call-start:hover {
+    background: #219a52;
+}
+
+.btn-call-start:disabled {
+    background: #95a5a6;
+    cursor: not-allowed;
+}
+
+.btn-call-end {
+    background: #e74c3c;
+    color: white;
+}
+
+.btn-call-end:hover {
+    background: #c0392b;
+}
+
+.btn-backspace {
+    background: #e74c3c;
+    color: white;
+}
+
+.btn-backspace:hover {
+    background: #c0392b;
+}
+
+.caller-id-footer {
+    text-align: center;
+    font-size: 0.75em;
+    color: #adb5bd;
+    margin-top: 8px;
+}
+.caller-id-footer a {
+    color: #adb5bd;
+    text-decoration: underline;
+}
+.caller-id-footer a:hover {
+    color: #6c757d;
+}
+
+.call-info {
+    background: #ecf0f1;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    display: none;
+}
+
+.call-info.active {
+    display: block;
+}
+
+.call-duration {
+    font-size: 1.5em;
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+.call-number {
+    color: #7f8c8d;
+}
+
+.incoming-call {
+    background: #fff3cd;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    display: none;
+}
+
+.incoming-call.active {
+    display: block;
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.4); }
+    70% { box-shadow: 0 0 0 20px rgba(231, 76, 60, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0); }
+}
+
+.incoming-call h3 {
+    margin: 0 0 10px 0;
+    color: #856404;
+}
+
+.incoming-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 15px;
+}
+
+.btn-answer {
+    background: #27ae60;
+    color: white;
+    padding: 10px 30px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.btn-reject {
+    background: #e74c3c;
+    color: white;
+    padding: 10px 30px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.call-controls {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 10px;
+}
+
+.btn-mute {
+    background: #7f8c8d;
+    color: white;
+    padding: 8px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.9em;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.btn-mute:hover {
+    background: #6c7a7d;
+}
+
+.btn-mute.muted {
+    background: #e74c3c;
+}
+
+.btn-mute.muted:hover {
+    background: #c0392b;
+}
+
+.btn-transfer {
+    background: #9b59b6;
+    color: white;
+    padding: 8px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.9em;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.btn-transfer:hover {
+    background: #8e44ad;
+}
+
+.btn-transfer:disabled {
+    background: #95a5a6;
+    cursor: not-allowed;
+}
+
+/* Recording button */
+.btn-record {
+    background: #7f8c8d;
+    color: white;
+    padding: 8px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.9em;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.btn-record:hover {
+    background: #6c7a7d;
+}
+
+.btn-record.recording {
+    background: #e74c3c;
+    animation: recording-pulse 1.5s infinite;
+}
+
+.btn-record.recording:hover {
+    background: #c0392b;
+}
+
+@keyframes recording-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.5); }
+    50% { box-shadow: 0 0 0 8px rgba(231, 76, 60, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0); }
+}
+
+.btn-record:disabled {
+    background: #95a5a6;
+    cursor: not-allowed;
+    animation: none;
+}
+
+/* Transfer Modal */
+.transfer-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+}
+
+.transfer-modal.active {
+    display: flex;
+}
+
+.transfer-modal-content {
+    background: white;
+    border-radius: 12px;
+    padding: 30px;
+    max-width: 450px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+.transfer-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.transfer-modal-header h3 {
+    margin: 0;
+    font-size: 1.3em;
+}
+
+.btn-close-modal {
+    background: none;
+    border: none;
+    font-size: 1.5em;
+    cursor: pointer;
+    color: #7f8c8d;
+}
+
+.btn-close-modal:hover {
+    color: #2c3e50;
+}
+
+.transfer-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.transfer-tab {
+    flex: 1;
+    padding: 10px 15px;
+    border: 2px solid #9b59b6;
+    background: white;
+    color: #9b59b6;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.transfer-tab:hover {
+    background: #f8f4fb;
+}
+
+.transfer-tab.active {
+    background: #9b59b6;
+    color: white;
+}
+
+.transfer-section {
+    margin-bottom: 20px;
+}
+
+.transfer-section label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+.transfer-section select,
+.transfer-section input {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 1em;
+}
+
+.transfer-section select:focus,
+.transfer-section input:focus {
+    outline: none;
+    border-color: #9b59b6;
+}
+
+.transfer-type-toggle {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.transfer-type-btn {
+    flex: 1;
+    padding: 10px 8px;
+    border: 2px solid #ddd;
+    background: white;
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s;
+}
+
+.transfer-type-btn:hover {
+    border-color: #9b59b6;
+}
+
+.transfer-type-btn.active {
+    border-color: #9b59b6;
+    background: #f8f4fb;
+}
+
+.transfer-type-btn strong {
+    display: block;
+    color: #2c3e50;
+    margin-bottom: 5px;
+}
+
+.transfer-type-btn span {
+    font-size: 0.85em;
+    color: #7f8c8d;
+}
+
+.transfer-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.btn-transfer-action {
+    flex: 1;
+    padding: 12px 20px;
+    border: none;
+    border-radius: 5px;
+    font-size: 1em;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.btn-transfer-start {
+    background: #9b59b6;
+    color: white;
+}
+
+.btn-transfer-start:hover {
+    background: #8e44ad;
+}
+
+.btn-transfer-start:disabled {
+    background: #95a5a6;
+    cursor: not-allowed;
+}
+
+.btn-transfer-cancel {
+    background: #e74c3c;
+    color: white;
+}
+
+.btn-transfer-cancel:hover {
+    background: #c0392b;
+}
+
+.btn-transfer-complete {
+    background: #27ae60;
+    color: white;
+}
+
+.btn-transfer-complete:hover {
+    background: #219a52;
+}
+
+/* Warm transfer consulting state */
+.transfer-consulting {
+    background: #fff3cd;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.transfer-consulting h4 {
+    margin: 0 0 10px 0;
+    color: #856404;
+}
+
+.transfer-consulting p {
+    margin: 0;
+    color: #856404;
+    font-size: 0.9em;
+}
+
+.target-list {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+}
+
+.target-item {
+    padding: 12px 15px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.target-item:last-child {
+    border-bottom: none;
+}
+
+.target-item:hover {
+    background: #f8f4fb;
+}
+
+.target-item.selected {
+    background: #9b59b6;
+    color: white;
+}
+
+.target-item .target-name {
+    font-weight: 600;
+}
+
+.target-item .target-phone {
+    font-size: 0.85em;
+    opacity: 0.8;
+}
+
+.target-item.target-busy {
+    opacity: 0.6;
+}
+
+.target-item.target-offline {
+    opacity: 0.4;
+}
+
+.target-busy-badge {
+    font-size: 0.7em;
+    font-weight: 400;
+    color: #e67e22;
+    background: #fef3e2;
+    padding: 1px 5px;
+    border-radius: 3px;
+    margin-left: 6px;
+}
+
+.target-item.selected .target-busy-badge {
+    color: #ffcdd2;
+    background: transparent;
+}
+
+.or-divider {
+    text-align: center;
+    margin: 15px 0;
+    color: #7f8c8d;
+    font-size: 0.9em;
+}
+
+/* Phone Tab Switcher */
+.phone-tabs {
+    display: flex;
+    margin-bottom: 15px;
+    border-bottom: 2px solid #e9ecef;
+}
+
+.phone-tab {
+    flex: 1;
+    padding: 10px 15px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.95em;
+    color: #7f8c8d;
+    transition: all 0.2s;
+}
+
+.phone-tab:hover {
+    color: #2c3e50;
+}
+
+.phone-tab.active {
+    color: #3498db;
+    border-bottom-color: #3498db;
+}
+
+.phone-tab-content {
+    display: none;
+}
+
+.phone-tab-content.active {
+    display: block;
+}
+
+/* Contacts Tab */
+.contacts-search {
+    position: relative;
+    margin-bottom: 12px;
+    text-align: left;
+}
+
+.contacts-search input {
+    width: 100%;
+    padding: 10px 12px 10px 35px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 0.95em;
+    box-sizing: border-box;
+}
+
+.contacts-search input:focus {
+    outline: none;
+    border-color: #3498db;
+}
+
+.contacts-search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #7f8c8d;
+    font-size: 0.9em;
+    pointer-events: none;
+}
+
+.contacts-list {
+    max-height: 420px;
+    overflow-y: auto;
+    text-align: left;
+}
+
+.contact-card {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    border-bottom: 1px solid #f0f0f0;
+    cursor: pointer;
+    transition: background 0.15s;
+    border-radius: 6px;
+    margin-bottom: 2px;
+}
+
+.contact-card:hover {
+    background: #f0f7ff;
+}
+
+.contact-card.no-phone {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.contact-card.no-phone:hover {
+    background: transparent;
+}
+
+.contact-card:last-child {
+    border-bottom: none;
+}
+
+.contact-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #3498db;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 0.85em;
+    flex-shrink: 0;
+    margin-right: 12px;
+}
+
+.contact-avatar.inactive {
+    background: #bdc3c7;
+}
+
+.contact-avatar-wrapper {
+    position: relative;
+    flex-shrink: 0;
+    margin-right: 12px;
+}
+
+.contact-avatar-wrapper .contact-avatar {
+    margin-right: 0;
+}
+
+.contact-status-dot {
+    position: absolute;
+    bottom: -1px;
+    right: -1px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 2px solid white;
+    background: #bdc3c7;
+}
+
+.contact-status-dot.online {
+    background: #27ae60;
+}
+
+.contact-status-dot.on-call {
+    background: #f39c12;
+}
+
+.contact-status-dot.dnd {
+    background: #e74c3c;
+}
+
+.contact-status-badge {
+    display: inline-block;
+    font-size: 0.65em;
+    font-weight: 600;
+    padding: 1px 5px;
+    border-radius: 3px;
+    margin-left: 6px;
+    vertical-align: middle;
+}
+.contact-status-badge.on-call {
+    background: #fef3e2;
+    color: #e67e22;
+}
+.contact-status-badge.dnd {
+    background: #fde8e8;
+    color: #e74c3c;
+}
+
+/* Conference participant panel */
+.conf-participant {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+}
+.conf-participant-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.conf-participant-dot.connected { background: #27ae60; }
+.conf-participant-dot.on-hold { background: #f39c12; }
+.conf-participant-dot.muted { background: #95a5a6; }
+.conf-participant-name {
+    font-weight: 500;
+    color: #2c3e50;
+}
+.conf-participant-status {
+    font-size: 0.85em;
+    color: #6c757d;
+    margin-left: auto;
+}
+
+.contact-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.contact-name {
+    font-weight: 600;
+    font-size: 0.95em;
+    color: #2c3e50;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.contact-detail {
+    font-size: 0.8em;
+    color: #7f8c8d;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.contact-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+    margin-left: 8px;
+}
+
+.contact-call-btn {
+    background: #27ae60;
+    color: white;
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 0.85em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+}
+
+.contact-call-btn:hover {
+    background: #219a52;
+}
+
+.contact-call-btn.ext {
+    background: #3498db;
+}
+
+.contact-call-btn.ext:hover {
+    background: #2980b9;
+}
+
+.contact-ext-badge {
+    font-size: 0.75em;
+    color: #3498db;
+    font-weight: 600;
+}
+
+.contacts-empty {
+    text-align: center;
+    padding: 30px 15px;
+    color: #7f8c8d;
+}
+
+.contacts-empty p {
+    margin: 5px 0;
+    font-size: 0.9em;
+}
+
+/* Contact filter pills */
+.contacts-filters {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.contacts-filter {
+    flex: 1;
+    padding: 6px 0;
+    border: 1px solid #ddd;
+    border-radius: 16px;
+    background: white;
+    color: #6c757d;
+    font-size: 0.8em;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+}
+
+.contacts-filter:hover {
+    border-color: #3498db;
+    color: #3498db;
+}
+
+.contacts-filter.active {
+    background: #3498db;
+    border-color: #3498db;
+    color: white;
+}
+
+/* Favourite star */
+.contact-fav-btn {
+    background: none;
+    border: none;
+    font-size: 1.1em;
+    cursor: pointer;
+    padding: 2px 4px;
+    color: #ddd;
+    transition: color 0.15s;
+    line-height: 1;
+}
+
+.contact-fav-btn:hover {
+    color: #f39c12;
+}
+
+.contact-fav-btn.favourited {
+    color: #f39c12;
+}
+
+/* Section grouping in contacts */
+.contacts-section-header {
+    padding: 6px 12px;
+    background: #f8f9fa;
+    font-size: 0.75em;
+    font-weight: 600;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-radius: 4px;
+    margin: 4px 0;
+}
+
+/* History Tab */
+.history-filters {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.history-list {
+    max-height: 420px;
+    overflow-y: auto;
+    text-align: left;
+}
+
+.history-card {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    border-bottom: 1px solid #f0f0f0;
+    border-radius: 6px;
+    margin-bottom: 2px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.history-card:hover {
+    background: #f0f7ff;
+}
+
+.history-card:last-child {
+    border-bottom: none;
+}
+
+.history-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1em;
+    flex-shrink: 0;
+    margin-right: 12px;
+}
+
+.history-icon.inbound {
+    background: #e8f5e9;
+    color: #27ae60;
+}
+
+.history-icon.outbound {
+    background: #e3f2fd;
+    color: #3498db;
+}
+
+.history-icon.missed {
+    background: #fce4ec;
+    color: #e74c3c;
+}
+
+.history-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.history-name {
+    font-weight: 600;
+    font-size: 0.95em;
+    color: #2c3e50;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.history-detail {
+    font-size: 0.8em;
+    color: #7f8c8d;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.history-time {
+    text-align: right;
+    flex-shrink: 0;
+    margin-left: 8px;
+}
+
+.history-time-date {
+    font-size: 0.8em;
+    color: #7f8c8d;
+}
+
+.history-time-duration {
+    font-size: 0.75em;
+    color: #95a5a6;
+}
+
+.history-date-header {
+    padding: 6px 12px;
+    background: #f8f9fa;
+    font-size: 0.75em;
+    font-weight: 600;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-radius: 4px;
+    margin: 4px 0;
+}
+
+/* Active Calls Tab */
+/* Extra compact in PWA mode */
+@media (display-mode: standalone) {
+    #phonePwaPrompt { display: none !important; }
+    .phone-help { display: none; }
+    .queue-dashboard { margin: 0 auto 10px auto; }
+    .customer-context-pane { display: none; }
+    .customer-context-pane.has-call { display: block; }
+    .phone-panel { padding: 15px; }
+    .dialpad button { padding: 12px; }
+    .phone-display { padding: 10px; font-size: 1.3em; margin-bottom: 8px; }
+    .caller-id-footer { margin-top: 4px; }
+    .phone-status { padding: 6px; font-size: 0.9em; margin-bottom: 8px; }
+    .phone-tabs { margin-bottom: 8px; }
+    .phone-tab { padding: 8px 10px; font-size: 0.85em; }
+    .contacts-list { max-height: 350px; }
+}
+{% endblock %}
+
+{% block content %}
+<!-- PWA prompt on phone page (browser only, not standalone) -->
+<div id="phonePwaPrompt" style="display: none; margin-bottom: 15px; padding: 12px 16px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+        <div style="flex: 1; font-size: 0.85em; color: #495057;" id="phonePwaText">
+            For the best experience, use the <strong>{{ product_name }} Phone app</strong> from your taskbar or Start menu.
+        </div>
+        <button class="btn" style="white-space: nowrap; font-size: 0.85em;" id="phonePwaBtn" onclick="handlePhonePwaBtn()">Open App</button>
+        <button style="background: none; border: none; cursor: pointer; font-size: 1.2em; color: #adb5bd; padding: 0 4px;" onclick="dismissPwaPrompt()" title="Dismiss">&times;</button>
+    </div>
+</div>
+<script>
+(function() {
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+    if (isStandalone) return;
+
+    // Check if user has dismissed this
+    if (localStorage.getItem('tina_pwa_dismissed')) return;
+
+    var el = document.getElementById('phonePwaPrompt');
+    if (el) el.style.display = '';
+
+    // Hide action button by default (app already installed, no action available)
+    document.getElementById('phonePwaBtn').style.display = 'none';
+
+    // If beforeinstallprompt fires, the app is NOT installed — show Install button
+    window.addEventListener('beforeinstallprompt', function() {
+        document.getElementById('phonePwaBtn').style.display = '';
+        document.getElementById('phonePwaText').innerHTML =
+            'Install <strong>{{ product_name }} Phone</strong> as an app for a dedicated phone window that stays connected.';
+        document.getElementById('phonePwaBtn').textContent = 'Install';
+    });
+
+    window.handlePhonePwaBtn = function() {
+        if (typeof installPhoneApp === 'function') {
+            installPhoneApp();
+        }
+    };
+
+    window.dismissPwaPrompt = function() {
+        localStorage.setItem('tina_pwa_dismissed', '1');
+        document.getElementById('phonePwaPrompt').style.display = 'none';
+    };
+})();
+</script>
+
+<!-- Queue Dashboard -->
+<div class="queue-dashboard" id="queueDashboard">
+    <div class="queue-alert queue-alert-hidden" id="queueAlert">
+        <div class="queue-alert-content">
+            <div class="queue-alert-icon">📞</div>
+            <div class="queue-alert-text">
+                <h3 id="queueAlertTitle">Callers waiting</h3>
+                <p id="queueAlertSubtitle">Click Answer to connect</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="queue-callers" id="queueCallersCard" style="display: none;">
+        <div class="queue-callers-header">
+            <h3>Callers in Queue</h3>
+            <span id="queueCount">0 waiting</span>
+        </div>
+        <div id="queueCallersList">
+            <!-- Populated by JavaScript -->
+        </div>
+    </div>
+
+    <div class="queue-callers" id="callbacksCard" style="display: none; margin-top: 10px;">
+        <div class="queue-callers-header" style="background: #fff3cd;">
+            <h3 style="color: #856404;">Callback Requests</h3>
+            <span id="callbackCount" style="color: #856404;">0 pending</span>
+        </div>
+        <div id="callbacksList">
+            <!-- Populated by JavaScript -->
+        </div>
+    </div>
+</div>
+
+<div class="phone-container">
+
+    {% if not api_key_configured %}
+    <div class="setup-guide">
+        <div class="setup-icon">🔑</div>
+        <h3>API Key Required</h3>
+        <p>
+            To use the browser phone, you need to configure a Twilio API Key.
+            Create one at <a href="https://console.twilio.com/us1/account/keys-credentials/api-keys" target="_blank">Twilio Console</a>
+            and set <code>TWILIO_API_KEY</code> and <code>TWILIO_API_SECRET</code> in your environment.
+        </p>
+    </div>
+    {% elif not twiml_app_configured %}
+    <div class="setup-guide">
+        <div class="setup-icon">📱</div>
+        <h3>TwiML App Required</h3>
+        <p>
+            To use the browser phone, you need to create a TwiML App.
+            Go to <a href="https://console.twilio.com/us1/develop/voice/manage/twiml-apps" target="_blank">Twilio Console</a>,
+            create an app with Voice URL set to <code>{{ request.host_url }}api/voice/outbound</code>,
+            and set <code>TWILIO_TWIML_APP_SID</code> in your environment.
+        </p>
+    </div>
+    {% else %}
+    <!-- Phone Workspace: Context Pane + Phone Controls side by side -->
+    <div class="phone-workspace">
+        <!-- Customer Context Pane -->
+        <div class="customer-context-pane" id="customerContextPane">
+            <div class="context-header">
+                <h3>Customer</h3>
+            </div>
+            <div class="context-body">
+                <!-- Empty state (shown by default) -->
+                <div class="context-empty" id="contextEmpty">
+                    <p>Enter a number or answer a call to see customer info</p>
+                </div>
+
+                <!-- Customer info (hidden by default) -->
+                <div class="context-content" id="contextContent" style="display: none;">
+                    <!-- Customer details section -->
+                    <div class="context-section">
+                        <div class="customer-name" id="contextName">-</div>
+                        <div class="customer-email" id="contextEmail"></div>
+                        <div class="customer-phone" id="contextPhone"></div>
+                    </div>
+
+                    <!-- Priority section (hidden if no priority) -->
+                    <div class="context-section" id="contextPrioritySection" style="display: none;">
+                        <span class="context-priority-badge" id="contextPriorityBadge">-</span>
+                        <span class="context-priority-reason" id="contextPriorityReason"></span>
+                    </div>
+
+                    <!-- Orders section (hidden if no orders) -->
+                    <div class="context-section" id="contextOrdersSection" style="display: none;">
+                        <h4>Orders</h4>
+                        <div class="context-orders-content" id="contextOrdersContent"></div>
+                    </div>
+
+                    <!-- Call history section -->
+                    <div class="context-section">
+                        <h4>Call History <span class="history-count" id="historyCount">(0)</span></h4>
+                        <div class="history-summary" id="historySummary">No previous calls</div>
+                        <div class="history-list" id="historyList" style="display: none;">
+                            <!-- Populated by JavaScript -->
+                        </div>
+                        <button class="btn-expand-history" id="btnExpandHistory" style="display: none;">
+                            Show all calls
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Phone Controls -->
+        <div class="phone-controls">
+            <div class="phone-panel">
+                <div class="phone-status status-offline" id="phoneStatus">
+                    Offline
+                </div>
+
+                <div class="phone-info-bar" id="phoneInfoBar">
+                    <div class="phone-ext-info">
+                        {% if staff_ext and staff_ext.extension %}
+                        <span>Ext <span class="ext-number">{{ staff_ext.extension }}</span></span>
+                        {% if ext_directory_number %}
+                        <span>&middot; {{ ext_directory_number }}</span>
+                        {% endif %}
+                        {% endif %}
+                    </div>
+                    <div class="dnd-toggle" onclick="toggleQueueMute()" title="Mute queue alert sounds">
+                        <span class="dnd-label" id="queueMuteLabel">🔔</span>
+                        <div class="dnd-toggle-track" id="queueMuteTrack">
+                            <div class="dnd-toggle-thumb"></div>
+                        </div>
+                    </div>
+                    <div class="dnd-toggle" onclick="toggleDnd()">
+                        <span class="dnd-label" id="dndLabel">DND</span>
+                        <div class="dnd-toggle-track" id="dndTrack">
+                            <div class="dnd-toggle-thumb"></div>
+                        </div>
+                    </div>
+                </div>
+
+        <div class="incoming-call" id="incomingCall">
+            <h3>Incoming Call</h3>
+            <div class="call-number" id="incomingNumber">Unknown</div>
+            <div class="incoming-buttons">
+                <button class="btn-answer" onclick="answerCall()">Answer</button>
+                <button class="btn-reject" onclick="rejectCall()">Reject</button>
+            </div>
+        </div>
+
+        <div class="call-info" id="callInfo">
+            <div class="call-duration" id="callDuration">00:00</div>
+            <div class="call-number" id="callNumber"></div>
+            <div class="call-controls">
+                <button class="btn-mute" id="btnMute" onclick="toggleMute()">
+                    <span id="muteIcon">🎤</span>
+                    <span id="muteText">Mute</span>
+                </button>
+                <button class="btn-mute" id="btnHold" onclick="toggleHold()">
+                    <span id="holdIcon">⏸️</span>
+                    <span id="holdText">Hold</span>
+                </button>
+                <button class="btn-record" id="btnRecord" onclick="toggleRecording()" title="Toggle call recording">
+                    <span id="recordIcon">⏺️</span>
+                    <span id="recordText">Record</span>
+                </button>
+                <button class="btn-transfer" id="btnTransfer" onclick="openTransferModal()">
+                    <span>🔀</span>
+                    <span>Transfer</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Tab Switcher -->
+        <div class="phone-tabs" id="phoneTabs">
+            <button class="phone-tab active" data-tab="dialpad" onclick="switchPhoneTab('dialpad')">Dialpad</button>
+            <button class="phone-tab" data-tab="contacts" onclick="switchPhoneTab('contacts')">Contacts</button>
+            <button class="phone-tab" data-tab="history" onclick="switchPhoneTab('history')">History</button>
+        </div>
+
+        <!-- Dialpad Tab -->
+        <div class="phone-tab-content active" id="tabDialpad">
+        <div class="phone-display empty" id="phoneDisplay">
+            Enter number...
+        </div>
+
+        <div class="dialpad-actions">
+            <button class="dialpad-action-btn" onclick="pasteNumber()">Paste</button>
+            <button class="dialpad-action-btn" onclick="backspace()">&larr;</button>
+            <button class="dialpad-action-btn" onclick="clearNumber()">Clear</button>
+        </div>
+
+        <input type="hidden" id="callerId" value="{{ default_caller_id or '' }}">
+
+        <div class="dialpad">
+            <button onclick="dial('1')">1<span class="letters">&nbsp;</span></button>
+            <button onclick="dial('2')">2<span class="letters">ABC</span></button>
+            <button onclick="dial('3')">3<span class="letters">DEF</span></button>
+            <button onclick="dial('4')">4<span class="letters">GHI</span></button>
+            <button onclick="dial('5')">5<span class="letters">JKL</span></button>
+            <button onclick="dial('6')">6<span class="letters">MNO</span></button>
+            <button onclick="dial('7')">7<span class="letters">PQRS</span></button>
+            <button onclick="dial('8')">8<span class="letters">TUV</span></button>
+            <button onclick="dial('9')">9<span class="letters">WXYZ</span></button>
+            <button onclick="dial('*')">*<span class="letters">&nbsp;</span></button>
+            <button id="btn0" onmousedown="startZeroHold()" onmouseup="endZeroHold()" onmouseleave="endZeroHold()"
+                    ontouchstart="startZeroHold()" ontouchend="endZeroHold()">0<span class="letters">+</span></button>
+            <button onclick="dial('#')">#<span class="letters">&nbsp;</span></button>
+        </div>
+
+
+        <div class="call-buttons">
+            <button class="btn-call btn-call-start" id="btnCall" onclick="makeCall()" disabled>
+                Call
+            </button>
+            <button class="btn-call btn-call-end" id="btnHangup" onclick="hangupCall()" style="display: none;">
+                Hang Up
+            </button>
+        </div>
+
+        <div class="caller-id-footer">
+            Calling as {{ caller_id_display or 'Not set' }}
+            <a href="{{ url_for('web.my_devices') }}" target="_blank" rel="noopener">change</a>
+        </div>
+        </div>
+
+        <!-- Contacts Tab -->
+        <div class="phone-tab-content" id="tabContacts">
+            <div class="contacts-search">
+                <span class="contacts-search-icon">&#128269;</span>
+                <input type="text" id="contactsSearchInput" placeholder="Search by name, section, position..." autocomplete="off">
+            </div>
+            <div class="contacts-filters">
+                <button class="contacts-filter active" data-filter="all" onclick="setContactFilter('all')">All</button>
+                <button class="contacts-filter" data-filter="online" onclick="setContactFilter('online')">Online</button>
+                <button class="contacts-filter" data-filter="favourites" onclick="setContactFilter('favourites')">Favourites</button>
+            </div>
+            <div class="contacts-list" id="contactsList">
+                <div class="contacts-empty">
+                    <p>Loading contacts...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- History Tab -->
+        <div class="phone-tab-content" id="tabHistory">
+            <div class="history-filters">
+                <button class="contacts-filter active" data-filter="all" onclick="setHistoryFilter('all')">All</button>
+                <button class="contacts-filter" data-filter="inbound" onclick="setHistoryFilter('inbound')">Inbound</button>
+                <button class="contacts-filter" data-filter="outbound" onclick="setHistoryFilter('outbound')">Outbound</button>
+                <button class="contacts-filter" data-filter="missed" onclick="setHistoryFilter('missed')">Missed</button>
+            </div>
+            <div class="history-list" id="myCallHistoryList">
+                <div class="contacts-empty">
+                    <p>Loading call history...</p>
+                </div>
+            </div>
+        </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Help Section -->
+    <details class="phone-help" style="margin-top: 25px;">
+        <summary style="cursor: pointer; font-weight: 600; color: #495057; padding: 10px 0;">
+            📖 How to use the softphone
+        </summary>
+        <div style="background: #f8f9fa; border-radius: 8px; padding: 20px; margin-top: 10px;">
+            <div style="margin-bottom: 15px;">
+                <h4 style="margin: 0 0 8px 0; color: #2c3e50;">Making Calls</h4>
+                <ul style="margin: 0; padding-left: 20px; color: #495057;">
+                    <li>Enter a number using the dialpad or keyboard</li>
+                    <li>Press <kbd style="background: #e9ecef; padding: 2px 6px; border-radius: 3px;">Enter</kbd> or click <strong>Call</strong></li>
+                    <li>Your caller ID is set on the <a href="{{ url_for('web.my_devices') }}">My Devices</a> page</li>
+                </ul>
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <h4 style="margin: 0 0 8px 0; color: #2c3e50;">Keyboard Shortcuts</h4>
+                <ul style="margin: 0; padding-left: 20px; color: #495057;">
+                    <li><kbd style="background: #e9ecef; padding: 2px 6px; border-radius: 3px;">0-9</kbd> <kbd style="background: #e9ecef; padding: 2px 6px; border-radius: 3px;">*</kbd> <kbd style="background: #e9ecef; padding: 2px 6px; border-radius: 3px;">#</kbd> — Dial digits</li>
+                    <li><kbd style="background: #e9ecef; padding: 2px 6px; border-radius: 3px;">Backspace</kbd> — Delete last digit</li>
+                    <li><kbd style="background: #e9ecef; padding: 2px 6px; border-radius: 3px;">Enter</kbd> — Start/end call</li>
+                    <li><kbd style="background: #e9ecef; padding: 2px 6px; border-radius: 3px;">Esc</kbd> — Hang up</li>
+                </ul>
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <h4 style="margin: 0 0 8px 0; color: #2c3e50;">During a Call</h4>
+                <ul style="margin: 0; padding-left: 20px; color: #495057;">
+                    <li><strong>Mute</strong> — Turn off your microphone</li>
+                    <li><strong>Hold</strong> — Put the caller on hold with music</li>
+                    <li><strong>Record</strong> — Start/stop call recording</li>
+                    <li><strong>Transfer</strong> — Send the call to a colleague or external number</li>
+                </ul>
+            </div>
+
+            <div>
+                <h4 style="margin: 0 0 8px 0; color: #2c3e50;">Queue Callers</h4>
+                <p style="margin: 0; color: #495057;">
+                    When customers are waiting in a queue, they'll appear at the top of this page.
+                    Click <strong>Answer</strong> to connect. High priority callers (with upcoming installations) are highlighted in red.
+                </p>
+            </div>
+        </div>
+    </details>
+    {% endif %}
+</div>
+
+<!-- Transfer Modal -->
+<div class="transfer-modal" id="transferModal">
+    <div class="transfer-modal-content">
+        <div class="transfer-modal-header">
+            <h3>Transfer Call</h3>
+            <button class="btn-close-modal" onclick="closeTransferModal()">&times;</button>
+        </div>
+
+        <!-- Warm transfer / 3-way consulting state -->
+        <div class="transfer-consulting" id="transferConsulting" style="display: none;">
+            <h4 id="consultingTitle">Transferring to <span id="consultingTargetName">...</span></h4>
+            <p id="consultingSubtitle"></p>
+        </div>
+
+        <!-- Target selection (hidden during consultation) -->
+        <div id="transferTargetSelection">
+            <!-- Transfer type toggle -->
+            <div class="transfer-type-toggle">
+                <div class="transfer-type-btn active" id="btnBlindTransfer" onclick="selectTransferType('blind')">
+                    <strong>Blind</strong>
+                    <span>Transfer immediately</span>
+                </div>
+                <div class="transfer-type-btn" id="btnWarmTransfer" onclick="selectTransferType('warm')">
+                    <strong>Warm</strong>
+                    <span>Talk to target first</span>
+                </div>
+                <div class="transfer-type-btn" id="btnThreeWay" onclick="selectTransferType('three_way')">
+                    <strong>3-Way</strong>
+                    <span>All parties talk</span>
+                </div>
+            </div>
+
+            <div style="font-size: 0.8em; color: #e67e22; margin-bottom: 12px; text-align: center;">
+                The caller can still hear you while you choose a target.
+            </div>
+
+            <!-- Team members -->
+            <div class="transfer-section">
+                <label>Transfer to Team Member:</label>
+                <div class="target-list" id="targetList">
+                    <!-- Populated by JavaScript -->
+                    <div style="padding: 20px; text-align: center; color: #7f8c8d;">Loading...</div>
+                </div>
+            </div>
+
+            <div class="or-divider">— OR —</div>
+
+            <!-- External number -->
+            <div class="transfer-section">
+                <label>Transfer to External Number:</label>
+                <input type="tel" id="externalNumber" placeholder="Enter phone number...">
+            </div>
+        </div>
+
+        <div class="transfer-error" id="transferError" style="display: none; color: #dc3545; font-size: 0.85em; padding: 8px 12px; background: #fdf0f0; border-radius: 6px; margin-bottom: 10px;"></div>
+
+        <!-- Action buttons -->
+        <div class="transfer-actions" id="transferActions">
+            <button class="btn-transfer-action btn-transfer-start" id="btnStartTransfer" onclick="startTransfer()" disabled>
+                Transfer
+            </button>
+        </div>
+
+        <!-- Consulting action buttons (shown during warm transfer) -->
+        <div class="transfer-actions" id="consultingActions" style="display: none;">
+            <button class="btn-transfer-action btn-transfer-cancel" onclick="cancelTransfer()">
+                Cancel Transfer
+            </button>
+            <button class="btn-transfer-action btn-transfer-complete" id="btnCompleteTransfer" onclick="completeTransfer()">
+                Complete Transfer
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Floating call state panel — always on top during active calls -->
+<div id="conferencePanel" style="display: none; position: fixed; bottom: 20px; right: 20px; width: 260px; background: white; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); padding: 12px 14px; font-size: 0.85em; z-index: 9999; cursor: move; border: 1px solid #e9ecef;">
+    <div style="font-weight: 600; color: #6c757d; margin-bottom: 8px; font-size: 0.75em; text-transform: uppercase; display: flex; justify-content: space-between; align-items: center;">
+        In this call
+        <span style="cursor: move; color: #ccc; font-size: 1.2em;">&#x2630;</span>
+    </div>
+    <div id="conferencePanelList"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Make the conference panel draggable
+(function() {
+    const panel = document.getElementById('conferencePanel');
+    let isDragging = false, offsetX, offsetY;
+    panel.addEventListener('mousedown', function(e) {
+        isDragging = true;
+        offsetX = e.clientX - panel.getBoundingClientRect().left;
+        offsetY = e.clientY - panel.getBoundingClientRect().top;
+        panel.style.transition = 'none';
+    });
+    document.addEventListener('mousemove', function(e) {
+        if (!isDragging) return;
+        panel.style.left = (e.clientX - offsetX) + 'px';
+        panel.style.top = (e.clientY - offsetY) + 'px';
+        panel.style.right = 'auto';
+        panel.style.bottom = 'auto';
+    });
+    document.addEventListener('mouseup', function() { isDragging = false; });
+})();
+
+// Shared AudioContext for all sounds (ringtone, queue alerts)
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+// Resume AudioContext on first user interaction (browser autoplay policy)
+document.addEventListener('click', () => {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+}, { once: true });
+
+// Ringtone - classic double-ring pattern for incoming calls
+let ringtoneInterval = null;
+
+function playRingtone() {
+    stopRingtone();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    function ring() {
+        [0, 0.2].forEach(offset => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.frequency.value = 440;
+            gain.gain.value = 0.3;
+            osc.start(audioCtx.currentTime + offset);
+            osc.stop(audioCtx.currentTime + offset + 0.15);
+        });
+    }
+    ring();
+    ringtoneInterval = setInterval(ring, 2000);
+}
+
+function stopRingtone() {
+    if (ringtoneInterval) {
+        clearInterval(ringtoneInterval);
+        ringtoneInterval = null;
+    }
+}
+
+// Queue alert - three ascending beeps
+let queueAlertInterval = null;
+
+function playQueueAlert() {
+    if (queueAlertsMuted || currentCall || isDndEnabled) return;
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    [0, 0.15, 0.3].forEach((offset, i) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.frequency.value = 520 + (i * 80);
+        gain.gain.value = 0.25;
+        osc.start(audioCtx.currentTime + offset);
+        osc.stop(audioCtx.currentTime + offset + 0.1);
+    });
+}
+
+function startQueueAlert() {
+    stopQueueAlert();
+    playQueueAlert();
+    queueAlertInterval = setInterval(playQueueAlert, 8000);
+}
+
+function stopQueueAlert() {
+    if (queueAlertInterval) {
+        clearInterval(queueAlertInterval);
+        queueAlertInterval = null;
+    }
+}
+
+let previousQueueSids = new Set();
+
+function checkForNewQueueCallers(callers) {
+    const waitingCallers = callers.filter(c => c.status === 'waiting');
+    const currentSids = new Set(waitingCallers.map(c => c.call_sid));
+    const hasNewCallers = waitingCallers.some(c => !previousQueueSids.has(c.call_sid));
+
+    if (waitingCallers.length > 0 && hasNewCallers) {
+        if (!queueAlertsMuted) startQueueAlert();
+        if (!queueAlertsMuted && 'Notification' in window && Notification.permission === 'granted') {
+            const highPriority = waitingCallers.filter(c => c.priority === 'high').length;
+            const body = highPriority > 0
+                ? `${waitingCallers.length} caller(s) waiting (${highPriority} HIGH PRIORITY)`
+                : `${waitingCallers.length} caller(s) waiting in queue`;
+            const notif = new Notification('Queue Call', {
+                body: body,
+                icon: '/static/phone-icon-192.png',
+                tag: 'queue-call',
+                requireInteraction: true
+            });
+            notif.onclick = () => { window.focus(); notif.close(); };
+        }
+    } else if (waitingCallers.length === 0) {
+        stopQueueAlert();
+    }
+
+    previousQueueSids = currentSids;
+}
+</script>
+
+{% if api_key_configured and twiml_app_configured %}
+<!-- Twilio Voice SDK loaded globally in base.html -->
+
+<script>
+let device = null;
+let currentCall = null;
+let phoneNumber = '';
+let callTimer = null;
+let callSeconds = 0;
+let isMuted = false;
+let isOnHold = false;
+let isDndEnabled = false;
+let contactName = '';
+let currentQueueCallerSid = null;  // The original caller's call SID for queue calls
+let currentOutboundCallSid = null;  // The call SID for outbound calls
+let currentCallerId = null;  // The caller ID used for the current call
+
+// Recording state
+let isRecording = false;
+let recordingEnabled = true;  // User's default preference
+let currentRecordingSid = null;
+
+// Customer context state
+let customerContext = null;
+
+const phoneDisplay = document.getElementById('phoneDisplay');
+const phoneStatus = document.getElementById('phoneStatus');
+const btnCall = document.getElementById('btnCall');
+const btnHangup = document.getElementById('btnHangup');
+const btnMute = document.getElementById('btnMute');
+const btnHold = document.getElementById('btnHold');
+const muteIcon = document.getElementById('muteIcon');
+const muteText = document.getElementById('muteText');
+const holdIcon = document.getElementById('holdIcon');
+const holdText = document.getElementById('holdText');
+const callInfo = document.getElementById('callInfo');
+const callDuration = document.getElementById('callDuration');
+const callNumber = document.getElementById('callNumber');
+const incomingCall = document.getElementById('incomingCall');
+const incomingNumber = document.getElementById('incomingNumber');
+const btnRecord = document.getElementById('btnRecord');
+const recordIcon = document.getElementById('recordIcon');
+const recordText = document.getElementById('recordText');
+
+// Customer context pane
+const contextPane = document.getElementById('customerContextPane');
+
+// Customer context pane elements
+const contextEmpty = document.getElementById('contextEmpty');
+const contextContent = document.getElementById('contextContent');
+const contextName = document.getElementById('contextName');
+const contextEmail = document.getElementById('contextEmail');
+const contextPhone = document.getElementById('contextPhone');
+const contextPrioritySection = document.getElementById('contextPrioritySection');
+const contextPriorityBadge = document.getElementById('contextPriorityBadge');
+const contextPriorityReason = document.getElementById('contextPriorityReason');
+const contextOrdersSection = document.getElementById('contextOrdersSection');
+const contextOrdersContent = document.getElementById('contextOrdersContent');
+const historyCount = document.getElementById('historyCount');
+const historySummary = document.getElementById('historySummary');
+const historyList = document.getElementById('historyList');
+const btnExpandHistory = document.getElementById('btnExpandHistory');
+
+// Resume AudioContext on user interaction (Chrome autoplay policy)
+function resumeAudioContext() {
+    if (device && device.audio) {
+        // Twilio SDK 2.x exposes audio context through device.audio
+        const audioContext = device.audio._audioContext;
+        if (audioContext && audioContext.state === 'suspended') {
+            audioContext.resume().then(() => {
+                console.log('AudioContext resumed');
+            });
+        }
+    }
+}
+
+// Add click handler to resume audio on first user interaction
+document.addEventListener('click', resumeAudioContext, { once: true });
+document.addEventListener('keydown', resumeAudioContext, { once: true });
+
+// Queue alert mute toggle (local preference)
+let queueAlertsMuted = localStorage.getItem('tina_queue_muted') === 'true';
+updateQueueMuteUi();
+
+function toggleQueueMute() {
+    queueAlertsMuted = !queueAlertsMuted;
+    localStorage.setItem('tina_queue_muted', queueAlertsMuted);
+    updateQueueMuteUi();
+    if (queueAlertsMuted) {
+        stopQueueAlert();
+    }
+}
+
+function updateQueueMuteUi() {
+    const track = document.getElementById('queueMuteTrack');
+    const label = document.getElementById('queueMuteLabel');
+    if (queueAlertsMuted) {
+        track.classList.add('active');
+        label.textContent = '🔕';
+    } else {
+        track.classList.remove('active');
+        label.textContent = '🔔';
+    }
+}
+
+// DND toggle
+function toggleDnd() {
+    const newState = !isDndEnabled;
+    fetch('/api/dnd', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        credentials: 'same-origin',
+        body: JSON.stringify({enabled: newState})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            isDndEnabled = data.dnd_enabled;
+            updateDndUi();
+        }
+    })
+    .catch(err => console.error('DND toggle failed:', err));
+}
+
+function updateDndUi() {
+    const bar = document.getElementById('phoneInfoBar');
+    const track = document.getElementById('dndTrack');
+    const label = document.getElementById('dndLabel');
+    if (isDndEnabled) {
+        bar.classList.add('dnd-active');
+        track.classList.add('active');
+        label.textContent = 'DND';
+        label.classList.add('active');
+    } else {
+        bar.classList.remove('dnd-active');
+        track.classList.remove('active');
+        label.textContent = 'DND';
+        label.classList.remove('active');
+    }
+}
+
+function loadDndState() {
+    fetch('/api/dnd', {credentials: 'same-origin'})
+    .then(r => r.json())
+    .then(data => {
+        isDndEnabled = data.dnd_enabled;
+        updateDndUi();
+    })
+    .catch(() => {});
+}
+
+// Initialize the phone
+async function initPhone() {
+    // Check if Twilio SDK loaded
+    if (typeof Twilio === 'undefined') {
+        setStatus('SDK failed to load', 'offline');
+        console.error('Twilio SDK not loaded. Check if the script is blocked.');
+        return;
+    }
+
+    try {
+        setStatus('Connecting...', 'connecting');
+
+        // Get access token from our API
+        const response = await fetch('/api/voice/token', {
+            method: 'POST',
+            credentials: 'same-origin'
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to get token');
+        }
+
+        const data = await response.json();
+
+        // Initialize Twilio Device (SDK 2.x API)
+        device = new Twilio.Device(data.token, {
+            codecPreferences: ['opus', 'pcmu'],
+            enableRingingState: true
+        });
+
+        // Set up event handlers (SDK 2.x uses different events)
+        device.on('registered', () => {
+            setStatus('Ready', 'ready');
+            btnCall.disabled = false;
+            if ('Notification' in window && Notification.permission === 'default') {
+                Notification.requestPermission();
+            }
+        });
+
+        device.on('error', (error) => {
+            console.error('Twilio Device Error:', error);
+            // Token expired — refresh automatically
+            if (error.code === 20101 || (error.message && error.message.includes('Access Token'))) {
+                setStatus('Session expired, reconnecting...', 'offline');
+                setTimeout(() => window.location.reload(), 2000);
+                return;
+            }
+            setStatus('Error: ' + (error.message || error), 'offline');
+        });
+
+        device.on('incoming', async (call) => {
+            // If DND is enabled, reject silently
+            if (isDndEnabled) {
+                console.log('DND enabled, rejecting incoming call from', call.parameters.From);
+                call.reject();
+                return;
+            }
+
+            // If already on a call, reject silently — don't beep or notify
+            if (currentCall) {
+                console.log('Already on a call, rejecting incoming call from', call.parameters.From);
+                call.reject();
+                return;
+            }
+
+            currentCall = call;
+            const from = call.parameters.From || 'Unknown';
+
+            // Check for internal call custom parameters first (extension-to-extension)
+            const callerName = call.customParameters ? call.customParameters.get('callerName') : null;
+            const callerIdentity = call.customParameters ? call.customParameters.get('callerIdentity') : null;
+
+            // Resolve display name: custom param > internal identity > phone lookup
+            const internalName = callerName || resolveInternalCaller(callerIdentity || from);
+            const displayFrom = internalName || from;
+            incomingNumber.textContent = displayFrom;
+            incomingCall.classList.add('active');
+            playRingtone();
+
+            // System notification (visible when PWA is minimized)
+            let callNotification = null;
+            if ('Notification' in window && Notification.permission === 'granted') {
+                callNotification = new Notification('Incoming Call', {
+                    body: displayFrom,
+                    icon: '/static/phone-icon-192.png',
+                    tag: 'incoming-call',
+                    requireInteraction: true
+                });
+                callNotification.onclick = () => {
+                    window.focus();
+                    callNotification.close();
+                };
+            }
+
+            // Fetch customer context for incoming call (skip for internal calls)
+            if (from !== 'Unknown' && !from.startsWith('client:')) {
+                await fetchCustomerContext(from);
+            }
+
+            call.on('cancel', () => {
+                stopRingtone();
+                incomingCall.classList.remove('active');
+                currentCall = null;
+                clearCustomerContext();
+                if (callNotification) callNotification.close();
+            });
+
+            call.on('disconnect', () => {
+                stopRingtone();
+                endCall();
+                if (callNotification) callNotification.close();
+            });
+        });
+
+        // Auto-refresh token before it expires (refresh 5 min early)
+        device.on('tokenWillExpire', async () => {
+            console.log('Token expiring soon, refreshing...');
+            try {
+                const refreshResponse = await fetch('/api/voice/token', {
+                    method: 'POST',
+                    credentials: 'same-origin'
+                });
+                if (refreshResponse.ok) {
+                    const refreshData = await refreshResponse.json();
+                    device.updateToken(refreshData.token);
+                    console.log('Token refreshed successfully');
+                } else {
+                    console.error('Token refresh failed:', refreshResponse.status);
+                    setStatus('Session expiring - please reload', 'offline');
+                }
+            } catch (err) {
+                console.error('Token refresh error:', err);
+                setStatus('Connection lost - please reload', 'offline');
+            }
+        });
+
+        // Handle device becoming unregistered
+        device.on('unregistered', () => {
+            console.warn('Device unregistered');
+            setStatus('Disconnected - reconnecting...', 'offline');
+            // Try to re-register
+            device.register().catch(err => {
+                console.error('Re-registration failed:', err);
+                setStatus('Disconnected - please reload', 'offline');
+            });
+        });
+
+        // Register the device to receive incoming calls
+        await device.register();
+
+    } catch (error) {
+        console.error('Failed to initialize phone:', error);
+        setStatus('Failed: ' + error.message, 'offline');
+    }
+}
+
+function setStatus(text, state) {
+    phoneStatus.textContent = text;
+    phoneStatus.className = 'phone-status status-' + state;
+}
+
+function dial(digit) {
+    if (currentCall) {
+        // During active call, send DTMF tone
+        currentCall.sendDigits(digit);
+    } else {
+        contactName = '';
+        phoneNumber += digit;
+        updateDisplay();
+    }
+}
+
+let zeroHoldTimer = null;
+let zeroFired = false;
+let zeroPressed = false;
+
+function startZeroHold() {
+    zeroPressed = true;
+    zeroFired = false;
+    zeroHoldTimer = setTimeout(() => {
+        zeroFired = true;
+        dial('+');
+    }, 500);
+}
+
+function endZeroHold() {
+    clearTimeout(zeroHoldTimer);
+    if (zeroPressed && !zeroFired) {
+        dial('0');
+    }
+    zeroPressed = false;
+}
+
+function backspace() {
+    contactName = '';
+    phoneNumber = phoneNumber.slice(0, -1);
+    updateDisplay();
+}
+
+function clearNumber() {
+    contactName = '';
+    phoneNumber = '';
+    updateDisplay();
+}
+
+async function pasteNumber() {
+    try {
+        const text = await navigator.clipboard.readText();
+        const cleaned = text.replace(/[^\d+]/g, '');
+        if (cleaned) {
+            phoneNumber = cleaned;
+            contactName = '';
+            updateDisplay();
+        }
+    } catch (err) {
+        console.error('Clipboard paste failed:', err);
+    }
+}
+
+function updateDisplay() {
+    if (phoneNumber) {
+        if (contactName) {
+            phoneDisplay.innerHTML = `<div style="font-size: 0.55em; color: #95a5a6; letter-spacing: 0; margin-bottom: 2px;">${contactName.replace(/</g, '&lt;')}</div>${phoneNumber.replace(/</g, '&lt;')}`;
+        } else {
+            phoneDisplay.textContent = phoneNumber;
+        }
+        phoneDisplay.classList.remove('empty');
+    } else {
+        phoneDisplay.textContent = 'Enter number...';
+        phoneDisplay.classList.add('empty');
+    }
+}
+
+// =============================================================================
+// Customer Context Functions
+// =============================================================================
+
+// Fetch customer context by phone number
+async function fetchCustomerContext(phone) {
+    if (!phone || phone.length < 8) {
+        clearCustomerContext();
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/customers/lookup?phone=${encodeURIComponent(phone)}`);
+        if (response.ok) {
+            customerContext = await response.json();
+            renderCustomerContext(phone);
+        } else {
+            clearCustomerContext();
+        }
+    } catch (error) {
+        console.error('Error fetching customer context:', error);
+        clearCustomerContext();
+    }
+}
+
+// Render customer context pane
+function renderCustomerContext(displayPhone) {
+    if (!customerContext) {
+        clearCustomerContext();
+        return;
+    }
+
+    // Check if we have any meaningful data to show
+    const hasCustomer = customerContext.customer_name;
+    const hasHistory = customerContext.call_history && customerContext.call_history.total_calls > 0;
+
+    if (!hasCustomer && !hasHistory) {
+        // Show empty state but with the phone number
+        contextEmpty.innerHTML = `<p>Unknown caller<br><small style="color: #999;">${displayPhone || ''}</small></p>`;
+        contextEmpty.style.display = 'block';
+        contextContent.style.display = 'none';
+        return;
+    }
+
+    contextEmpty.style.display = 'none';
+    contextContent.style.display = 'block';
+
+    // Customer details
+    contextName.textContent = customerContext.customer_name || 'Unknown Customer';
+    contextEmail.textContent = customerContext.customer_email || '';
+    contextPhone.textContent = displayPhone || '';
+
+    // Priority
+    if (customerContext.priority && customerContext.priority !== 'unknown' && customerContext.priority !== 'normal') {
+        contextPrioritySection.style.display = 'block';
+        contextPriorityBadge.textContent = customerContext.priority.toUpperCase();
+        contextPriorityBadge.className = `context-priority-badge ${customerContext.priority}`;
+        contextPriorityReason.textContent = customerContext.priority_reason || '';
+    } else {
+        contextPrioritySection.style.display = 'none';
+    }
+
+    // Orders
+    if (customerContext.order_data) {
+        const orders = typeof customerContext.order_data === 'string'
+            ? JSON.parse(customerContext.order_data)
+            : customerContext.order_data;
+        if (orders && orders.active_orders) {
+            contextOrdersSection.style.display = 'block';
+            let html = `<div>${orders.active_orders} active order(s)</div>`;
+            if (orders.next_installation) {
+                const date = new Date(orders.next_installation).toLocaleDateString();
+                html += `<div>Next install: ${date}</div>`;
+            }
+            contextOrdersContent.innerHTML = html;
+        } else {
+            contextOrdersSection.style.display = 'none';
+        }
+    } else {
+        contextOrdersSection.style.display = 'none';
+    }
+
+    // Call history
+    const history = customerContext.call_history || { total_calls: 0, recent_calls: [] };
+    historyCount.textContent = `(${history.total_calls})`;
+
+    if (history.total_calls === 0) {
+        historySummary.textContent = 'No previous calls';
+        historyList.style.display = 'none';
+        btnExpandHistory.style.display = 'none';
+    } else {
+        const lastCall = history.recent_calls[0];
+        const lastDate = lastCall ? new Date(lastCall.started_at).toLocaleDateString() : '';
+        historySummary.textContent = `${history.total_calls} call(s), last on ${lastDate}`;
+
+        // Render call list
+        const listHtml = history.recent_calls.map(call => {
+            const date = new Date(call.started_at).toLocaleDateString();
+            const duration = call.talk_seconds ? formatCallDuration(call.talk_seconds) : '-';
+            const agent = call.agent_email ? call.agent_email.split('@')[0] : '-';
+            return `
+                <div class="history-item">
+                    <div class="history-left">
+                        <span class="history-direction ${call.direction}">${call.direction}</span>
+                        <span class="history-date">${date}</span>
+                    </div>
+                    <div class="history-right">
+                        <span class="history-duration">${duration}</span>
+                        <span class="history-agent">${agent}</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        historyList.innerHTML = listHtml;
+
+        // Show expand button only if there are more than 3 calls
+        if (history.total_calls > 3) {
+            btnExpandHistory.style.display = 'block';
+            btnExpandHistory.textContent = 'Show all calls';
+        } else {
+            btnExpandHistory.style.display = 'none';
+        }
+    }
+}
+
+// Clear customer context pane
+function clearCustomerContext() {
+    customerContext = null;
+    contextEmpty.innerHTML = '<p>Enter a number or answer a call to see customer info</p>';
+    contextEmpty.style.display = 'block';
+    contextContent.style.display = 'none';
+    historyList.style.display = 'none';
+}
+
+// Format call duration
+function formatCallDuration(seconds) {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+// Toggle history list expansion
+if (btnExpandHistory) {
+    btnExpandHistory.addEventListener('click', function() {
+        const isVisible = historyList.style.display !== 'none';
+        historyList.style.display = isVisible ? 'none' : 'block';
+        this.textContent = isVisible ? 'Show all calls' : 'Hide calls';
+    });
+}
+
+// =============================================================================
+// Call Functions
+// =============================================================================
+
+async function makeCall() {
+    if (!device) {
+        setStatus('Phone not connected - refreshing...', 'offline');
+        await initPhone();
+        if (!device) {
+            setStatus('Phone unavailable - please reload page', 'offline');
+            return;
+        }
+    }
+    if (!phoneNumber) return;
+
+    // Fetch customer context before making the call
+    await fetchCustomerContext(phoneNumber);
+
+    const callerId = document.getElementById('callerId').value;
+    currentCallerId = callerId;  // Track for transfers
+
+    try {
+        setStatus('Calling...', 'busy');
+        btnCall.style.display = 'none';
+        btnHangup.style.display = 'inline-block';
+
+        // SDK 2.x uses async connect
+        currentCall = await device.connect({
+            params: {
+                To: phoneNumber,
+                CallerId: callerId
+            }
+        });
+
+        currentCall.on('accept', () => {
+            setStatus('Connected', 'busy');
+            startCallTimer();
+            callNumber.textContent = phoneNumber;
+            callInfo.classList.add('active');
+            contextPane.classList.add('has-call');
+            // Track the outbound call SID for transfers
+            if (currentCall.parameters && currentCall.parameters.CallSid) {
+                currentOutboundCallSid = currentCall.parameters.CallSid;
+            }
+            // Auto-start recording if enabled
+            autoStartRecordingIfEnabled();
+        });
+
+        currentCall.on('disconnect', () => {
+            endCall();
+        });
+
+        currentCall.on('cancel', () => {
+            endCall();
+        });
+
+        currentCall.on('reject', () => {
+            endCall();
+        });
+
+    } catch (error) {
+        console.error('Call failed:', error);
+        setStatus('Call failed: ' + error.message, 'offline');
+        endCall();
+    }
+}
+
+function hangupCall() {
+    // Capture call SID before endCall() nulls it
+    const callSid = currentCall?.parameters?.CallSid || currentOutboundCallSid;
+
+    if (currentCall) {
+        currentCall.disconnect();
+    }
+
+    // Server-side hangup as fallback — ensures Twilio terminates
+    // both legs even if the browser-side disconnect doesn't propagate
+    if (callSid) {
+        fetch(`/api/voice/hangup`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({call_sid: callSid})
+        }).catch(err => console.error('Server-side hangup failed:', err));
+    }
+
+    endCall();
+}
+
+function answerCall() {
+    stopRingtone();
+    if (currentCall) {
+        currentCall.accept();
+        incomingCall.classList.remove('active');
+        setStatus('Connected', 'busy');
+        startCallTimer();
+        callNumber.textContent = currentCall.parameters.From || 'Unknown';
+        callInfo.classList.add('active');
+        contextPane.classList.add('has-call');
+        btnCall.style.display = 'none';
+        btnHangup.style.display = 'inline-block';
+        // Start unified call state polling — server will figure out which conference we're in
+        startCallStatePolling();
+        // Auto-start recording if enabled
+        autoStartRecordingIfEnabled();
+    }
+}
+
+function rejectCall() {
+    stopRingtone();
+    if (currentCall) {
+        currentCall.reject();
+    }
+    incomingCall.classList.remove('active');
+    currentCall = null;
+}
+
+function endCall() {
+    // Notify server that the call has ended so call_log gets ended_at set.
+    // This is the single point all call endings pass through on the client.
+    const endSid = currentQueueCallerSid || currentOutboundCallSid
+        || (currentCall && currentCall.parameters && currentCall.parameters.CallSid);
+    const wasOutbound = !!currentOutboundCallSid;
+    if (endSid) {
+        fetch('/api/voice/call-ended', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({call_sid: endSid})
+        }).catch(() => {});
+    }
+
+    stopCallTimer();
+    setStatus('Ready', 'ready');
+    btnCall.style.display = 'inline-block';
+    btnHangup.style.display = 'none';
+    callInfo.classList.remove('active');
+    incomingCall.classList.remove('active');
+    contextPane.classList.remove('has-call');
+    closeTransferModal();
+    currentCall = null;
+    currentQueueCallerSid = null;
+    currentOutboundCallSid = null;
+    currentCallerId = null;
+    stopCallStatePolling();
+    currentTransferKey = null;
+    currentTransferCallType = null;
+    currentTransferAgentSid = null;
+
+    // Clear the dialpad
+    phoneNumber = '';
+    contactName = '';
+    updateDisplay();
+
+    // Reset mute/hold state
+    isMuted = false;
+    isOnHold = false;
+    updateMuteButton();
+    updateHoldButton();
+
+    // Reset recording state
+    resetRecordingState();
+
+    // Clear customer context pane
+    clearCustomerContext();
+
+    // Show call outcome for outbound calls (busy, no answer, etc.)
+    if (wasOutbound && endSid) {
+        setTimeout(async () => {
+            try {
+                const res = await fetch(`/api/voice/call-outcome?call_sid=${encodeURIComponent(endSid)}`, {
+                    credentials: 'same-origin'
+                });
+                if (!res.ok) return;
+                const data = await res.json();
+                if (data.status && data.status !== 'answered' && data.status !== 'completed') {
+                    const labels = {
+                        'busy': 'Busy',
+                        'missed': 'No answer',
+                        'failed': 'Call failed',
+                        'abandoned': 'Cancelled',
+                    };
+                    const label = labels[data.status] || data.status;
+                    setStatus(label, 'offline');
+                    setTimeout(() => setStatus('Ready', 'ready'), 4000);
+                }
+            } catch (e) { /* ignore */ }
+        }, 2000);
+    }
+}
+
+function toggleMute() {
+    if (!currentCall) return;
+
+    isMuted = !isMuted;
+    currentCall.mute(isMuted);
+    updateMuteButton();
+}
+
+function updateMuteButton() {
+    if (isMuted) {
+        btnMute.classList.add('muted');
+        muteIcon.textContent = '🔇';
+        muteText.textContent = 'Unmute';
+    } else {
+        btnMute.classList.remove('muted');
+        muteIcon.textContent = '🎤';
+        muteText.textContent = 'Mute';
+    }
+}
+
+async function toggleHold() {
+    if (!currentCall) return;
+    if (btnHold.disabled) return;  // Already processing
+
+    // Disable button while processing to prevent double-clicks
+    btnHold.disabled = true;
+    btnHold.style.opacity = '0.5';
+
+    // Ensure we have the customer SID from polling (e.g. after a transfer)
+    if (!currentQueueCallerSid && lastCallState && lastCallState.customer_call_sid) {
+        currentQueueCallerSid = lastCallState.customer_call_sid;
+    }
+
+    // For queue calls, use the conference-based hold API
+    if (currentQueueCallerSid) {
+        const newHoldState = !isOnHold;
+
+        try {
+            const response = await fetch('/api/voice/call/hold', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    call_sid: currentQueueCallerSid,
+                    action: newHoldState ? 'hold' : 'unhold'
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                console.error('Hold API error:', data.error);
+                btnHold.disabled = false;
+                btnHold.style.opacity = '1';
+                return;
+            }
+
+            isOnHold = newHoldState;
+            updateHoldButton();
+
+            // When resuming from hold, re-apply mute state if it was muted
+            // (The SDK may reset audio state when hold is released)
+            if (!newHoldState && isMuted) {
+                currentCall.mute(true);
+            }
+
+        } catch (error) {
+            console.error('Error toggling hold:', error);
+            btnHold.disabled = false;
+            btnHold.style.opacity = '1';
+        }
+    } else {
+        // For non-queue calls, use conference hold via the agent's call SID
+        const agentCallSid = currentCall.parameters ? currentCall.parameters.CallSid : null;
+        if (!agentCallSid) {
+            // Fallback: just mute
+            isOnHold = !isOnHold;
+            currentCall.mute(isOnHold);
+            if (isOnHold) isMuted = true;
+            updateMuteButton();
+            updateHoldButton();
+            return;
+        }
+
+        const newHoldState = !isOnHold;
+        try {
+            const response = await fetch('/api/voice/call/hold', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    call_sid: agentCallSid,
+                    action: newHoldState ? 'hold' : 'unhold'
+                })
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                console.error('Hold API error:', data.error);
+                btnHold.disabled = false;
+                btnHold.style.opacity = '1';
+                return;
+            }
+            isOnHold = newHoldState;
+            updateHoldButton();
+        } catch (error) {
+            console.error('Error toggling hold:', error);
+            btnHold.disabled = false;
+            btnHold.style.opacity = '1';
+        }
+    }
+}
+
+function updateHoldButton() {
+    btnHold.disabled = false;
+    btnHold.style.opacity = '1';
+    if (isOnHold) {
+        btnHold.classList.add('muted');
+        holdIcon.textContent = '▶️';
+        holdText.textContent = 'Resume';
+    } else {
+        btnHold.classList.remove('muted');
+        holdIcon.textContent = '⏸️';
+        holdText.textContent = 'Hold';
+    }
+}
+
+// ============================================
+// Call Recording
+// ============================================
+
+async function fetchRecordingPreference() {
+    try {
+        const response = await fetch('/api/users/me/recording-default', {
+            credentials: 'same-origin'
+        });
+        if (response.ok) {
+            const data = await response.json();
+            recordingEnabled = data.recording_enabled;
+            console.log('Recording preference:', recordingEnabled);
+        }
+    } catch (error) {
+        console.error('Error fetching recording preference:', error);
+    }
+}
+
+async function startRecording() {
+    // Get the appropriate call SID
+    const callSid = currentQueueCallerSid || currentOutboundCallSid ||
+                    (currentCall ? currentCall.parameters.CallSid : null);
+
+    if (!callSid) {
+        console.error('No call SID available for recording');
+        return false;
+    }
+
+    try {
+        const response = await fetch('/api/voice/recording/start', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ call_sid: callSid })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            isRecording = true;
+            currentRecordingSid = data.recording_sid;
+            updateRecordButton();
+            console.log('Recording started:', currentRecordingSid);
+            return true;
+        } else {
+            console.error('Failed to start recording:', data.error);
+            return false;
+        }
+    } catch (error) {
+        console.error('Error starting recording:', error);
+        return false;
+    }
+}
+
+async function stopRecording() {
+    const callSid = currentQueueCallerSid || currentOutboundCallSid ||
+                    (currentCall ? currentCall.parameters.CallSid : null);
+
+    if (!callSid) {
+        console.error('No call SID available for stopping recording');
+        return false;
+    }
+
+    try {
+        const response = await fetch('/api/voice/recording/stop', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ call_sid: callSid })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            isRecording = false;
+            currentRecordingSid = null;
+            updateRecordButton();
+            console.log('Recording stopped');
+            return true;
+        } else {
+            console.error('Failed to stop recording:', data.error);
+            return false;
+        }
+    } catch (error) {
+        console.error('Error stopping recording:', error);
+        return false;
+    }
+}
+
+async function toggleRecording() {
+    if (!currentCall) return;
+
+    btnRecord.disabled = true;
+
+    if (isRecording) {
+        await stopRecording();
+    } else {
+        await startRecording();
+    }
+
+    btnRecord.disabled = false;
+}
+
+function updateRecordButton() {
+    if (isRecording) {
+        btnRecord.classList.add('recording');
+        recordIcon.textContent = '⏹️';
+        recordText.textContent = 'Stop';
+        btnRecord.title = 'Stop recording';
+    } else {
+        btnRecord.classList.remove('recording');
+        recordIcon.textContent = '⏺️';
+        recordText.textContent = 'Record';
+        btnRecord.title = 'Start recording';
+    }
+}
+
+function resetRecordingState() {
+    isRecording = false;
+    currentRecordingSid = null;
+    updateRecordButton();
+}
+
+// Auto-start recording if user preference is enabled
+async function autoStartRecordingIfEnabled() {
+    if (recordingEnabled && !isRecording) {
+        // Small delay to ensure call is fully connected
+        setTimeout(async () => {
+            if (currentCall && !isRecording) {
+                console.log('Auto-starting recording based on user preference');
+                await startRecording();
+            }
+        }, 1000);
+    }
+}
+
+function startCallTimer() {
+    callSeconds = 0;
+    updateCallDuration();
+    callTimer = setInterval(() => {
+        callSeconds++;
+        updateCallDuration();
+    }, 1000);
+}
+
+function stopCallTimer() {
+    if (callTimer) {
+        clearInterval(callTimer);
+        callTimer = null;
+    }
+    callSeconds = 0;
+}
+
+function updateCallDuration() {
+    const mins = Math.floor(callSeconds / 60);
+    const secs = callSeconds % 60;
+    callDuration.textContent =
+        String(mins).padStart(2, '0') + ':' +
+        String(secs).padStart(2, '0');
+}
+
+// Handle keyboard input
+document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+
+    if (e.key >= '0' && e.key <= '9') {
+        dial(e.key);
+    } else if (e.key === '*') {
+        dial('*');
+    } else if (e.key === '#') {
+        dial('#');
+    } else if (e.key === '+' && !currentCall) {
+        dial('+');
+    } else if (e.key === 'Backspace' && !currentCall) {
+        e.preventDefault();
+        backspace();
+    } else if (e.key === 'Enter' && phoneNumber) {
+        e.preventDefault();
+        if (currentCall) {
+            hangupCall();
+        } else {
+            makeCall();
+        }
+    } else if (e.key === 'Escape' && currentCall) {
+        hangupCall();
+    }
+});
+
+// Handle paste (Ctrl+V or right-click paste)
+document.addEventListener('paste', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+
+    e.preventDefault();
+    const pasted = (e.clipboardData || window.clipboardData).getData('text');
+    // Strip everything except digits, +, *, #
+    const cleaned = pasted.replace(/[^\d+*#]/g, '');
+    if (cleaned) {
+        phoneNumber = cleaned;
+        updateDisplay();
+    }
+});
+
+// Initialize on page load
+initPhone();
+fetchRecordingPreference();  // Load user's recording preference
+loadDndState();  // Load DND state
+fetchContacts();  // Preload contacts for internal caller name resolution
+
+// ============================================
+// Phone Tab Switching
+// ============================================
+function switchPhoneTab(tabName) {
+    // Update tab buttons
+    document.querySelectorAll('.phone-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.tab === tabName);
+    });
+
+    // Update tab content
+    document.getElementById('tabDialpad').classList.toggle('active', tabName === 'dialpad');
+    document.getElementById('tabContacts').classList.toggle('active', tabName === 'contacts');
+    document.getElementById('tabHistory').classList.toggle('active', tabName === 'history');
+
+    // Fetch contacts on first switch to contacts tab
+    if (tabName === 'contacts' && !contactsLoaded) {
+        fetchContacts();
+    }
+
+    // Focus search input when switching to contacts
+    if (tabName === 'contacts') {
+        setTimeout(() => document.getElementById('contactsSearchInput').focus(), 100);
+    }
+
+    // Fetch history on switch
+    if (tabName === 'history') {
+        fetchCallHistory();
+    }
+}
+
+// ============================================
+// Contacts / Address Book
+// ============================================
+let allContacts = [];
+let contactsLoaded = false;
+let contactsSearchTimeout = null;
+let activeFilter = 'all';
+
+// Favourites stored in localStorage per user
+const favStorageKey = 'tina_contact_favourites';
+let favouriteEmails = new Set(JSON.parse(localStorage.getItem(favStorageKey) || '[]'));
+
+function saveFavourites() {
+    localStorage.setItem(favStorageKey, JSON.stringify([...favouriteEmails]));
+}
+
+function toggleFavourite(email, event) {
+    if (event) event.stopPropagation();
+    if (favouriteEmails.has(email)) {
+        favouriteEmails.delete(email);
+    } else {
+        favouriteEmails.add(email);
+    }
+    saveFavourites();
+    applyFilterAndRender();
+}
+
+function setContactFilter(filter) {
+    activeFilter = filter;
+    document.querySelectorAll('.contacts-filter').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.filter === filter);
+    });
+    applyFilterAndRender();
+}
+
+function applyFilterAndRender() {
+    if (!contactsLoaded) return;
+    const query = (document.getElementById('contactsSearchInput').value || '').trim().toLowerCase();
+    let filtered = allContacts;
+
+    // Text search
+    if (query) {
+        filtered = filtered.filter(c => {
+            const searchable = `${c.name} ${c.email} ${c.section} ${c.position} ${c.extension}`.toLowerCase();
+            return searchable.includes(query);
+        });
+    }
+
+    // Filter
+    if (activeFilter === 'online') {
+        filtered = filtered.filter(c => {
+            const p = contactPresence[c.email];
+            return p && p.online && !p.dnd;
+        });
+    } else if (activeFilter === 'favourites') {
+        filtered = filtered.filter(c => favouriteEmails.has(c.email));
+    }
+
+    renderContacts(filtered);
+}
+
+async function fetchContacts() {
+    try {
+        const response = await fetch('/api/contacts', {
+            credentials: 'same-origin'
+        });
+        if (response.ok) {
+            const data = await response.json();
+            allContacts = data.contacts || [];
+            contactsLoaded = true;
+            renderContacts(allContacts);
+        } else {
+            document.getElementById('contactsList').innerHTML =
+                '<div class="contacts-empty"><p>Failed to load contacts</p></div>';
+        }
+    } catch (error) {
+        console.error('Error fetching contacts:', error);
+        document.getElementById('contactsList').innerHTML =
+            '<div class="contacts-empty"><p>Failed to load contacts</p></div>';
+    }
+}
+
+function renderContacts(contacts) {
+    const list = document.getElementById('contactsList');
+
+    if (contacts.length === 0) {
+        const emptyMsg = activeFilter === 'online' ? 'No one is online right now'
+            : activeFilter === 'favourites' ? 'No favourites yet — tap the star on a contact'
+            : 'No contacts found';
+        list.innerHTML = `<div class="contacts-empty"><p>${emptyMsg}</p></div>`;
+        return;
+    }
+
+    // Sort: online first (available > on-call > DND > offline), then alphabetical
+    const sorted = [...contacts].sort((a, b) => {
+        const pa = contactPresence[a.email] || {};
+        const pb = contactPresence[b.email] || {};
+        const orderA = pa.dnd ? 2 : (pa.online || pa.on_call) ? 0 : 3;
+        const orderB = pb.dnd ? 2 : (pb.online || pb.on_call) ? 0 : 3;
+        if (orderA !== orderB) return orderA - orderB;
+        return (a.name || '').localeCompare(b.name || '');
+    });
+
+    // Split favourites from the rest (only when showing "all")
+    const favContacts = activeFilter === 'all' ? sorted.filter(c => favouriteEmails.has(c.email)) : [];
+    const restContacts = activeFilter === 'all' ? sorted.filter(c => !favouriteEmails.has(c.email)) : sorted;
+
+    let html = '';
+
+    // Render favourites section at top (only in "all" view)
+    if (favContacts.length > 0) {
+        html += `<div class="contacts-section-header">Favourites</div>`;
+        for (const contact of favContacts) {
+            html += renderContactCard(contact);
+        }
+    }
+
+    // When not in "all" view, render a flat sorted list (no section headers)
+    if (activeFilter !== 'all') {
+        for (const contact of restContacts) {
+            html += renderContactCard(contact);
+        }
+        list.innerHTML = html;
+        return;
+    }
+
+    // In "all" view, group by section but keep online-first sort within each section
+    const grouped = {};
+    for (const contact of restContacts) {
+        const section = contact.section || 'Other';
+        if (!grouped[section]) grouped[section] = [];
+        grouped[section].push(contact);
+    }
+
+    const sections = Object.keys(grouped).sort();
+    for (const section of sections) {
+        html += `<div class="contacts-section-header">${escapeHtml(section)}</div>`;
+        for (const contact of grouped[section]) {
+            html += renderContactCard(contact);
+        }
+    }
+
+    list.innerHTML = html;
+}
+
+function renderContactCard(contact) {
+    const initials = getInitials(contact.name);
+    const avatarClass = contact.is_active_in_tina ? '' : ' inactive';
+    const hasNumber = contact.phone || contact.extension;
+    const detail = [contact.position, contact.extension ? `Ext ${contact.extension}` : '']
+        .filter(Boolean).join(' &middot; ');
+
+    // Build action buttons
+    let actions = '';
+    const isFav = favouriteEmails.has(contact.email);
+    const starClass = isFav ? ' favourited' : '';
+    actions += `<button class="contact-fav-btn${starClass}" onclick="toggleFavourite('${escapeAttr(contact.email)}', event)" title="${isFav ? 'Remove from favourites' : 'Add to favourites'}">&#9733;</button>`;
+
+    if (hasNumber) {
+        if (contact.phone) {
+            actions += `<button class="contact-call-btn" onclick="event.stopPropagation(); contactCall('${escapeAttr(contact.phone)}', '${escapeAttr(contact.name)}')" title="Dial ${contact.phone}">&#128222;</button>`;
+        }
+        if (contact.extension) {
+            actions += `<button class="contact-call-btn ext" onclick="event.stopPropagation(); contactCallExtension('${escapeAttr(contact.extension)}', '${escapeAttr(contact.name)}')" title="Dial ext ${contact.extension}">&#128228;</button>`;
+        }
+    } else {
+        actions += '<span style="font-size: 0.8em; color: #adb5bd;">No phone</span>';
+    }
+
+    // Presence status dot
+    const presence = contactPresence[contact.email] || {};
+    let dotClass = '';
+    if (presence.dnd) dotClass = ' dnd';
+    else if (presence.on_call) dotClass = ' on-call';
+    else if (presence.online) dotClass = ' online';
+
+    // Status badge text
+    let statusBadge = '';
+    if (presence.dnd) statusBadge = '<span class="contact-status-badge dnd">DND</span>';
+    else if (presence.on_call) statusBadge = '<span class="contact-status-badge on-call">On call</span>';
+
+    const defaultNumber = contact.phone || contact.extension || '';
+    const cardTitle = hasNumber ? `Select ${escapeAttr(contact.name)} on dialpad` : '';
+
+    return `
+        <div class="contact-card${hasNumber ? '' : ' no-phone'}" ${hasNumber ? `onclick="contactCall('${escapeAttr(defaultNumber)}', '${escapeAttr(contact.name)}')" title="${cardTitle}"` : ''}>
+            <div class="contact-avatar-wrapper">
+                <div class="contact-avatar${avatarClass}">${escapeHtml(initials)}</div>
+                <div class="contact-status-dot${dotClass}"></div>
+            </div>
+            <div class="contact-info">
+                <div class="contact-name">${escapeHtml(contact.name)}${statusBadge}</div>
+                <div class="contact-detail">${detail || '&nbsp;'}</div>
+            </div>
+            <div class="contact-actions">${actions}</div>
+        </div>
+    `;
+}
+
+function getInitials(name) {
+    if (!name) return '?';
+    const parts = name.split(' ').filter(Boolean);
+    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    return (parts[0] || '?')[0].toUpperCase();
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+function escapeAttr(str) {
+    if (!str) return '';
+    return str.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
+
+function contactCall(target, name) {
+    if (!target) return;
+
+    // Switch to dialpad tab
+    switchPhoneTab('dialpad');
+
+    // Set the number and contact name for display
+    contactName = name || '';
+    phoneNumber = target;
+    updateDisplay();
+}
+
+function contactCallExtension(extension, name) {
+    // Switch to dialpad tab and dial the extension
+    switchPhoneTab('dialpad');
+    contactName = name || '';
+    phoneNumber = extension;
+    updateDisplay();
+}
+
+// Search handler with debounce
+const contactsSearchInput = document.getElementById('contactsSearchInput');
+if (contactsSearchInput) {
+    contactsSearchInput.addEventListener('input', function() {
+        clearTimeout(contactsSearchTimeout);
+        contactsSearchTimeout = setTimeout(() => applyFilterAndRender(), 200);
+    });
+}
+
+// ============================================
+// Call History
+// ============================================
+let allCallHistory = [];
+let historyLoaded = false;
+let activeHistoryFilter = 'all';
+
+async function fetchCallHistory() {
+    const container = document.getElementById('myCallHistoryList');
+    container.innerHTML = '<div class="contacts-empty"><p>Loading call history...</p></div>';
+    try {
+        const response = await fetch('/api/my-call-history?limit=100', {
+            credentials: 'same-origin'
+        });
+        if (!response.ok) throw new Error('Status ' + response.status);
+        const data = await response.json();
+        allCallHistory = data.calls || [];
+        if (allCallHistory.length === 0) {
+            container.innerHTML = '<div class="contacts-empty"><p>No calls found</p></div>';
+            return;
+        }
+        try {
+            renderCallHistory();
+        } catch (renderErr) {
+            console.error('Render error:', renderErr);
+            container.innerHTML = '<div class="contacts-empty"><p>Error rendering: ' + renderErr.message + '</p></div>';
+        }
+    } catch (err) {
+        console.error('Fetch error:', err);
+        container.innerHTML = '<div class="contacts-empty"><p>Failed to load: ' + err.message + '</p></div>';
+    }
+}
+
+function setHistoryFilter(filter) {
+    activeHistoryFilter = filter;
+    document.querySelectorAll('.history-filters .contacts-filter').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.filter === filter);
+    });
+    renderCallHistory();
+}
+
+function renderCallHistory() {
+    const container = document.getElementById('myCallHistoryList');
+    let calls = allCallHistory;
+
+    // Apply filter
+    if (activeHistoryFilter === 'inbound') {
+        calls = calls.filter(c => c.direction === 'inbound');
+    } else if (activeHistoryFilter === 'outbound') {
+        calls = calls.filter(c => c.direction === 'outbound');
+    } else if (activeHistoryFilter === 'missed') {
+        calls = calls.filter(c => ['missed', 'abandoned', 'no-answer'].includes(c.status));
+    }
+
+    if (calls.length === 0) {
+        container.innerHTML = '<div class="contacts-empty"><p>No calls found</p></div>';
+        return;
+    }
+
+    // Group by date
+    const grouped = {};
+    calls.forEach(call => {
+        const date = call.started_at ? call.started_at.substring(0, 10) : 'Unknown';
+        if (!grouped[date]) grouped[date] = [];
+        grouped[date].push(call);
+    });
+
+    let html = '';
+    for (const [date, dateCalls] of Object.entries(grouped)) {
+        html += `<div class="history-date-header">${formatHistoryDate(date)}</div>`;
+        dateCalls.forEach(call => {
+            html += renderHistoryCard(call);
+        });
+    }
+    container.innerHTML = html;
+}
+
+function renderHistoryCard(call) {
+    const isMissed = ['missed', 'abandoned', 'no-answer'].includes(call.status);
+    const dir = (call.direction === 'inbound' || call.direction === 'outbound') ? call.direction : 'outbound';
+    const iconClass = isMissed ? 'missed' : dir;
+    const icon = dir === 'inbound' ? '&#8599;' : '&#8600;';
+
+    // Display name or number
+    const otherNumber = dir === 'inbound' ? (call.from_number || '') : (call.to_number || '');
+    const displayName = call.customer_name || formatPhoneDisplay(otherNumber);
+
+    // Detail line
+    const parts = [];
+    if (call.direction === 'inbound') {
+        parts.push(isMissed ? 'Missed' : 'Inbound');
+    } else if (call.direction === 'outbound') {
+        parts.push('Outbound');
+    } else {
+        parts.push(call.direction || 'Call');
+    }
+    if (call.queue_name) parts.push(call.queue_name);
+    if (call.call_type && call.call_type !== 'direct') {
+        parts.push(call.call_type);
+    }
+    const detail = parts.join(' \u00b7 ');
+
+    // Time
+    const time = call.started_at ? formatHistoryTime(call.started_at) : '';
+    const duration = formatDuration(call.talk_seconds || call.total_seconds);
+
+    // Sanitize number for onclick - only use dialable numbers
+    const dialNumber = otherNumber.match(/^[+\d]/) ? otherNumber.replace(/'/g, '') : '';
+
+    return `
+        <div class="history-card"${dialNumber ? ` onclick="historyCardClick('${dialNumber}')"` : ''}>
+            <div class="history-icon ${iconClass}">${icon}</div>
+            <div class="history-info">
+                <div class="history-name">${escapeHtml(displayName)}</div>
+                <div class="history-detail">${escapeHtml(detail)}</div>
+            </div>
+            <div class="history-time">
+                <div class="history-time-date">${time}</div>
+                <div class="history-time-duration">${duration}</div>
+            </div>
+        </div>`;
+}
+
+function historyCardClick(number) {
+    if (!number || currentCall) return;
+    // Switch to dialpad and populate the number
+    switchPhoneTab('dialpad');
+    phoneNumber = number.replace(/[^\d+]/g, '');
+    updateDisplay();
+}
+
+function formatHistoryDate(dateStr) {
+    const today = new Date();
+    const date = new Date(dateStr + 'T00:00:00');
+    const todayStr = today.toISOString().substring(0, 10);
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().substring(0, 10);
+
+    if (dateStr === todayStr) return 'Today';
+    if (dateStr === yesterdayStr) return 'Yesterday';
+    return date.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+function formatHistoryTime(isoStr) {
+    try {
+        const d = new Date(isoStr + (isoStr.endsWith('Z') ? '' : 'Z'));
+        return d.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true });
+    } catch { return ''; }
+}
+
+function formatDuration(seconds) {
+    if (!seconds || seconds <= 0) return '';
+    if (seconds < 60) return seconds + 's';
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return m + ':' + String(s).padStart(2, '0');
+}
+
+// ============================================
+// Active Calls
+// ============================================
+function formatPhoneDisplay(number) {
+    if (!number) return 'Unknown';
+    // Format Australian numbers nicely
+    const cleaned = number.replace(/\s/g, '');
+    if (cleaned.startsWith('+61') && cleaned.length === 12) {
+        const local = '0' + cleaned.substring(3);
+        if (local.startsWith('04')) {
+            return local.substring(0, 4) + ' ' + local.substring(4, 7) + ' ' + local.substring(7);
+        }
+        return local.substring(0, 2) + ' ' + local.substring(2, 6) + ' ' + local.substring(6);
+    }
+    return number;
+}
+
+// ============================================
+// Call Transfer
+// ============================================
+let transferTargets = [];
+let selectedTarget = null;
+let selectedTargetName = '';
+let transferType = 'blind';  // 'blind', 'warm', or 'three_way'
+let currentTransferKey = null;
+let currentTransferCallType = null;
+let currentTransferAgentSid = null;
+let isConsulting = false;
+let consultCallSid = null;
+
+const transferModal = document.getElementById('transferModal');
+const targetList = document.getElementById('targetList');
+const externalNumberInput = document.getElementById('externalNumber');
+const btnStartTransfer = document.getElementById('btnStartTransfer');
+const btnBlindTransfer = document.getElementById('btnBlindTransfer');
+const btnWarmTransfer = document.getElementById('btnWarmTransfer');
+const transferConsulting = document.getElementById('transferConsulting');
+const transferTargetSelection = document.getElementById('transferTargetSelection');
+const transferActions = document.getElementById('transferActions');
+const consultingActions = document.getElementById('consultingActions');
+const consultingTargetName = document.getElementById('consultingTargetName');
+
+let transferRefreshInterval = null;
+let transferStatusInterval = null;
+
+async function fetchTransferTargets() {
+    try {
+        const targetsRes = await fetch('/api/voice/transfer/targets', { credentials: 'same-origin' });
+
+        if (targetsRes.ok) {
+            const data = await targetsRes.json();
+            transferTargets = data.targets || [];
+        }
+
+        renderTransferTargets();
+    } catch (error) {
+        console.error('Error fetching transfer targets:', error);
+    }
+}
+
+function renderTransferTargets() {
+    if (transferTargets.length === 0) {
+        targetList.innerHTML = '<div style="padding: 20px; text-align: center; color: #7f8c8d;">No team members available</div>';
+        return;
+    }
+
+    // Sort: online+available first, online+busy next, offline last
+    const sorted = [...transferTargets].sort((a, b) => {
+        const pa = contactPresence[(a.email || '').toLowerCase()] || {};
+        const pb = contactPresence[(b.email || '').toLowerCase()] || {};
+        const aOnline = pa.online || pa.on_call;
+        const bOnline = pb.online || pb.on_call;
+        if (aOnline !== bOnline) return aOnline ? -1 : 1;
+        const aBusy = pa.on_call || pa.dnd;
+        const bBusy = pb.on_call || pb.dnd;
+        if (aBusy !== bBusy) return aBusy ? 1 : -1;
+        return (a.name || '').localeCompare(b.name || '');
+    });
+
+    targetList.innerHTML = sorted.map(target => {
+        const detail = target.extension ? `Ext ${target.extension}` : '';
+        const isSelected = selectedTarget === target.phone || selectedTarget === target.email;
+        const presence = contactPresence[(target.email || '').toLowerCase()] || {};
+        const isOnline = presence.online || presence.on_call;
+        const isBusy = presence.on_call;
+        const isDnd = presence.dnd;
+
+        let statusHtml = '';
+        if (isDnd) statusHtml = ' <span class="target-busy-badge" style="background:#fde8e8;color:#e74c3c">DND</span>';
+        else if (isBusy) statusHtml = ' <span class="target-busy-badge">on a call</span>';
+        else if (!isOnline) statusHtml = ' <span class="target-busy-badge" style="background:#f0f0f0;color:#999">offline</span>';
+
+        return `
+            <div class="target-item ${isSelected ? 'selected' : ''} ${isBusy ? 'target-busy' : ''} ${!isOnline ? 'target-offline' : ''}"
+                 onclick="selectTarget('${target.extension || target.phone || target.email}', '${target.name}', '${target.email}')">
+                <span class="target-name">${target.name}${statusHtml}</span>
+                <span class="target-phone">${detail}</span>
+            </div>
+        `;
+    }).join('');
+}
+
+let selectedTargetEmail = '';
+
+function selectTarget(target, name, email) {
+    selectedTarget = target;
+    selectedTargetName = name;
+    selectedTargetEmail = email || '';
+    externalNumberInput.value = '';
+    renderTransferTargets();
+    updateTransferButton();
+}
+
+function selectTransferType(type) {
+    transferType = type;
+    document.getElementById('btnBlindTransfer').classList.toggle('active', type === 'blind');
+    document.getElementById('btnWarmTransfer').classList.toggle('active', type === 'warm');
+    document.getElementById('btnThreeWay').classList.toggle('active', type === 'three_way');
+}
+
+function updateTransferButton() {
+    const extNum = externalNumberInput.value.trim();
+    const hasTarget = selectedTarget || extNum;
+    btnStartTransfer.disabled = !hasTarget;
+    if (selectedTargetName && selectedTarget) {
+        btnStartTransfer.textContent = `Transfer to ${selectedTargetName}`;
+    } else if (extNum) {
+        btnStartTransfer.textContent = `Transfer to ${extNum}`;
+    } else {
+        btnStartTransfer.textContent = 'Transfer';
+    }
+}
+
+function showTransferError(msg) {
+    const el = document.getElementById('transferError');
+    el.textContent = msg;
+    el.style.display = 'block';
+    setTimeout(() => { el.style.display = 'none'; }, 8000);
+}
+
+function openTransferModal() {
+    if (!currentCall) return;
+
+    // If polling found a customer SID but we haven't stored it yet, grab it now
+    // (happens after a warm transfer lands the agent in the original conference)
+    if (!currentQueueCallerSid && lastCallState && lastCallState.customer_call_sid) {
+        currentQueueCallerSid = lastCallState.customer_call_sid;
+    }
+
+    // Determine call type
+    const isQueueCall = !!currentQueueCallerSid;
+    const isOutboundCall = !!currentOutboundCallSid && !isQueueCall;
+    currentTransferCallType = isQueueCall ? 'queue' : isOutboundCall ? 'outbound' : 'direct_inbound';
+
+    // Reset state
+    selectedTarget = null;
+    selectedTargetName = '';
+    externalNumberInput.value = '';
+    isConsulting = false;
+    consultCallSid = null;
+    currentTransferKey = null;
+    document.getElementById('transferError').style.display = 'none';
+
+    // All transfer types available for all call types
+    selectTransferType('blind');
+    document.getElementById('btnWarmTransfer').style.opacity = '1';
+    document.getElementById('btnWarmTransfer').style.pointerEvents = 'auto';
+    document.getElementById('btnWarmTransfer').title = '';
+    document.getElementById('btnThreeWay').style.opacity = '1';
+    document.getElementById('btnThreeWay').style.pointerEvents = 'auto';
+    document.getElementById('btnThreeWay').title = '';
+
+    // Show target selection, hide consulting
+    transferTargetSelection.style.display = 'block';
+    transferConsulting.style.display = 'none';
+    transferActions.style.display = 'flex';
+    consultingActions.style.display = 'none';
+
+    // Fetch fresh targets
+    fetchTransferTargets();
+    updateTransferButton();
+
+    // Re-render transfer targets when presence updates (every 15s)
+    transferRefreshInterval = setInterval(() => {
+        renderTransferTargets();
+    }, 5000);
+
+    // Show modal
+    transferModal.classList.add('active');
+}
+
+function closeTransferModal() {
+    transferModal.classList.remove('active');
+    if (transferRefreshInterval) {
+        clearInterval(transferRefreshInterval);
+        transferRefreshInterval = null;
+    }
+    stopTransferStatusPolling();
+}
+
+async function startTransfer() {
+    const target = selectedTarget || externalNumberInput.value.trim();
+    const targetName = selectedTargetName || target;
+
+    if (!target) return;
+
+    const agentCallSid = currentCall ? currentCall.parameters.CallSid : null;
+
+    btnStartTransfer.disabled = true;
+    btnStartTransfer.textContent = 'Starting transfer...';
+
+    try {
+        if (transferType === 'blind') {
+            // Blind transfer
+            let endpoint, body;
+            const isQueueCall = currentTransferCallType === 'queue';
+
+            if (!isQueueCall) {
+                const callSid = currentOutboundCallSid || agentCallSid;
+                endpoint = '/api/voice/transfer/blind-direct';
+                body = {
+                    call_sid: callSid,
+                    target: target,
+                    target_name: targetName,
+                    caller_id: currentCallerId
+                };
+            } else {
+                endpoint = '/api/voice/transfer/blind';
+                body = {
+                    call_sid: currentQueueCallerSid,
+                    target: target,
+                    target_name: targetName
+                };
+            }
+
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                closeTransferModal();
+                endCall();
+            } else {
+                showTransferError(data.error || 'Transfer failed');
+                btnStartTransfer.disabled = false;
+                btnStartTransfer.textContent = 'Transfer';
+            }
+        } else {
+            // Warm transfer or 3-way call
+            if (!agentCallSid) {
+                showTransferError('Could not get call SID');
+                btnStartTransfer.disabled = false;
+                btnStartTransfer.textContent = 'Transfer';
+                return;
+            }
+
+            const response = await fetch('/api/voice/transfer/warm/start', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    call_sid: currentQueueCallerSid,
+                    target: target,
+                    target_name: targetName,
+                    agent_call_sid: agentCallSid,
+                    call_type: currentTransferCallType,
+                    three_way: transferType === 'three_way'
+                })
+            });
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                isConsulting = true;
+                consultCallSid = data.consult_call_sid;
+                currentTransferKey = data.transfer_key || currentQueueCallerSid;
+                currentTransferAgentSid = data.agent_call_sid || null;
+                consultingTargetName.textContent = targetName;
+                consultTargetAnswered = false;
+
+                const subtitle = document.getElementById('consultingSubtitle');
+                const completeBtn = document.getElementById('btnCompleteTransfer');
+
+                if (transferType === 'three_way') {
+                    subtitle.textContent = 'Connecting all parties. Click "Leave Call" when ready to drop out.';
+                    completeBtn.textContent = 'Leave Call';
+                } else {
+                    subtitle.textContent = `Customer is on hold while we call ${targetName}. Speak to them first, then complete or cancel.`;
+                    completeBtn.textContent = 'Complete Transfer';
+                }
+
+                transferTargetSelection.style.display = 'none';
+                transferConsulting.style.display = 'block';
+                transferActions.style.display = 'none';
+                consultingActions.style.display = 'flex';
+
+                // Poll transfer status to detect when consult call fails
+                startTransferStatusPolling();
+            } else {
+                showTransferError(data.error || 'Transfer failed');
+                btnStartTransfer.disabled = false;
+                btnStartTransfer.textContent = 'Transfer';
+            }
+        }
+    } catch (error) {
+        showTransferError('Transfer error: ' + error.message);
+        btnStartTransfer.disabled = false;
+        btnStartTransfer.textContent = 'Transfer';
+    }
+}
+
+async function completeTransfer() {
+    try {
+        const body = { call_type: currentTransferCallType };
+        if (currentTransferCallType === 'queue') {
+            body.call_sid = currentQueueCallerSid;
+        } else {
+            body.transfer_key = currentTransferKey;
+        }
+        console.log('Complete transfer:', JSON.stringify(body));
+
+        const response = await fetch('/api/voice/transfer/warm/complete', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+
+        const data = await response.json();
+        console.log('Complete transfer response:', JSON.stringify(data));
+
+        if (response.ok && data.success) {
+            stopTransferStatusPolling();
+            closeTransferModal();
+            endCall();
+        } else {
+            if (data.caller_disconnected) {
+                stopTransferStatusPolling();
+                closeTransferModal();
+                isConsulting = false;
+                consultCallSid = null;
+                currentTransferKey = null;
+            } else {
+                showTransferError(data.error || 'Failed to complete transfer');
+            }
+        }
+    } catch (error) {
+        showTransferError('Error: ' + error.message);
+    }
+}
+
+function startTransferStatusPolling() {
+    stopTransferStatusPolling();
+    transferStatusInterval = setInterval(async () => {
+        if (!isConsulting) {
+            stopTransferStatusPolling();
+            return;
+        }
+        try {
+            const params = new URLSearchParams();
+            if (currentTransferCallType === 'queue') {
+                params.set('call_sid', currentQueueCallerSid);
+                params.set('source', 'queued_calls');
+            } else {
+                params.set('transfer_key', currentTransferKey);
+                params.set('source', 'call_log');
+            }
+            const res = await fetch(`/api/voice/transfer/status?${params}`, { credentials: 'same-origin' });
+            if (res.ok) {
+                const data = await res.json();
+                const status = data.transfer && data.transfer.transfer_status;
+                if (status === 'failed') {
+                    console.log('Transfer failed — resetting consulting UI');
+                    stopTransferStatusPolling();
+                    isConsulting = false;
+                    consultCallSid = null;
+                    currentTransferKey = null;
+
+                    // Reset UI back to target selection
+                    transferTargetSelection.style.display = 'block';
+                    transferConsulting.style.display = 'none';
+                    transferActions.style.display = 'flex';
+                    consultingActions.style.display = 'none';
+                    btnStartTransfer.disabled = false;
+                    btnStartTransfer.textContent = 'Transfer';
+
+                    showTransferError('Transfer target did not answer. You are reconnected with the caller.');
+                }
+            }
+        } catch (e) { /* ignore polling errors */ }
+    }, 3000);
+}
+
+function stopTransferStatusPolling() {
+    if (transferStatusInterval) {
+        clearInterval(transferStatusInterval);
+        transferStatusInterval = null;
+    }
+}
+
+async function cancelTransfer() {
+    try {
+        const body = { call_type: currentTransferCallType };
+        if (currentTransferCallType === 'queue') {
+            body.call_sid = currentQueueCallerSid;
+        } else {
+            body.transfer_key = currentTransferKey;
+            body.agent_call_sid = currentTransferAgentSid;
+        }
+        console.log('Cancel transfer:', JSON.stringify(body));
+
+        const response = await fetch('/api/voice/transfer/cancel', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+
+        const data = await response.json();
+        console.log('Cancel transfer response:', JSON.stringify(data));
+
+        if (response.ok && data.success) {
+            stopTransferStatusPolling();
+            isConsulting = false;
+            consultCallSid = null;
+            currentTransferKey = null;
+
+            if (data.caller_disconnected) {
+                closeTransferModal();
+                endCall();
+            } else {
+                // Return to target selection
+                transferTargetSelection.style.display = 'block';
+                transferConsulting.style.display = 'none';
+                transferActions.style.display = 'flex';
+                consultingActions.style.display = 'none';
+
+                btnStartTransfer.disabled = false;
+                btnStartTransfer.textContent = 'Transfer';
+            }
+        } else {
+            showTransferError(data.error || 'Failed to cancel transfer');
+        }
+    } catch (error) {
+        showTransferError('Error: ' + error.message);
+    }
+}
+
+// Update transfer button when external number changes
+if (externalNumberInput) {
+    externalNumberInput.addEventListener('input', function() {
+        if (this.value.trim()) {
+            selectedTarget = null;
+            selectedTargetName = '';
+            renderTransferTargets();
+        }
+        updateTransferButton();
+    });
+}
+
+// Close modal on escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && transferModal.classList.contains('active')) {
+        closeTransferModal();
+    }
+});
+
+// Close modal when clicking outside
+transferModal.addEventListener('click', function(e) {
+    if (e.target === transferModal) {
+        closeTransferModal();
+    }
+});
+
+// ============================================
+// Queue Dashboard
+// ============================================
+const queueAlert = document.getElementById('queueAlert');
+const queueAlertTitle = document.getElementById('queueAlertTitle');
+const queueAlertSubtitle = document.getElementById('queueAlertSubtitle');
+const queueCallersCard = document.getElementById('queueCallersCard');
+const queueCallersList = document.getElementById('queueCallersList');
+const queueCount = document.getElementById('queueCount');
+
+let queuePollingInterval = null;
+let answeringCallSid = null;
+
+async function fetchQueueCallers() {
+    // DND means do not disturb — don't show queue callers at all
+    if (isDndEnabled) {
+        renderQueueCallers([]);
+        return;
+    }
+    try {
+        const response = await fetch('/api/queue/callers', {
+            credentials: 'same-origin'
+        });
+
+        if (!response.ok) {
+            console.error('Failed to fetch queue callers');
+            return;
+        }
+
+        const data = await response.json();
+        renderQueueCallers(data.callers || []);
+    } catch (error) {
+        console.error('Error fetching queue callers:', error);
+    }
+}
+
+function renderQueueCallers(callers) {
+    const waitingCallers = callers.filter(c => c.status === 'waiting');
+    const count = waitingCallers.length;
+
+    // Update alert visibility and message
+    if (count > 0) {
+        queueAlert.classList.remove('queue-alert-hidden');
+        queueCallersCard.style.display = 'block';
+
+        const highPriority = waitingCallers.filter(c => c.priority === 'high').length;
+
+        if (highPriority > 0) {
+            queueAlertTitle.textContent = `${count} caller${count > 1 ? 's' : ''} waiting (${highPriority} HIGH PRIORITY)`;
+            queueAlertSubtitle.textContent = 'Customer with upcoming installation - please answer promptly!';
+        } else {
+            queueAlertTitle.textContent = `${count} caller${count > 1 ? 's' : ''} waiting in queue`;
+            queueAlertSubtitle.textContent = 'Click Answer to connect with a caller';
+        }
+
+        queueCount.textContent = `${count} waiting`;
+    } else {
+        queueAlert.classList.add('queue-alert-hidden');
+        queueCallersCard.style.display = 'none';
+    }
+
+    // Render caller cards
+    queueCallersList.innerHTML = waitingCallers.map(caller => {
+        const waitTime = formatWaitTime(caller.enqueued_at);
+        const isLongWait = getWaitSeconds(caller.enqueued_at) > 60;
+        const isAnswering = answeringCallSid === caller.call_sid;
+
+        let details = [];
+
+        if (caller.priority === 'high') {
+            details.push(`<span class="caller-detail priority-high">⚠️ ${caller.priority_reason || 'High Priority'}</span>`);
+        } else if (caller.priority === 'medium') {
+            details.push(`<span class="caller-detail priority-medium">📦 ${caller.priority_reason || 'Has active orders'}</span>`);
+        }
+
+        if (caller.order_data) {
+            try {
+                const orders = JSON.parse(caller.order_data);
+                if (orders.active_orders) {
+                    details.push(`<span class="caller-detail">📋 ${orders.active_orders} active order${orders.active_orders > 1 ? 's' : ''}</span>`);
+                }
+                if (orders.next_installation) {
+                    const installDate = new Date(orders.next_installation);
+                    details.push(`<span class="caller-detail">📅 Install: ${installDate.toLocaleDateString()}</span>`);
+                }
+            } catch (e) {}
+        }
+
+        if (caller.queue_name) {
+            details.push(`<span class="caller-detail">📞 ${caller.queue_name}</span>`);
+        }
+
+        return `
+            <div class="queue-caller priority-${caller.priority || 'unknown'}">
+                <div class="caller-info">
+                    <div class="caller-name">
+                        ${caller.customer_name || 'Unknown Caller'}
+                        ${caller.priority === 'high' ? '<span class="priority-badge high">HIGH</span>' : ''}
+                        ${caller.priority === 'medium' ? '<span class="priority-badge medium">MEDIUM</span>' : ''}
+                    </div>
+                    <div class="caller-number">${caller.caller_number}</div>
+                    ${details.length > 0 ? `<div class="caller-details">${details.join('')}</div>` : ''}
+                </div>
+                <div class="caller-wait-time">
+                    <div class="wait-label">Waiting</div>
+                    <div class="wait-time ${isLongWait ? 'long-wait' : ''}">${waitTime}</div>
+                </div>
+                <div class="caller-actions">
+                    <button class="btn-answer-queue"
+                            onclick="answerQueueCall('${caller.call_sid}')"
+                            ${isAnswering ? 'disabled' : ''}>
+                        ${isAnswering ? 'Connecting...' : 'Answer'}
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function formatWaitTime(enqueuedAt) {
+    const seconds = getWaitSeconds(enqueuedAt);
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+
+    if (mins > 0) {
+        return `${mins}:${String(secs).padStart(2, '0')}`;
+    }
+    return `0:${String(secs).padStart(2, '0')}`;
+}
+
+function getWaitSeconds(enqueuedAt) {
+    const enqueued = new Date(enqueuedAt);
+    const now = new Date();
+    return Math.floor((now - enqueued) / 1000);
+}
+
+async function answerQueueCall(callSid) {
+    if (answeringCallSid) return;  // Already answering a call
+    stopQueueAlert();
+    if (!device) {
+        alert('Browser phone not ready. Please wait for it to initialize.');
+        return;
+    }
+
+    // Find the caller to get the queue_id
+    const caller = (window._lastCallers || []).find(c => c.call_sid === callSid);
+    if (!caller) {
+        alert('Caller not found in queue');
+        return;
+    }
+
+    // Fetch customer context including call history
+    // The caller object has basic enrichment, but we want fresh data + history
+    await fetchCustomerContext(caller.caller_number);
+
+    answeringCallSid = callSid;
+    renderQueueCallers(window._lastCallers || []);
+
+    try {
+        setStatus('Connecting...', 'busy');
+        btnCall.style.display = 'none';
+        btnHangup.style.display = 'inline-block';
+
+        // Use Twilio Device to connect to the queue
+        // The backend will return TwiML that dials into the queue
+        currentCall = await device.connect({
+            params: {
+                AnswerQueueId: caller.queue_id,
+                AnswerCallSid: callSid
+            }
+        });
+
+        currentCall.on('accept', () => {
+            setStatus('Connected', 'busy');
+            startCallTimer();
+            callNumber.textContent = caller.customer_name || caller.caller_number || 'Queue Caller';
+            callInfo.classList.add('active');
+            contextPane.classList.add('has-call');
+            answeringCallSid = null;
+            currentQueueCallerSid = callSid;  // Track for hold/unhold API
+            startCallStatePolling();
+            fetchQueueCallers();  // Refresh to remove from list
+            // Auto-start recording if enabled
+            autoStartRecordingIfEnabled();
+        });
+
+        currentCall.on('disconnect', () => {
+            endCall();
+            answeringCallSid = null;
+            fetchQueueCallers();
+        });
+
+        currentCall.on('cancel', () => {
+            endCall();
+            answeringCallSid = null;
+            fetchQueueCallers();
+        });
+
+        currentCall.on('reject', () => {
+            endCall();
+            answeringCallSid = null;
+            fetchQueueCallers();
+        });
+
+    } catch (error) {
+        console.error('Error answering call:', error);
+        alert('Error answering call: ' + error.message);
+        setStatus('Ready', 'ready');
+        btnCall.style.display = 'inline-block';
+        btnHangup.style.display = 'none';
+        answeringCallSid = null;
+        fetchQueueCallers();
+    }
+}
+
+// Start polling for queue callers
+function startQueuePolling() {
+    fetchQueueCallers();  // Initial fetch
+    queuePollingInterval = setInterval(fetchQueueCallers, 5000);  // Poll every 5 seconds
+}
+
+// Store last callers for re-render during answer
+window._lastCallers = [];
+const originalFetch = fetchQueueCallers;
+fetchQueueCallers = async function() {
+    try {
+        const response = await fetch('/api/queue/callers', {
+            credentials: 'same-origin'
+        });
+
+        if (!response.ok) {
+            console.error('Failed to fetch queue callers');
+            return;
+        }
+
+        const data = await response.json();
+        window._lastCallers = data.callers || [];
+        checkForNewQueueCallers(window._lastCallers);
+        renderQueueCallers(window._lastCallers);
+    } catch (error) {
+        console.error('Error fetching queue callers:', error);
+    }
+};
+
+// Start polling on page load
+startQueuePolling();
+</script>
+{% else %}
+<!-- Queue Dashboard for non-softphone users -->
+<script>
+const queueAlert = document.getElementById('queueAlert');
+const queueAlertTitle = document.getElementById('queueAlertTitle');
+const queueAlertSubtitle = document.getElementById('queueAlertSubtitle');
+const queueCallersCard = document.getElementById('queueCallersCard');
+const queueCallersList = document.getElementById('queueCallersList');
+const queueCount = document.getElementById('queueCount');
+
+let answeringCallSid = null;
+window._lastCallers = [];
+
+async function fetchQueueCallers() {
+    try {
+        const response = await fetch('/api/queue/callers', {
+            credentials: 'same-origin'
+        });
+
+        if (!response.ok) return;
+
+        const data = await response.json();
+        window._lastCallers = data.callers || [];
+        checkForNewQueueCallers(window._lastCallers);
+        renderQueueCallers(window._lastCallers);
+    } catch (error) {
+        console.error('Error fetching queue callers:', error);
+    }
+}
+
+function renderQueueCallers(callers) {
+    const waitingCallers = callers.filter(c => c.status === 'waiting');
+    const count = waitingCallers.length;
+
+    if (count > 0) {
+        queueAlert.classList.remove('queue-alert-hidden');
+        queueCallersCard.style.display = 'block';
+
+        const highPriority = waitingCallers.filter(c => c.priority === 'high').length;
+
+        if (highPriority > 0) {
+            queueAlertTitle.textContent = `${count} caller${count > 1 ? 's' : ''} waiting (${highPriority} HIGH PRIORITY)`;
+            queueAlertSubtitle.textContent = 'Customer with upcoming installation - please answer promptly!';
+        } else {
+            queueAlertTitle.textContent = `${count} caller${count > 1 ? 's' : ''} waiting in queue`;
+            queueAlertSubtitle.textContent = 'Click Answer to connect with a caller';
+        }
+
+        queueCount.textContent = `${count} waiting`;
+    } else {
+        queueAlert.classList.add('queue-alert-hidden');
+        queueCallersCard.style.display = 'none';
+    }
+
+    queueCallersList.innerHTML = waitingCallers.map(caller => {
+        const waitTime = formatWaitTime(caller.enqueued_at);
+        const isLongWait = getWaitSeconds(caller.enqueued_at) > 60;
+        const isAnswering = answeringCallSid === caller.call_sid;
+
+        let details = [];
+
+        if (caller.priority === 'high') {
+            details.push(`<span class="caller-detail priority-high">⚠️ ${caller.priority_reason || 'High Priority'}</span>`);
+        } else if (caller.priority === 'medium') {
+            details.push(`<span class="caller-detail priority-medium">📦 ${caller.priority_reason || 'Has active orders'}</span>`);
+        }
+
+        if (caller.order_data) {
+            try {
+                const orders = JSON.parse(caller.order_data);
+                if (orders.active_orders) {
+                    details.push(`<span class="caller-detail">📋 ${orders.active_orders} active order${orders.active_orders > 1 ? 's' : ''}</span>`);
+                }
+                if (orders.next_installation) {
+                    const installDate = new Date(orders.next_installation);
+                    details.push(`<span class="caller-detail">📅 Install: ${installDate.toLocaleDateString()}</span>`);
+                }
+            } catch (e) {}
+        }
+
+        if (caller.queue_name) {
+            details.push(`<span class="caller-detail">📞 ${caller.queue_name}</span>`);
+        }
+
+        return `
+            <div class="queue-caller priority-${caller.priority || 'unknown'}">
+                <div class="caller-info">
+                    <div class="caller-name">
+                        ${caller.customer_name || 'Unknown Caller'}
+                        ${caller.priority === 'high' ? '<span class="priority-badge high">HIGH</span>' : ''}
+                        ${caller.priority === 'medium' ? '<span class="priority-badge medium">MEDIUM</span>' : ''}
+                    </div>
+                    <div class="caller-number">${caller.caller_number}</div>
+                    ${details.length > 0 ? `<div class="caller-details">${details.join('')}</div>` : ''}
+                </div>
+                <div class="caller-wait-time">
+                    <div class="wait-label">Waiting</div>
+                    <div class="wait-time ${isLongWait ? 'long-wait' : ''}">${waitTime}</div>
+                </div>
+                <div class="caller-actions">
+                    <button class="btn-answer-queue"
+                            onclick="answerQueueCall('${caller.call_sid}')"
+                            ${isAnswering ? 'disabled' : ''}>
+                        ${isAnswering ? 'Connecting...' : 'Answer'}
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function formatWaitTime(enqueuedAt) {
+    const seconds = getWaitSeconds(enqueuedAt);
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return mins > 0 ? `${mins}:${String(secs).padStart(2, '0')}` : `0:${String(secs).padStart(2, '0')}`;
+}
+
+function getWaitSeconds(enqueuedAt) {
+    const enqueued = new Date(enqueuedAt);
+    const now = new Date();
+    return Math.floor((now - enqueued) / 1000);
+}
+
+async function answerQueueCall(callSid) {
+    if (answeringCallSid) return;
+    stopQueueAlert();
+    answeringCallSid = callSid;
+    renderQueueCallers(window._lastCallers || []);
+
+    try {
+        const response = await fetch(`/api/queue/callers/${callSid}/answer`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+            alert('Failed to answer call: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error answering call:', error);
+        alert('Error answering call: ' + error.message);
+    }
+
+    setTimeout(() => {
+        answeringCallSid = null;
+        fetchQueueCallers();
+    }, 2000);
+}
+
+// Request notification permission
+if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+}
+
+// Start polling
+fetchQueueCallers();
+setInterval(fetchQueueCallers, 5000);
+</script>
+{% endif %}
+
+<!-- Callback Queue (shared between softphone and non-softphone) -->
+<script>
+const callbacksCard = document.getElementById('callbacksCard');
+const callbacksList = document.getElementById('callbacksList');
+const callbackCount = document.getElementById('callbackCount');
+
+async function fetchCallbacks() {
+    try {
+        const response = await fetch('/api/queue/callbacks', {
+            credentials: 'same-origin'
+        });
+        if (!response.ok) return;
+
+        const data = await response.json();
+        renderCallbacks(data.callbacks || []);
+    } catch (error) {
+        console.error('Error fetching callbacks:', error);
+    }
+}
+
+function renderCallbacks(callbacks) {
+    if (callbacks.length === 0) {
+        callbacksCard.style.display = 'none';
+        return;
+    }
+
+    callbacksCard.style.display = 'block';
+    callbackCount.textContent = `${callbacks.length} pending`;
+
+    callbacksList.innerHTML = callbacks.map(cb => {
+        const waitTime = cb.requested_at ? formatCallbackWait(cb.requested_at) : '?';
+        return `
+            <div class="callback-item" id="callback-${cb.id}">
+                <div class="caller-info">
+                    <div class="caller-name">${cb.customer_name || 'Unknown Caller'}</div>
+                    <div class="caller-number">${cb.customer_phone}</div>
+                    <div class="caller-details">
+                        <span class="caller-detail">📞 ${cb.queue_name || 'Queue'}</span>
+                        <span class="caller-detail">⏱️ Requested ${waitTime} ago</span>
+                    </div>
+                </div>
+                <div class="callback-actions">
+                    <button class="btn-callback-call" onclick="claimAndCallBack(${cb.id}, '${cb.customer_phone}')">
+                        Call Back
+                    </button>
+                    <button class="btn-callback-done" onclick="completeCallback(${cb.id})" title="Mark as done">
+                        Done
+                    </button>
+                    <button class="btn-callback-fail" onclick="failCallback(${cb.id})" title="No answer / failed">
+                        Failed
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function formatCallbackWait(requestedAt) {
+    const requested = new Date(requestedAt);
+    const now = new Date();
+    const seconds = Math.floor((now - requested) / 1000);
+    const mins = Math.floor(seconds / 60);
+    if (mins < 1) return 'just now';
+    if (mins === 1) return '1 min';
+    return `${mins} mins`;
+}
+
+async function claimAndCallBack(callbackId, phone) {
+    try {
+        // Claim the callback
+        const claimResp = await fetch(`/api/queue/callbacks/${callbackId}/claim`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (!claimResp.ok) {
+            const data = await claimResp.json();
+            const msg = data.error || 'Failed to claim callback';
+            // Show inline message instead of alert
+            const item = document.getElementById(`callback-${callbackId}`);
+            if (item) {
+                item.style.background = '#f8d7da';
+                item.querySelector('.callback-actions').innerHTML = `<span style="color: #721c24; font-size: 0.85em;">${msg}</span>`;
+            }
+            return;
+        }
+
+        // Dial the number using the softphone dialpad if available, otherwise just mark claimed
+        if (typeof makeCall === 'function') {
+            // Set the number in the dialpad and initiate the call
+            const dialInput = document.getElementById('dialNumber');
+            if (dialInput) dialInput.value = phone;
+            makeCall(phone);
+        } else {
+            // Non-softphone user: just show the number to call manually
+            const item = document.getElementById(`callback-${callbackId}`);
+            if (item) {
+                item.querySelector('.callback-actions').innerHTML =
+                    `<span style="font-size: 0.85em;">Call <strong>${phone}</strong> now</span>
+                     <button class="btn-callback-done" onclick="completeCallback(${callbackId})">Done</button>
+                     <button class="btn-callback-fail" onclick="failCallback(${callbackId})">Failed</button>`;
+            }
+        }
+
+        fetchCallbacks();
+    } catch (error) {
+        console.error('Error claiming callback:', error);
+    }
+}
+
+async function completeCallback(callbackId) {
+    try {
+        await fetch(`/api/queue/callbacks/${callbackId}/complete`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        fetchCallbacks();
+    } catch (error) {
+        console.error('Error completing callback:', error);
+    }
+}
+
+async function failCallback(callbackId) {
+    try {
+        await fetch(`/api/queue/callbacks/${callbackId}/fail`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ notes: 'No answer' })
+        });
+        fetchCallbacks();
+    } catch (error) {
+        console.error('Error failing callback:', error);
+    }
+}
+
+// Poll callbacks alongside queue callers
+fetchCallbacks();
+setInterval(fetchCallbacks, 5000);
+
+// ============================================
+// Presence / Heartbeat
+// ============================================
+let contactPresence = {};
+
+function sendHeartbeat() {
+    fetch('/api/heartbeat', {
+        method: 'POST',
+        credentials: 'same-origin'
+    }).catch(() => {});
+}
+
+// Send heartbeat every 30 seconds while page is open
+sendHeartbeat();
+setInterval(sendHeartbeat, 30000);
+
+async function fetchPresence() {
+    try {
+        const response = await fetch('/api/presence', {credentials: 'same-origin'});
+        if (response.ok) {
+            const data = await response.json();
+            contactPresence = data.presence || {};
+            // Re-render contacts if they're loaded and visible
+            if (contactsLoaded && document.getElementById('tabContacts').classList.contains('active')) {
+                applyFilterAndRender();
+            }
+        }
+    } catch (e) {
+        // Silently ignore
+    }
+}
+
+// Poll presence every 15 seconds
+fetchPresence();
+setInterval(fetchPresence, 15000);
+
+// ============================================
+// Unified Call State Polling
+// ============================================
+let callStateInterval = null;
+let lastCallState = null;
+
+function startCallStatePolling() {
+    stopCallStatePolling();
+    pollCallState();
+    callStateInterval = setInterval(pollCallState, 3000);
+}
+
+function stopCallStatePolling() {
+    if (callStateInterval) {
+        clearInterval(callStateInterval);
+        callStateInterval = null;
+    }
+    lastCallState = null;
+    document.getElementById('conferencePanel').style.display = 'none';
+}
+
+async function pollCallState() {
+    const callSid = currentCall ? currentCall.parameters.CallSid : null;
+    if (!callSid) {
+        document.getElementById('conferencePanel').style.display = 'none';
+        return;
+    }
+    try {
+        const res = await fetch(`/api/my-call-state?call_sid=${encodeURIComponent(callSid)}`, {
+            credentials: 'same-origin'
+        });
+        if (!res.ok) return;
+        const state = await res.json();
+        lastCallState = state;
+
+        // Update conference participant panel
+        renderCallStatePanel(state);
+
+        // Update customer call SID if we didn't have it
+        if (state.customer_call_sid && !currentQueueCallerSid) {
+            currentQueueCallerSid = state.customer_call_sid;
+        }
+
+        // Handle transfer state from server
+        if (state.transfer && isConsulting) {
+            if (state.transfer.status === 'failed') {
+                // Transfer failed — reset UI
+                stopTransferStatusPolling();
+                isConsulting = false;
+                consultCallSid = null;
+                currentTransferKey = null;
+
+                transferTargetSelection.style.display = 'block';
+                transferConsulting.style.display = 'none';
+                transferActions.style.display = 'flex';
+                consultingActions.style.display = 'none';
+                btnStartTransfer.disabled = false;
+                btnStartTransfer.textContent = 'Transfer';
+
+                showTransferError('Transfer target did not answer. You are reconnected with the caller.');
+            }
+        }
+    } catch (e) {
+        // Ignore polling errors
+    }
+}
+
+function renderCallStatePanel(state) {
+    const panel = document.getElementById('conferencePanel');
+    const list = document.getElementById('conferencePanelList');
+
+    if (!state.in_call) {
+        panel.style.display = 'none';
+        return;
+    }
+
+    // Flat list of all participants across all conferences
+    const allParticipants = [...(state.participants || [])];
+    if (state.transfer) {
+        for (const p of (state.transfer.consult_participants || [])) {
+            // Don't duplicate the agent (already in main participants)
+            if (!allParticipants.some(existing => existing.call_sid === p.call_sid)) {
+                allParticipants.push(p);
+            }
+        }
+    }
+
+    if (allParticipants.length === 0) {
+        panel.style.display = 'none';
+        return;
+    }
+
+    panel.style.display = '';
+    list.innerHTML = allParticipants.map(renderParticipant).join('');
+}
+
+function renderParticipant(p) {
+    let dotClass = 'connected';
+    let statusText = '';
+    if (p.hold) {
+        dotClass = 'on-hold';
+        statusText = 'on hold';
+    } else if (p.muted) {
+        dotClass = 'muted';
+        statusText = 'muted';
+    }
+    const roleLabel = p.role === 'customer' ? ' (customer)' : '';
+    return `<div class="conf-participant">
+        <div class="conf-participant-dot ${dotClass}"></div>
+        <span class="conf-participant-name">${escapeHtml(p.name)}${roleLabel}</span>
+        ${statusText ? `<span class="conf-participant-status">${statusText}</span>` : ''}
+    </div>`;
+}
+
+// ============================================
+// Internal caller name resolution
+// ============================================
+function resolveInternalCaller(from) {
+    if (!from) return null;
+
+    // Check for client: identity format (internal extension call)
+    if (from.startsWith('client:')) {
+        const identity = from.substring(7);
+        // Look up in contacts by matching the identity to email
+        const email = identity.replace('_at_', '@').replace(/_/g, '.');
+        const contact = allContacts.find(c => c.email === email);
+        if (contact) return contact.name;
+        return email;  // Show email if no contact found
+    }
+
+    // Check if it's a phone number matching a known contact
+    if (allContacts.length > 0 && from.match(/^\+?\d+$/)) {
+        const contact = allContacts.find(c => c.phone === from);
+        if (contact) return contact.name;
+    }
+
+    return null;
+}
+</script>
+{% endblock %}

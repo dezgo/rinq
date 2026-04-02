@@ -1,0 +1,901 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+.schedule-card {
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    background: #fafafa;
+}
+.schedule-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    cursor: pointer;
+}
+.schedule-header:hover {
+    background: #f0f0f0;
+}
+.schedule-content {
+    display: none;
+    padding: 0 15px 15px 15px;
+    border-top: 1px solid #e9ecef;
+}
+.closure-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+    border-radius: 4px;
+    margin: 2px 0;
+}
+.closure-row:hover {
+    background: #f0f0f0;
+}
+.closure-row .edit-hint {
+    opacity: 0;
+    color: #888;
+    font-size: 0.85em;
+    transition: opacity 0.15s;
+}
+.closure-row:hover .edit-hint {
+    opacity: 1;
+}
+.closure-row .closure-delete {
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+.closure-row:hover .closure-delete {
+    opacity: 1;
+}
+.closure-delete {
+    background: none;
+    border: none;
+    color: #999;
+    cursor: pointer;
+    padding: 2px 6px;
+    font-size: 1.1em;
+    line-height: 1;
+}
+.closure-delete:hover {
+    color: #dc3545;
+}
+{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <div>
+        <h2 style="margin: 0;">🕐 Schedules</h2>
+        <p class="text-muted" style="margin: 5px 0 0 0;">
+            Configure business hours and holidays for each location or team.
+        </p>
+    </div>
+    <a href="{{ url_for('web.admin') }}" class="btn btn-secondary">← Back to Admin</a>
+</div>
+
+<div class="card">
+    {% if schedules %}
+    {% for schedule in schedules %}
+    <div id="schedule_{{ schedule.id }}" class="schedule-card">
+        <!-- Schedule Header (always visible, clickable to expand) -->
+        <div class="schedule-header" onclick="toggleScheduleCard({{ schedule.id }})">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span class="schedule-toggle" id="scheduleToggle{{ schedule.id }}" style="font-size: 0.8em; color: #666;">▶</span>
+                <div>
+                    <strong style="font-size: 1.1em;">{{ schedule.name }}</strong>
+                    <span class="text-muted" style="margin-left: 10px; font-size: 0.85em;">
+                        🌏 {{ schedule.timezone.split('/')[-1] }}
+                        {% if schedule.business_hours %} · Hours set{% else %} · Always closed{% endif %}
+                        {% if schedule.holidays %} · {{ schedule.holidays|length }} closure{% if schedule.holidays|length != 1 %}s{% endif %}{% endif %}
+                        {% if schedule.default_closure_action %} · Default: {{ schedule.default_closure_action }}{% endif %}
+                    </span>
+                    {% if schedule.description %}
+                    <br><small class="text-muted">{{ schedule.description }}</small>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Schedule Content (collapsible) -->
+        <div id="scheduleContent{{ schedule.id }}" class="schedule-content">
+            <!-- Help tips at the top -->
+            <div class="help-tip" style="margin: 15px 0 10px 0; font-size: 0.85em;">
+                <strong>💡 Multiple schedules?</strong> Use <a href="{{ url_for('web.admin_templates') }}"><strong>Holiday Templates</strong></a>
+                to manage the same closures (like public holidays) across multiple schedules at once.
+            </div>
+            <div class="help-tip" style="margin: 0 0 15px 0; font-size: 0.85em;">
+                <strong>💡 Voicemail routing:</strong> When a closure triggers voicemail, the recording is sent to the
+                <strong>voicemail destination</strong> configured on the call flow that uses this schedule.
+                <a href="{{ url_for('web.admin_call_flows') }}">Manage destinations →</a>
+            </div>
+
+            <!-- Action buttons -->
+            <div style="display: flex; gap: 8px; margin-bottom: 15px; align-items: center;">
+                <button type="button" class="btn btn-small" onclick="toggleCloneSchedule({{ schedule.id }})">📋 Clone</button>
+                <form method="post" action="{{ url_for('web.delete_schedule', schedule_id=schedule.id) }}" style="margin: 0;">
+                    <button type="submit" class="btn btn-small btn-danger confirm-delete">🗑️ Delete</button>
+                </form>
+            </div>
+
+            <!-- Business Hours Section -->
+            <div style="margin-bottom: 15px; padding: 12px 15px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef;">
+                <!-- View mode -->
+                <div id="businessHoursView{{ schedule.id }}">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <strong style="font-size: 0.95em;">🕐 Business Hours</strong>
+                        <button type="button" class="btn btn-small btn-secondary" onclick="toggleEditBusinessHours({{ schedule.id }})" style="padding: 4px 10px; font-size: 0.8em;">✏️ Edit</button>
+                    </div>
+                    {% set hours = (schedule.business_hours | fromjson) if schedule.business_hours else {} %}
+                    {% if hours %}
+                    <table style="width: 100%; max-width: 400px; border-collapse: collapse; font-size: 0.85em;">
+                        <tbody>
+                            {% for day, label in [('mon', 'Mon'), ('tue', 'Tue'), ('wed', 'Wed'), ('thu', 'Thu'), ('fri', 'Fri'), ('sat', 'Sat'), ('sun', 'Sun')] %}
+                            {% set day_hours = hours.get(day, {}) %}
+                            <tr style="border-bottom: 1px solid #e9ecef;">
+                                <td style="padding: 4px 8px; font-weight: 500; width: 50px;">{{ label }}</td>
+                                <td style="padding: 4px 8px; {% if not day_hours %}color: #999;{% endif %}">
+                                    {% if day_hours %}{{ day_hours.open }} – {{ day_hours.close }}{% else %}Closed{% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <span class="badge badge-success">24/7 (no specific hours set)</span>
+                    {% endif %}
+                </div>
+                <!-- Edit mode (hidden by default) -->
+                <div id="businessHoursEdit{{ schedule.id }}" style="display: none; margin-top: 10px;">
+                    <form method="post" action="{{ url_for('web.update_schedule', schedule_id=schedule.id) }}">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                            <div>
+                                <label style="display: block; font-size: 0.8em; color: #666; margin-bottom: 2px;">Name</label>
+                                <input type="text" name="name" value="{{ schedule.name }}" required
+                                       style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px;">
+                            </div>
+                            <div>
+                                <label style="display: block; font-size: 0.8em; color: #666; margin-bottom: 2px;">Description</label>
+                                <input type="text" name="description" value="{{ schedule.description or '' }}"
+                                       style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px;">
+                            </div>
+                            <div>
+                                <label style="display: block; font-size: 0.8em; color: #666; margin-bottom: 2px;">Timezone</label>
+                                <select name="timezone" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px;">
+                                    {% for tz in ['Australia/Sydney', 'Australia/Melbourne', 'Australia/Brisbane', 'Australia/Perth', 'Australia/Adelaide'] %}
+                                    <option value="{{ tz }}" {% if schedule.timezone == tz %}selected{% endif %}>{{ tz.split('/')[-1] }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        {% set hours = (schedule.business_hours | fromjson) if schedule.business_hours else {} %}
+                        <table style="width: 100%; max-width: 500px; border-collapse: collapse; margin-bottom: 10px;">
+                            <thead>
+                                <tr style="background: #e9ecef;">
+                                    <th style="padding: 6px; text-align: left; font-size: 0.85em;">Day</th>
+                                    <th style="padding: 6px; text-align: center; font-size: 0.85em;">Open</th>
+                                    <th style="padding: 6px; text-align: center; font-size: 0.85em;">Close</th>
+                                    <th style="padding: 6px; text-align: center; font-size: 0.85em;">Closed</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for day, label in [('mon', 'Mon'), ('tue', 'Tue'), ('wed', 'Wed'), ('thu', 'Thu'), ('fri', 'Fri'), ('sat', 'Sat'), ('sun', 'Sun')] %}
+                                {% set day_hours = hours.get(day, {}) %}
+                                <tr style="border-bottom: 1px solid #e9ecef;">
+                                    <td style="padding: 4px 6px; font-size: 0.85em;">{{ label }}</td>
+                                    <td style="padding: 4px; text-align: center;">
+                                        <input type="text" name="{{ day }}_open" id="edit{{ schedule.id }}_{{ day }}_open"
+                                               value="{{ day_hours.get('open', '') }}" placeholder="HH:MM"
+                                               pattern="([01]?[0-9]|2[0-3]):[0-5][0-9]" maxlength="5"
+                                               style="padding: 4px; border: 1px solid #ddd; border-radius: 4px; width: 70px; font-size: 0.85em; text-align: center;">
+                                    </td>
+                                    <td style="padding: 4px; text-align: center;">
+                                        <input type="text" name="{{ day }}_close" id="edit{{ schedule.id }}_{{ day }}_close"
+                                               value="{{ day_hours.get('close', '') }}" placeholder="HH:MM"
+                                               pattern="([01]?[0-9]|2[0-3]):[0-5][0-9]" maxlength="5"
+                                               style="padding: 4px; border: 1px solid #ddd; border-radius: 4px; width: 70px; font-size: 0.85em; text-align: center;">
+                                    </td>
+                                    <td style="padding: 4px; text-align: center;">
+                                        <input type="checkbox" id="edit{{ schedule.id }}_{{ day }}_closed"
+                                               {% if not day_hours %}checked{% endif %}
+                                               onchange="toggleEditDayInputs({{ schedule.id }}, '{{ day }}')"
+                                               style="width: 14px; height: 14px;">
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        <div style="display: flex; gap: 5px;">
+                            <button type="submit" class="btn btn-small">Save</button>
+                            <button type="button" class="btn btn-small btn-secondary" onclick="toggleEditBusinessHours({{ schedule.id }})">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Closure Defaults Section -->
+            <div style="margin-bottom: 15px; padding: 12px 15px; background: #f0f7ff; border-radius: 8px; border: 1px solid #b3d4fc;">
+                <!-- View mode -->
+                <div id="closureDefaultsView{{ schedule.id }}">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                            <strong style="font-size: 0.95em;">📅 Closure Defaults</strong>
+                            {% if schedule.default_closure_action %}
+                            <span class="badge">{{ schedule.default_closure_action }}</span>
+                            {% if schedule.default_closure_audio_id %}
+                                {% for audio in audio_files if audio.id == schedule.default_closure_audio_id %}
+                                <span class="badge badge-success">🎵 {{ audio.name }}</span>
+                                {% endfor %}
+                            {% endif %}
+                            {% if schedule.default_closure_action == 'forward' and schedule.default_closure_forward_to %}
+                                <span class="badge badge-info">→ {{ schedule.default_closure_forward_to }}</span>
+                            {% endif %}
+                            {% else %}
+                            <span class="text-muted" style="font-size: 0.85em;">No defaults set</span>
+                            {% endif %}
+                        </div>
+                        <button type="button" class="btn btn-small btn-secondary" onclick="toggleEditClosureDefaults({{ schedule.id }})" style="padding: 4px 10px; font-size: 0.8em;">✏️ Edit</button>
+                    </div>
+                </div>
+                <!-- Edit mode (hidden by default) -->
+                <div id="closureDefaultsEdit{{ schedule.id }}" style="display: none; margin-top: 10px;">
+                    <p class="text-muted" style="margin: 0 0 10px 0; font-size: 0.85em;">
+                        Set default action and audio for closures. Individual closures can override these settings.
+                    </p>
+                    <form method="post" action="{{ url_for('web.update_closure_defaults', schedule_id=schedule.id) }}">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; align-items: end;">
+                            <div>
+                                <label style="display: block; font-size: 0.8em; color: #666; margin-bottom: 2px;">Default Action</label>
+                                <select name="default_closure_action" id="defaults-action-{{ schedule.id }}"
+                                        onchange="toggleDefaultActionFields('defaults-{{ schedule.id }}', this.value)"
+                                        style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px;">
+                                    <option value="">-- No default --</option>
+                                    <option value="message" {% if schedule.default_closure_action == 'message' %}selected{% endif %}>Message only</option>
+                                    <option value="voicemail" {% if schedule.default_closure_action == 'voicemail' %}selected{% endif %}>Voicemail</option>
+                                    <option value="forward" {% if schedule.default_closure_action == 'forward' %}selected{% endif %}>Forward</option>
+                                </select>
+                            </div>
+                            <div id="default-audio-field-defaults-{{ schedule.id }}" {% if schedule.default_closure_action == 'forward' or not schedule.default_closure_action %}style="display: none;"{% endif %}>
+                                <label style="display: block; font-size: 0.8em; color: #666; margin-bottom: 2px;">Default Audio</label>
+                                <select name="default_closure_audio_id" id="default-audio-select-defaults-{{ schedule.id }}"
+                                        style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px;">
+                                    <option value="">-- None --</option>
+                                    {% for audio in audio_files if audio.file_type == 'closed' %}
+                                    <option value="{{ audio.id }}" data-type="closed" {% if schedule.default_closure_audio_id == audio.id %}selected{% endif %}>{{ audio.name }}</option>
+                                    {% endfor %}
+                                    {% for audio in audio_files if audio.file_type == 'voicemail' %}
+                                    <option value="{{ audio.id }}" data-type="voicemail" {% if schedule.default_closure_audio_id == audio.id %}selected{% endif %}>{{ audio.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div id="default-forward-field-defaults-{{ schedule.id }}" {% if schedule.default_closure_action != 'forward' %}style="display: none;"{% endif %}>
+                                <label style="display: block; font-size: 0.8em; color: #666; margin-bottom: 2px;">Default Forward To</label>
+                                <input type="tel" name="default_closure_forward_to" value="{{ schedule.default_closure_forward_to or '' }}"
+                                       placeholder="04xx xxx xxx"
+                                       style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px;">
+                            </div>
+                            <div style="display: flex; gap: 5px;">
+                                <button type="submit" class="btn btn-small">Save</button>
+                                <button type="button" class="btn btn-small btn-secondary" onclick="toggleEditClosureDefaults({{ schedule.id }})">Cancel</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Clone Schedule Form (hidden by default) -->
+            <div id="cloneSchedule{{ schedule.id }}" style="display: none; margin-bottom: 15px; padding: 15px; background: #f0f7ff; border: 1px solid #b3d4fc; border-radius: 8px;">
+                <form method="post" action="{{ url_for('web.clone_schedule', schedule_id=schedule.id) }}">
+                    <h4 style="margin: 0 0 15px 0;">📋 Clone Schedule</h4>
+                    <p class="text-muted" style="margin-bottom: 15px;">
+                        Create a copy of "{{ schedule.name }}" with business hours and {{ schedule.holidays|length }} holiday{% if schedule.holidays|length != 1 %}s{% endif %}.
+                    </p>
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">New Schedule Name</label>
+                        <input type="text" name="name" value="{{ schedule.name }} (Copy)" required
+                               style="width: 100%; max-width: 400px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button type="submit" class="btn">Create Clone</button>
+                        <button type="button" class="btn btn-secondary" onclick="toggleCloneSchedule({{ schedule.id }})">Cancel</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Closures List -->
+            <div style="padding: 12px 15px; background: #fafafa; border-radius: 8px; border: 1px solid #e9ecef;">
+                <strong style="font-size: 0.95em;">📋 Closures</strong>
+                <span class="text-muted" style="font-size: 0.8em; margin-left: 5px;">(holidays, weekly exceptions, etc.)</span>
+                <div style="margin-top: 8px; padding: 10px 12px; background: #eef6ff; border: 1px solid #c8ddf5; border-radius: 6px; font-size: 0.85em; color: #3a5a7c;">
+                    <strong>How closures work:</strong> Closures override business hours. When a call comes in, the system checks closures
+                    before business hours — if a closure matches, the caller hears that closure's message instead of the normal routing.
+                    <br><br>
+                    <strong>Priority order:</strong> If multiple closures match the same day (e.g. a Saturday that falls during Christmas),
+                    the most specific one wins: <strong>specific dates</strong> (e.g. 25 Dec 2026) take priority over
+                    <strong>recurring annual dates</strong> (e.g. every 25 Dec), which take priority over <strong>weekly</strong> closures (e.g. every Saturday).
+                    <br><br>
+                    Each closure can have its own action and audio message. If not set, it falls back to the schedule's closure defaults above, then to the call flow's closed settings.
+                </div>
+
+                {% if schedule.holidays %}
+                <div style="margin-top: 8px;">
+                    {% for holiday in schedule.holidays %}
+                    <!-- Closure view row (click to edit) -->
+                    {% set uses_default_action = not holiday.action and schedule.default_closure_action %}
+                    {% set uses_default_audio = not holiday.audio_id and schedule.default_closure_audio_id %}
+                    {% set effective_action = holiday.action or schedule.default_closure_action %}
+                    <div id="closure-view-{{ holiday.id }}" class="closure-row" onclick="toggleEditClosure({{ holiday.id }})">
+                        <span class="edit-hint">✏️</span>
+                        <span style="min-width: 140px; font-weight: 500;">{{ holiday.name }}</span>
+                        {% if holiday.recurrence == 'weekly' %}
+                            {% set days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] %}
+                            <span class="badge badge-warning">🔁 {{ days[holiday.day_of_week] }}{% if holiday.start_time %} {{ holiday.start_time }}-{{ holiday.end_time }}{% endif %}</span>
+                        {% else %}
+                            <span class="badge badge-info">📅 {{ holiday.date }}</span>
+                        {% endif %}
+                        {% if holiday.audio_name %}
+                        <span class="badge badge-success">🎵 {{ holiday.audio_name }}</span>
+                        {% elif uses_default_audio %}
+                        <span class="badge badge-success" style="opacity: 0.7;" title="Using schedule default">🎵 (default)</span>
+                        {% endif %}
+                        {% if holiday.action %}
+                        <span class="badge">→ {{ holiday.action }}{% if holiday.action == 'forward' and holiday.forward_to %}: {{ holiday.forward_to }}{% endif %}</span>
+                        {% elif uses_default_action %}
+                        <span class="badge" style="opacity: 0.7;" title="Using schedule default">→ {{ schedule.default_closure_action }} (default)</span>
+                        {% endif %}
+                        <form method="post" action="{{ url_for('web.remove_holiday', schedule_id=schedule.id, holiday_id=holiday.id) }}"
+                              style="margin-left: auto;" onclick="event.stopPropagation();">
+                            <button type="submit" class="closure-delete confirm-delete" title="Delete">×</button>
+                        </form>
+                    </div>
+                    <!-- Closure edit form (hidden) -->
+                    <div id="closure-edit-{{ holiday.id }}" style="display: none; padding: 12px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 5px; margin: 5px 0;">
+                        <form method="post" action="{{ url_for('web.update_holiday', schedule_id=schedule.id, holiday_id=holiday.id) }}">
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; align-items: end;">
+                                <div>
+                                    <label style="display: block; font-size: 0.8em; color: #666; margin-bottom: 2px;">Name</label>
+                                    <input type="text" name="name" value="{{ holiday.name }}" required
+                                           style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px;">
+                                </div>
+                                <div>
+                                    <label style="display: block; font-size: 0.8em; color: #666; margin-bottom: 2px;">Type</label>
+                                    <select name="recurrence" onchange="toggleClosureFields({{ holiday.id }}, this.value)"
+                                            style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px;">
+                                        <option value="once" {% if holiday.recurrence != 'weekly' %}selected{% endif %}>One-off date</option>
+                                        <option value="weekly" {% if holiday.recurrence == 'weekly' %}selected{% endif %}>Weekly</option>
+                                    </select>
+                                </div>
+                                <div id="closure-date-{{ holiday.id }}" {% if holiday.recurrence == 'weekly' %}style="display: none;"{% endif %}>
+                                    <label style="display: block; font-size: 0.8em; color: #666; margin-bottom: 2px;">Date</label>
+                                    <input type="date" name="date" value="{{ holiday.date or '' }}"
+                                           style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px;">
+                                </div>
+                                <div id="closure-day-{{ holiday.id }}" {% if holiday.recurrence != 'weekly' %}style="display: none;"{% endif %}>
+                                    <label style="display: block; font-size: 0.8em; color: #666; margin-bottom: 2px;">Day</label>
+                                    <select name="day_of_week" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px;">
+                                        {% for idx, day in [(0,'Monday'),(1,'Tuesday'),(2,'Wednesday'),(3,'Thursday'),(4,'Friday'),(5,'Saturday'),(6,'Sunday')] %}
+                                        <option value="{{ idx }}" {% if holiday.day_of_week == idx %}selected{% endif %}>{{ day }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div id="closure-times-{{ holiday.id }}" {% if holiday.recurrence != 'weekly' %}style="display: none;"{% endif %}>
+                                    <label style="display: block; font-size: 0.8em; color: #666; margin-bottom: 2px;">Time Range</label>
+                                    <div style="display: flex; gap: 5px; align-items: center;">
+                                        <input type="text" name="start_time" value="{{ holiday.start_time or '' }}" placeholder="HH:MM"
+                                               pattern="([01]?[0-9]|2[0-3]):[0-5][0-9]" maxlength="5"
+                                               style="padding: 6px; border: 1px solid #ddd; border-radius: 4px; width: 70px; text-align: center;">
+                                        <span>-</span>
+                                        <input type="text" name="end_time" value="{{ holiday.end_time or '' }}" placeholder="HH:MM"
+                                               pattern="([01]?[0-9]|2[0-3]):[0-5][0-9]" maxlength="5"
+                                               style="padding: 6px; border: 1px solid #ddd; border-radius: 4px; width: 70px; text-align: center;">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label style="display: block; font-size: 0.8em; color: #666; margin-bottom: 2px;">Action</label>
+                                    <select name="action" id="action-edit-{{ holiday.id }}" onchange="toggleActionFields('edit-{{ holiday.id }}', this.value)"
+                                            style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px;">
+                                        {% if schedule.default_closure_action %}
+                                        <option value="" {% if not holiday.action %}selected{% endif %}>Use default ({{ schedule.default_closure_action }})</option>
+                                        {% endif %}
+                                        <option value="message" {% if holiday.action == 'message' %}selected{% endif %}>Message only</option>
+                                        <option value="voicemail" {% if holiday.action == 'voicemail' %}selected{% endif %}>Voicemail</option>
+                                        <option value="forward" {% if holiday.action == 'forward' %}selected{% endif %}>Forward</option>
+                                    </select>
+                                </div>
+                                <div id="audio-field-edit-{{ holiday.id }}" {% if holiday.action == 'forward' %}style="display: none;"{% endif %}>
+                                    <label style="display: block; font-size: 0.8em; color: #666; margin-bottom: 2px;">Audio</label>
+                                    <select name="audio_id" id="audio-select-edit-{{ holiday.id }}" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px;">
+                                        {% if schedule.default_closure_audio_id %}
+                                        <option value="">Use default</option>
+                                        {% else %}
+                                        <option value="">-- None --</option>
+                                        {% endif %}
+                                        {% for audio in audio_files if audio.file_type == 'closed' %}
+                                        <option value="{{ audio.id }}" data-type="closed" {% if holiday.audio_id == audio.id %}selected{% endif %}>{{ audio.name }}</option>
+                                        {% endfor %}
+                                        {% for audio in audio_files if audio.file_type == 'voicemail' %}
+                                        <option value="{{ audio.id }}" data-type="voicemail" {% if holiday.audio_id == audio.id %}selected{% endif %}>{{ audio.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div id="forward-field-edit-{{ holiday.id }}" {% if holiday.action != 'forward' %}style="display: none;"{% endif %}>
+                                    <label style="display: block; font-size: 0.8em; color: #666; margin-bottom: 2px;">Forward To</label>
+                                    <input type="tel" name="forward_to" value="{{ holiday.forward_to or '' }}" placeholder="04xx xxx xxx"
+                                           style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px;">
+                                </div>
+                                <div style="display: flex; gap: 5px;">
+                                    <button type="submit" class="btn btn-small">Save</button>
+                                    <button type="button" class="btn btn-small btn-secondary" onclick="toggleEditClosure({{ holiday.id }})">Cancel</button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted" style="margin: 8px 0 0 0; font-size: 0.85em;">No closures configured. Add public holidays, weekly exceptions, or one-off closures.</p>
+                {% endif %}
+
+                <!-- Add Closure Form -->
+                <div style="margin-top: 10px; padding: 12px; background: white; border-radius: 5px; border: 1px solid #e0e0e0;">
+                    <form method="post" action="{{ url_for('web.add_holiday', schedule_id=schedule.id) }}" id="addClosureForm{{ schedule.id }}">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; align-items: end;">
+                            <div>
+                                <label style="display: block; font-size: 0.8em; color: #666; margin-bottom: 2px;">Name</label>
+                                <input type="text" name="name" placeholder="e.g., Christmas Day" required
+                                       style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px;">
+                            </div>
+                            <div>
+                                <label style="display: block; font-size: 0.8em; color: #666; margin-bottom: 2px;">Type</label>
+                                <select name="recurrence" onchange="toggleAddClosureFields({{ schedule.id }}, this.value)"
+                                        style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px;">
+                                    <option value="once">One-off date</option>
+                                    <option value="weekly">Weekly</option>
+                                </select>
+                            </div>
+                            <div id="add-closure-date-{{ schedule.id }}">
+                                <label style="display: block; font-size: 0.8em; color: #666; margin-bottom: 2px;">Date</label>
+                                <input type="date" name="date" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px;">
+                            </div>
+                            <div id="add-closure-day-{{ schedule.id }}" style="display: none;">
+                                <label style="display: block; font-size: 0.8em; color: #666; margin-bottom: 2px;">Day</label>
+                                <select name="day_of_week" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px;">
+                                    <option value="0">Monday</option>
+                                    <option value="1">Tuesday</option>
+                                    <option value="2">Wednesday</option>
+                                    <option value="3">Thursday</option>
+                                    <option value="4">Friday</option>
+                                    <option value="5">Saturday</option>
+                                    <option value="6">Sunday</option>
+                                </select>
+                            </div>
+                            <div id="add-closure-times-{{ schedule.id }}" style="display: none;">
+                                <label style="display: block; font-size: 0.8em; color: #666; margin-bottom: 2px;">Time Range (optional)</label>
+                                <div style="display: flex; gap: 5px; align-items: center;">
+                                    <input type="text" name="start_time" placeholder="HH:MM"
+                                           pattern="([01]?[0-9]|2[0-3]):[0-5][0-9]" maxlength="5"
+                                           style="padding: 6px; border: 1px solid #ddd; border-radius: 4px; width: 70px; text-align: center;">
+                                    <span>-</span>
+                                    <input type="text" name="end_time" placeholder="HH:MM"
+                                           pattern="([01]?[0-9]|2[0-3]):[0-5][0-9]" maxlength="5"
+                                           style="padding: 6px; border: 1px solid #ddd; border-radius: 4px; width: 70px; text-align: center;">
+                                </div>
+                            </div>
+                            <div>
+                                <label style="display: block; font-size: 0.8em; color: #666; margin-bottom: 2px;">Action</label>
+                                <select name="action" id="action-add-{{ schedule.id }}" onchange="toggleActionFields('add-{{ schedule.id }}', this.value)"
+                                        style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px;">
+                                    {% if schedule.default_closure_action %}
+                                    <option value="" selected>Use default ({{ schedule.default_closure_action }})</option>
+                                    {% endif %}
+                                    <option value="message" {% if not schedule.default_closure_action %}selected{% endif %}>Message only</option>
+                                    <option value="voicemail">Voicemail</option>
+                                    <option value="forward">Forward</option>
+                                </select>
+                            </div>
+                            <div id="audio-field-add-{{ schedule.id }}">
+                                <label style="display: block; font-size: 0.8em; color: #666; margin-bottom: 2px;">Audio</label>
+                                <select name="audio_id" id="audio-select-add-{{ schedule.id }}" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px;">
+                                    {% if schedule.default_closure_audio_id %}
+                                    <option value="">Use default</option>
+                                    {% else %}
+                                    <option value="">-- None --</option>
+                                    {% endif %}
+                                    {% for audio in audio_files if audio.file_type == 'closed' %}
+                                    <option value="{{ audio.id }}" data-type="closed">{{ audio.name }}</option>
+                                    {% endfor %}
+                                    {% for audio in audio_files if audio.file_type == 'voicemail' %}
+                                    <option value="{{ audio.id }}" data-type="voicemail">{{ audio.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div id="forward-field-add-{{ schedule.id }}" style="display: none;">
+                                <label style="display: block; font-size: 0.8em; color: #666; margin-bottom: 2px;">Forward To</label>
+                                <input type="tel" name="forward_to" placeholder="04xx xxx xxx"
+                                       style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px;">
+                            </div>
+                            <button type="submit" class="btn btn-small">Add Closure</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div><!-- End schedule-content -->
+    </div><!-- End schedule-card -->
+    {% endfor %}
+    {% else %}
+    <p class="text-muted" style="padding: 10px;">No schedules yet. Create one below.</p>
+    {% endif %}
+
+    <!-- Create New Schedule (collapsible like existing schedules) -->
+    <div class="schedule-card" style="background: #e8f5e9; border-color: #81c784;">
+        <div class="schedule-header" onclick="toggleNewScheduleForm()" style="background: transparent;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span id="newScheduleToggle" style="font-size: 0.8em; color: #666;">▶</span>
+                <div>
+                    <strong style="font-size: 1.1em; color: #2e7d32;">➕ New Schedule</strong>
+                    <span class="text-muted" style="margin-left: 10px; font-size: 0.85em;">Click to expand</span>
+                </div>
+            </div>
+        </div>
+        <div id="newScheduleContent" class="schedule-content" style="display: none;">
+            <form method="post" action="{{ url_for('web.create_schedule') }}">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 15px 0;">
+            <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Schedule Name</label>
+                <input type="text" name="name" placeholder="e.g., Business Hours" required
+                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+            </div>
+            <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Description</label>
+                <input type="text" name="description" placeholder="Optional description"
+                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+            </div>
+        </div>
+
+        <div style="margin-bottom: 20px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Timezone</label>
+            <select name="timezone" style="padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em; min-width: 200px;">
+                <option value="Australia/Sydney">Sydney (AEST/AEDT)</option>
+                <option value="Australia/Melbourne">Melbourne (AEST/AEDT)</option>
+                <option value="Australia/Brisbane">Brisbane (AEST)</option>
+                <option value="Australia/Perth">Perth (AWST)</option>
+                <option value="Australia/Adelaide">Adelaide (ACST/ACDT)</option>
+            </select>
+        </div>
+
+        <div style="margin-bottom: 15px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 10px; font-size: 0.9em;">Business Hours</label>
+            <table style="width: 100%; max-width: 500px; border-collapse: collapse;">
+                <thead>
+                    <tr style="background: #e9ecef;">
+                        <th style="padding: 10px; text-align: left; border-radius: 5px 0 0 0;">Day</th>
+                        <th style="padding: 10px; text-align: center;">Open</th>
+                        <th style="padding: 10px; text-align: center;">Close</th>
+                        <th style="padding: 10px; text-align: center; border-radius: 0 5px 0 0;">Closed</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for day, label, default_open in [
+                        ('mon', 'Monday', '08:30'),
+                        ('tue', 'Tuesday', '08:30'),
+                        ('wed', 'Wednesday', '08:30'),
+                        ('thu', 'Thursday', '08:30'),
+                        ('fri', 'Friday', '08:30'),
+                        ('sat', 'Saturday', ''),
+                        ('sun', 'Sunday', '')
+                    ] %}
+                    <tr style="border-bottom: 1px solid #e9ecef;">
+                        <td style="padding: 10px; font-weight: 500;">{{ label }}</td>
+                        <td style="padding: 8px; text-align: center;">
+                            <input type="text" name="{{ day }}_open" id="{{ day }}_open"
+                                   value="{{ default_open }}" placeholder="HH:MM"
+                                   pattern="([01]?[0-9]|2[0-3]):[0-5][0-9]" maxlength="5"
+                                   style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 1em; width: 80px; text-align: center;">
+                        </td>
+                        <td style="padding: 8px; text-align: center;">
+                            <input type="text" name="{{ day }}_close" id="{{ day }}_close"
+                                   value="{% if default_open %}17:00{% endif %}" placeholder="HH:MM"
+                                   pattern="([01]?[0-9]|2[0-3]):[0-5][0-9]" maxlength="5"
+                                   style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 1em; width: 80px; text-align: center;">
+                        </td>
+                        <td style="padding: 8px; text-align: center;">
+                            <input type="checkbox" id="{{ day }}_closed"
+                                   {% if not default_open %}checked{% endif %}
+                                   onchange="toggleDayInputs('{{ day }}')"
+                                   style="width: 18px; height: 18px; cursor: pointer;">
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <p style="margin: 10px 0 0 0; font-size: 0.85em; color: #6c757d;">
+                💡 Check "Closed" to mark a day as non-working. Leave times blank for closed days.
+            </p>
+        </div>
+
+                <button type="submit" class="btn" style="margin-top: 10px;">Create Schedule</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Toggle new schedule form expand/collapse
+function toggleNewScheduleForm() {
+    const content = document.getElementById('newScheduleContent');
+    const toggle = document.getElementById('newScheduleToggle');
+
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        toggle.textContent = '▼';
+    } else {
+        content.style.display = 'none';
+        toggle.textContent = '▶';
+    }
+}
+
+// Toggle individual schedule card expand/collapse
+function toggleScheduleCard(scheduleId) {
+    const content = document.getElementById('scheduleContent' + scheduleId);
+    const toggle = document.getElementById('scheduleToggle' + scheduleId);
+
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        toggle.textContent = '▼';
+    } else {
+        content.style.display = 'none';
+        toggle.textContent = '▶';
+    }
+}
+
+// Handle URL hash to open specific schedule
+(function handleUrlHash() {
+    const hash = window.location.hash;
+    if (hash && hash.length > 1) {
+        const target = hash.substring(1);
+        if (target.startsWith('schedule_')) {
+            const scheduleId = target.replace('schedule_', '');
+            const content = document.getElementById('scheduleContent' + scheduleId);
+            const toggle = document.getElementById('scheduleToggle' + scheduleId);
+            if (content) {
+                content.style.display = 'block';
+                if (toggle) toggle.textContent = '▼';
+            }
+            const card = document.getElementById('schedule_' + scheduleId);
+            if (card) {
+                setTimeout(() => {
+                    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 100);
+            }
+        }
+    }
+})();
+
+// Toggle day inputs when "Closed" checkbox changes
+function toggleDayInputs(day) {
+    const checkbox = document.getElementById(day + '_closed');
+    const openInput = document.getElementById(day + '_open');
+    const closeInput = document.getElementById(day + '_close');
+
+    if (checkbox.checked) {
+        openInput.value = '';
+        closeInput.value = '';
+        openInput.style.opacity = '0.5';
+        closeInput.style.opacity = '0.5';
+        openInput.disabled = true;
+        closeInput.disabled = true;
+    } else {
+        openInput.style.opacity = '1';
+        closeInput.style.opacity = '1';
+        openInput.disabled = false;
+        closeInput.disabled = false;
+        if (['mon', 'tue', 'wed', 'thu', 'fri'].includes(day)) {
+            openInput.value = '08:30';
+            closeInput.value = '17:00';
+        }
+    }
+}
+
+// Initialize closed days on page load
+document.addEventListener('DOMContentLoaded', function() {
+    ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach(function(day) {
+        const checkbox = document.getElementById(day + '_closed');
+        if (checkbox && checkbox.checked) {
+            toggleDayInputs(day);
+        }
+    });
+});
+
+// Toggle clone schedule form visibility
+function toggleCloneSchedule(scheduleId) {
+    const form = document.getElementById('cloneSchedule' + scheduleId);
+    if (form.style.display === 'none') {
+        form.style.display = 'block';
+    } else {
+        form.style.display = 'none';
+    }
+}
+
+// Toggle day inputs in edit form when "Closed" checkbox changes
+function toggleEditDayInputs(scheduleId, day) {
+    const checkbox = document.getElementById('edit' + scheduleId + '_' + day + '_closed');
+    const openInput = document.getElementById('edit' + scheduleId + '_' + day + '_open');
+    const closeInput = document.getElementById('edit' + scheduleId + '_' + day + '_close');
+
+    if (checkbox.checked) {
+        openInput.value = '';
+        closeInput.value = '';
+        openInput.style.opacity = '0.5';
+        closeInput.style.opacity = '0.5';
+        openInput.disabled = true;
+        closeInput.disabled = true;
+    } else {
+        openInput.style.opacity = '1';
+        closeInput.style.opacity = '1';
+        openInput.disabled = false;
+        closeInput.disabled = false;
+        if (['mon', 'tue', 'wed', 'thu', 'fri'].includes(day) && !openInput.value) {
+            openInput.value = '08:30';
+            closeInput.value = '17:00';
+        }
+    }
+}
+
+// Toggle closure edit form
+function toggleEditClosure(closureId) {
+    const viewRow = document.getElementById('closure-view-' + closureId);
+    const editRow = document.getElementById('closure-edit-' + closureId);
+
+    if (editRow.style.display === 'none') {
+        viewRow.style.display = 'none';
+        editRow.style.display = 'block';
+    } else {
+        viewRow.style.display = 'flex';
+        editRow.style.display = 'none';
+    }
+}
+
+// Toggle closure defaults edit form
+function toggleEditClosureDefaults(scheduleId) {
+    const viewDiv = document.getElementById('closureDefaultsView' + scheduleId);
+    const editDiv = document.getElementById('closureDefaultsEdit' + scheduleId);
+
+    if (editDiv.style.display === 'none') {
+        viewDiv.style.display = 'none';
+        editDiv.style.display = 'block';
+    } else {
+        viewDiv.style.display = 'block';
+        editDiv.style.display = 'none';
+    }
+}
+
+// Toggle business hours edit form
+function toggleEditBusinessHours(scheduleId) {
+    const viewDiv = document.getElementById('businessHoursView' + scheduleId);
+    const editDiv = document.getElementById('businessHoursEdit' + scheduleId);
+
+    if (editDiv.style.display === 'none') {
+        viewDiv.style.display = 'none';
+        editDiv.style.display = 'block';
+        // Initialize closed day checkboxes
+        ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach(function(day) {
+            const checkbox = document.getElementById('edit' + scheduleId + '_' + day + '_closed');
+            if (checkbox && checkbox.checked) {
+                toggleEditDayInputs(scheduleId, day);
+            }
+        });
+    } else {
+        viewDiv.style.display = 'block';
+        editDiv.style.display = 'none';
+    }
+}
+
+// Toggle fields for closure type (one-off vs weekly) in edit form
+function toggleClosureFields(closureId, recurrence) {
+    const dateField = document.getElementById('closure-date-' + closureId);
+    const dayField = document.getElementById('closure-day-' + closureId);
+    const timesField = document.getElementById('closure-times-' + closureId);
+
+    if (recurrence === 'weekly') {
+        dateField.style.display = 'none';
+        dayField.style.display = 'block';
+        timesField.style.display = 'block';
+    } else {
+        dateField.style.display = 'block';
+        dayField.style.display = 'none';
+        timesField.style.display = 'none';
+    }
+}
+
+// Toggle fields for add closure form
+function toggleAddClosureFields(scheduleId, recurrence) {
+    const dateField = document.getElementById('add-closure-date-' + scheduleId);
+    const dayField = document.getElementById('add-closure-day-' + scheduleId);
+    const timesField = document.getElementById('add-closure-times-' + scheduleId);
+
+    if (recurrence === 'weekly') {
+        dateField.style.display = 'none';
+        dayField.style.display = 'block';
+        timesField.style.display = 'block';
+    } else {
+        dateField.style.display = 'block';
+        dayField.style.display = 'none';
+        timesField.style.display = 'none';
+    }
+}
+
+// Toggle audio/forward fields based on action selection
+function toggleActionFields(formId, action) {
+    const audioField = document.getElementById('audio-field-' + formId);
+    const forwardField = document.getElementById('forward-field-' + formId);
+    const audioSelect = document.getElementById('audio-select-' + formId);
+
+    if (action === 'forward') {
+        // Forward: hide audio, show forward number
+        if (audioField) audioField.style.display = 'none';
+        if (forwardField) forwardField.style.display = 'block';
+    } else {
+        // Message or Voicemail: show audio, hide forward
+        if (audioField) audioField.style.display = 'block';
+        if (forwardField) forwardField.style.display = 'none';
+
+        // Filter audio options based on action type
+        if (audioSelect) {
+            const options = audioSelect.querySelectorAll('option[data-type]');
+            const targetType = (action === 'voicemail') ? 'voicemail' : 'closed';
+
+            options.forEach(opt => {
+                if (opt.dataset.type === targetType) {
+                    opt.style.display = '';
+                } else {
+                    opt.style.display = 'none';
+                    // Deselect if currently selected but wrong type
+                    if (opt.selected) {
+                        audioSelect.value = '';
+                    }
+                }
+            });
+        }
+    }
+}
+
+// Toggle default action fields in schedule edit form
+function toggleDefaultActionFields(formId, action) {
+    const audioField = document.getElementById('default-audio-field-' + formId);
+    const forwardField = document.getElementById('default-forward-field-' + formId);
+    const audioSelect = document.getElementById('default-audio-select-' + formId);
+
+    if (action === 'forward') {
+        if (audioField) audioField.style.display = 'none';
+        if (forwardField) forwardField.style.display = 'block';
+    } else if (action === '') {
+        // No default: hide both
+        if (audioField) audioField.style.display = 'none';
+        if (forwardField) forwardField.style.display = 'none';
+    } else {
+        // Message or Voicemail
+        if (audioField) audioField.style.display = 'block';
+        if (forwardField) forwardField.style.display = 'none';
+
+        // Filter audio options
+        if (audioSelect) {
+            const options = audioSelect.querySelectorAll('option[data-type]');
+            const targetType = (action === 'voicemail') ? 'voicemail' : 'closed';
+
+            options.forEach(opt => {
+                if (opt.dataset.type === targetType) {
+                    opt.style.display = '';
+                } else {
+                    opt.style.display = 'none';
+                    if (opt.selected) audioSelect.value = '';
+                }
+            });
+        }
+    }
+}
+</script>
+{% endblock %}

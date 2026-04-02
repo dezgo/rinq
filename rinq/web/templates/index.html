@@ -1,0 +1,489 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<style>
+    .dashboard-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+    }
+
+    @media (max-width: 900px) {
+        .dashboard-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .extension-display {
+        font-size: 1.8em;
+        font-weight: bold;
+        color: var(--bot-primary);
+    }
+
+    .setting-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 0;
+        border-bottom: 1px solid #eee;
+    }
+
+    .setting-row:last-child {
+        border-bottom: none;
+    }
+
+    .setting-label {
+        font-weight: 500;
+    }
+
+    .setting-description {
+        font-size: 0.85em;
+        color: #6c757d;
+        margin-top: 2px;
+    }
+
+    .toggle-switch {
+        position: relative;
+        width: 50px;
+        height: 26px;
+    }
+
+    .toggle-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+
+    .toggle-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #ccc;
+        transition: .3s;
+        border-radius: 26px;
+    }
+
+    .toggle-slider:before {
+        position: absolute;
+        content: "";
+        height: 20px;
+        width: 20px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: .3s;
+        border-radius: 50%;
+    }
+
+    input:checked + .toggle-slider {
+        background-color: var(--bot-primary);
+    }
+
+    input:checked + .toggle-slider:before {
+        transform: translateX(24px);
+    }
+
+    .queue-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 15px;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        background: #fafafa;
+    }
+
+    .queue-item.member {
+        background: #e8f5e9;
+        border-color: #81c784;
+    }
+
+    .queue-info h4 {
+        margin: 0 0 4px 0;
+        font-size: 1em;
+    }
+
+    .queue-info p {
+        margin: 0;
+        font-size: 0.85em;
+        color: #6c757d;
+    }
+
+    .forward-fields {
+        margin-top: 15px;
+        padding-top: 15px;
+        border-top: 1px solid #eee;
+    }
+
+    .forward-fields.hidden {
+        display: none;
+    }
+
+    .forward-row {
+        display: flex;
+        gap: 15px;
+        align-items: flex-end;
+        flex-wrap: wrap;
+    }
+
+    .forward-row .form-group {
+        flex: 1;
+        min-width: 200px;
+    }
+
+    .form-group label {
+        display: block;
+        font-weight: 500;
+        margin-bottom: 5px;
+        font-size: 0.9em;
+    }
+
+    .form-group input, .form-group select {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 0.95em;
+    }
+
+    .softphone-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 20px;
+        background: var(--bot-primary);
+        color: white;
+        text-decoration: none;
+        border-radius: 8px;
+        font-weight: 500;
+        margin-top: 10px;
+    }
+
+    .softphone-link:hover {
+        background: var(--bot-primary-hover);
+        color: white;
+    }
+
+    .dnd-banner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        transition: background 0.3s, border-color 0.3s;
+    }
+
+    .dnd-banner.dnd-off {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+    }
+
+    .dnd-banner.dnd-on {
+        background: #fff3cd;
+        border: 1px solid #ffc107;
+    }
+
+    .dnd-info {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .dnd-icon {
+        font-size: 1.4em;
+    }
+
+    .dnd-label {
+        font-weight: 600;
+    }
+
+    .dnd-description {
+        font-size: 0.85em;
+        color: #6c757d;
+    }
+
+    .dnd-banner.dnd-on .dnd-description {
+        color: #856404;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dnd-banner {{ 'dnd-on' if staff_ext.dnd_enabled else 'dnd-off' }}" id="dndBanner">
+    <div class="dnd-info">
+        <span class="dnd-icon" id="dndIcon">{% if staff_ext.dnd_enabled %}&#9940;{% else %}&#9742;{% endif %}</span>
+        <div>
+            <div class="dnd-label" id="dndLabel">{{ 'Do Not Disturb' if staff_ext.dnd_enabled else 'Available' }}</div>
+            <div class="dnd-description" id="dndDesc">{{ 'Calls will go to voicemail' if staff_ext.dnd_enabled else 'You will receive incoming calls' }}</div>
+        </div>
+    </div>
+    <label class="toggle-switch">
+        <input type="checkbox" id="dndToggle"
+               {% if staff_ext.dnd_enabled %}checked{% endif %}
+               onchange="toggleDnd(this.checked)">
+        <span class="toggle-slider" style="{{ 'background-color: #ffc107;' if staff_ext.dnd_enabled else '' }}"></span>
+    </label>
+</div>
+
+<div class="dashboard-grid">
+    <!-- Left Column: Extension & Settings -->
+    <div>
+        <div class="card">
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                <div style="display: flex; align-items: baseline; gap: 10px;">
+                    <h2 style="margin: 0;">My Extension:</h2>
+                    <span class="extension-display" id="extDisplay">{{ staff_ext.extension }}</span>
+                    <button type="button" id="extEditBtn" onclick="showExtEdit()"
+                            style="background: none; border: none; cursor: pointer; color: #aaa; font-size: 0.85em; padding: 2px; transition: color 0.2s;"
+                            onmouseover="this.style.color='#666'" onmouseout="this.style.color='#aaa'"
+                            title="Change extension">&#9998;</button>
+                </div>
+                <a href="{{ url_for('web.phone') }}" class="softphone-link" style="margin: 0;">
+                    <span>Open Softphone</span>
+                </a>
+            </div>
+            <form method="post" action="{{ url_for('web.update_settings') }}" id="extEditForm" style="display: none; margin-top: 10px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <input type="text" name="extension" id="extInput" value="{{ staff_ext.extension }}"
+                           maxlength="4" pattern="[1-9]\d{3}" title="4-digit extension (cannot start with 0)"
+                           style="width: 80px; text-align: center; font-size: 1.1em; padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    <input type="hidden" name="show_in_pam" value="{{ '1' if staff_ext.show_in_pam else '0' }}">
+                    <input type="hidden" name="forward_to" value="{{ staff_ext.forward_to or '' }}">
+                    <input type="hidden" name="forward_mode" value="{{ staff_ext.forward_mode or 'always' }}">
+                    <button type="submit" class="btn" style="padding: 4px 12px; font-size: 0.85em;">Save</button>
+                    <button type="button" onclick="hideExtEdit()" style="background: none; border: none; cursor: pointer; color: #999; font-size: 0.85em;">Cancel</button>
+                    <span class="text-muted" style="font-size: 0.8em;">4 digits, cannot start with 0</span>
+                </div>
+            </form>
+            <script>
+            function showExtEdit() {
+                document.getElementById('extEditBtn').style.display = 'none';
+                document.getElementById('extEditForm').style.display = 'block';
+                document.getElementById('extInput').focus();
+                document.getElementById('extInput').select();
+            }
+            function hideExtEdit() {
+                document.getElementById('extEditBtn').style.display = '';
+                document.getElementById('extEditForm').style.display = 'none';
+                document.getElementById('extInput').value = '{{ staff_ext.extension }}';
+            }
+            </script>
+            {% if ext_directory_number %}
+            <p class="text-muted" style="margin-top: 10px; font-size: 0.85em;">
+                To reach you, callers dial <strong>{{ ext_directory_number }}</strong> then enter <strong>{{ staff_ext.extension }}</strong>
+            </p>
+            {% endif %}
+        </div>
+
+        <div class="card" style="margin-top: 20px;">
+            <h2>Settings</h2>
+            <form method="post" action="{{ url_for('web.update_settings') }}">
+                <div class="setting-row">
+                    <div>
+                        <div class="setting-label">Show in staff directory</div>
+                        <div class="setting-description">Display your extension number so colleagues can reach you</div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" name="show_in_pam" value="1"
+                               {% if staff_ext.show_in_pam %}checked{% endif %}
+                               onchange="this.form.submit()">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <div class="forward-fields">
+                    <h3 style="margin: 0 0 15px 0; font-size: 1em;">Call Forwarding</h3>
+                    <div class="forward-row">
+                        <div class="form-group">
+                            <label for="forward_to">Forward to mobile</label>
+                            <input type="tel" name="forward_to" id="forward_to"
+                                   value="{{ staff_ext.forward_to or '' }}"
+                                   placeholder="04XX XXX XXX">
+                        </div>
+                        <div class="form-group">
+                            <label for="forward_mode">When to forward</label>
+                            <select name="forward_mode" id="forward_mode">
+                                <option value="always" {% if staff_ext.forward_mode == 'always' %}selected{% endif %}>Always</option>
+                                <option value="no_answer" {% if staff_ext.forward_mode == 'no_answer' %}selected{% endif %}>If no answer (20s)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <p class="text-muted" style="margin-top: 10px; font-size: 0.85em;">
+                        Australian mobile numbers only. Leave empty to disable forwarding.
+                    </p>
+                    <button type="submit" class="btn" style="margin-top: 10px;">Save Forwarding</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Right Column: Queues -->
+    <div>
+        <div class="card">
+            <h2>My Queues</h2>
+
+            {% if my_queues %}
+                <p class="text-muted" style="margin-bottom: 15px;">You'll receive calls for these queues:</p>
+                {% for q in my_queues %}
+                <div class="queue-item member">
+                    <div class="queue-info">
+                        <h4>{{ q.queue_name }}</h4>
+                        {% if q.queue_description %}
+                        <p>{{ q.queue_description }}</p>
+                        {% endif %}
+                    </div>
+                    {% if q.allow_self_service %}
+                    <form method="post" action="{{ url_for('web.toggle_queue', queue_id=q.queue_id) }}" style="margin: 0;">
+                        <button type="submit" class="btn btn-small btn-danger">Leave</button>
+                    </form>
+                    {% else %}
+                    <span class="badge badge-info">Assigned</span>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state" style="padding: 30px;">
+                    <p>You're not in any queues yet.</p>
+                    <p class="text-muted">Join a queue below to start receiving calls.</p>
+                </div>
+            {% endif %}
+        </div>
+
+        {% if available_queues %}
+        <div class="card" style="margin-top: 20px;">
+            <h2>Available Queues</h2>
+            <p class="text-muted" style="margin-bottom: 15px;">Join a queue to receive calls:</p>
+
+            {% for q in available_queues %}
+                {% if q.id not in my_queue_ids %}
+                <div class="queue-item">
+                    <div class="queue-info">
+                        <h4>{{ q.name }}</h4>
+                        {% if q.description %}
+                        <p>{{ q.description }}</p>
+                        {% endif %}
+                        <p style="font-size: 0.8em;">{{ q.member_count }} member{{ 's' if q.member_count != 1 else '' }}</p>
+                    </div>
+                    <form method="post" action="{{ url_for('web.toggle_queue', queue_id=q.id) }}" style="margin: 0;">
+                        <button type="submit" class="btn btn-small">Join</button>
+                    </form>
+                </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleDnd(enabled) {
+    const banner = document.getElementById('dndBanner');
+    const icon = document.getElementById('dndIcon');
+    const label = document.getElementById('dndLabel');
+    const desc = document.getElementById('dndDesc');
+    const slider = document.querySelector('#dndToggle + .toggle-slider');
+
+    fetch('/api/dnd', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({enabled: enabled})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            const on = data.dnd_enabled;
+            banner.className = 'dnd-banner ' + (on ? 'dnd-on' : 'dnd-off');
+            icon.innerHTML = on ? '&#9940;' : '&#9742;';
+            label.textContent = on ? 'Do Not Disturb' : 'Available';
+            desc.textContent = on ? 'Calls will go to voicemail' : 'You will receive incoming calls';
+            slider.style.backgroundColor = on ? '#ffc107' : '';
+        }
+    })
+    .catch(() => {
+        // Revert toggle on error
+        document.getElementById('dndToggle').checked = !enabled;
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Phone number validation for call forwarding
+    const forwardToInput = document.getElementById('forward_to');
+    const forwardForm = forwardToInput ? forwardToInput.closest('form') : null;
+
+    if (forwardForm && forwardToInput) {
+        forwardForm.addEventListener('submit', function(e) {
+            const value = forwardToInput.value.trim();
+
+            // Empty is allowed (disables forwarding)
+            if (!value) {
+                setButtonLoading(this.querySelector('button[type="submit"]'));
+                return;
+            }
+
+            // Remove spaces for validation
+            const cleaned = value.replace(/\s+/g, '');
+
+            // Valid formats:
+            // 04XXXXXXXX (10 digits starting with 04)
+            // +614XXXXXXXX (12 chars starting with +614)
+            const isValid = /^04\d{8}$/.test(cleaned) || /^\+614\d{8}$/.test(cleaned);
+
+            if (!isValid) {
+                e.preventDefault();
+                alert('Please enter a valid Australian mobile number.\n\nExamples:\n• 0412 345 678\n• 0412345678\n• +61412345678');
+                forwardToInput.focus();
+            } else {
+                setButtonLoading(this.querySelector('button[type="submit"]'));
+            }
+        });
+
+        // Format on blur for consistency
+        forwardToInput.addEventListener('blur', function() {
+            const value = this.value.trim();
+            if (!value) return;
+
+            // Clean and reformat to 04XX XXX XXX
+            let cleaned = value.replace(/\s+/g, '');
+
+            // Convert +614 to 04
+            if (cleaned.startsWith('+614')) {
+                cleaned = '0' + cleaned.slice(3);
+            }
+
+            // Format as 04XX XXX XXX
+            if (/^04\d{8}$/.test(cleaned)) {
+                this.value = cleaned.slice(0, 4) + ' ' + cleaned.slice(4, 7) + ' ' + cleaned.slice(7);
+            }
+        });
+    }
+
+    // Loading states for all form submissions
+    function setButtonLoading(btn) {
+        if (!btn) return;
+        btn.disabled = true;
+        btn.dataset.originalText = btn.textContent;
+        btn.textContent = 'Saving...';
+        btn.style.opacity = '0.7';
+    }
+
+    // Add loading to queue join/leave buttons
+    document.querySelectorAll('form[action*="toggle_queue"]').forEach(form => {
+        form.addEventListener('submit', function() {
+            const btn = this.querySelector('button[type="submit"]');
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = btn.textContent.includes('Join') ? 'Joining...' : 'Leaving...';
+                btn.style.opacity = '0.7';
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

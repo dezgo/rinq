@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#e74c3c">
+    <title>{{ config.name }}{% block title_suffix %}{% endblock %}</title>
+    <link rel="stylesheet" href="{{ shared_css_url }}">
+    <style>
+        :root {
+            --bot-primary: #e74c3c;
+            --bot-primary-hover: #c0392b;
+            --bot-primary-light: #fadbd8;
+            --bot-header-bg: linear-gradient(135deg, #2c3e50 0%, #e74c3c 100%);
+            --bot-header-text-muted: #bdc3c7;
+        }
+
+        body {
+            background: linear-gradient(135deg, #2c3e50 0%, #e74c3c 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        header {
+            padding: 30px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .user-info {
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+
+        .user-info a {
+            color: white;
+            text-decoration: underline;
+        }
+
+        nav {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        nav a {
+            color: var(--bot-primary);
+            margin-right: 20px;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+        }
+
+        nav a:hover, nav a.active {
+            background: var(--bot-primary);
+            color: white;
+        }
+
+        main {
+            padding: 30px;
+        }
+
+        footer {
+            padding: 20px;
+            text-align: center;
+            background: #f8f9fa;
+            border-top: 1px solid #e9ecef;
+            color: #6c757d;
+            font-size: 0.9em;
+        }
+
+        .phone-card {
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            background: #fafafa;
+        }
+
+        .phone-number {
+            font-size: 1.3em;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .phone-forward {
+            color: #6c757d;
+            margin-top: 5px;
+        }
+
+        .phone-forward .arrow {
+            color: var(--bot-primary);
+            margin: 0 8px;
+        }
+
+        .inline-form {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+            align-items: center;
+        }
+
+        .inline-form input[type="tel"] {
+            flex: 1;
+            max-width: 200px;
+        }
+
+        /* Global incoming call notification */
+        .incoming-call-banner {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+            padding: 15px 20px;
+            z-index: 10000;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            animation: incoming-pulse 1.5s infinite;
+        }
+
+        .incoming-call-banner.active {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        @keyframes incoming-pulse {
+            0% { box-shadow: 0 4px 15px rgba(231, 76, 60, 0.5); }
+            50% { box-shadow: 0 4px 25px rgba(231, 76, 60, 0.8); }
+            100% { box-shadow: 0 4px 15px rgba(231, 76, 60, 0.5); }
+        }
+
+        .incoming-call-banner .call-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .incoming-call-banner .call-icon {
+            font-size: 2em;
+            animation: ring 0.5s ease-in-out infinite;
+        }
+
+        @keyframes ring {
+            0%, 100% { transform: rotate(-15deg); }
+            50% { transform: rotate(15deg); }
+        }
+
+        .incoming-call-banner .call-details h3 {
+            margin: 0;
+            font-size: 1.1em;
+        }
+
+        .incoming-call-banner .call-details p {
+            margin: 5px 0 0 0;
+            opacity: 0.9;
+            font-size: 0.95em;
+        }
+
+        .incoming-call-banner .call-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .incoming-call-banner .gcb {
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9em;
+            transition: opacity 0.2s;
+        }
+
+        .incoming-call-banner .gcb:hover { opacity: 0.85; }
+        .incoming-call-banner .gcb-answer { background: #27ae60; }
+        .incoming-call-banner .gcb-hangup { background: #e74c3c; }
+        .incoming-call-banner .gcb-action { background: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255,255,255,0.4); }
+        .incoming-call-banner .gcb-action.active-toggle { background: rgba(255, 255, 255, 0.5); }
+        .incoming-call-banner .gcb-dismiss { background: transparent; border: 1px solid rgba(255,255,255,0.4); }
+        .incoming-call-banner .gcb-sep { width: 1px; height: 30px; background: rgba(255,255,255,0.3); }
+
+        /* Compact layout for PWA standalone mode */
+        @media (display-mode: standalone) {
+            [data-pwa-hide] { display: none !important; }
+            #phoneAppPrompt { display: none !important; }
+            nav { display: none !important; }
+            body { padding: 0; }
+            .container { border-radius: 0; box-shadow: none; }
+            header { padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; }
+            header h1 { font-size: 1.3em; margin: 0; }
+            header p { display: none; }
+            .user-info { position: static; font-size: 0.85em; }
+            nav { padding: 8px 15px; }
+            nav a { padding: 6px 12px; margin-right: 10px; font-size: 0.9em; }
+            main { padding: 15px; }
+            footer { display: none; }
+        }
+
+        {% block extra_css %}{% endblock %}
+    </style>
+</head>
+<body>
+    <!-- Global queue notification banner -->
+    <div class="incoming-call-banner" id="globalIncomingCall">
+        <div class="call-info">
+            <div class="call-icon">📞</div>
+            <div class="call-details">
+                <h3 id="globalCallBannerTitle">Caller Waiting</h3>
+                <p id="globalCallerNumber">Unknown</p>
+            </div>
+        </div>
+        <!-- Ringing: answer/dismiss (PWA) or open phone app (website) -->
+        <div class="call-actions" id="globalCallActions">
+            <button class="gcb gcb-answer" id="btnAnswerOrOpen" onclick="answerGlobalCall()">Answer</button>
+            <button class="gcb gcb-dismiss" onclick="rejectGlobalCall()">Dismiss</button>
+        </div>
+        <!-- Active call: full controls -->
+        <div class="call-actions" id="globalActiveCallActions" style="display: none;">
+            <button class="gcb gcb-action" id="btnMuteGlobal" onclick="gcMute()">Mute</button>
+            <button class="gcb gcb-action" id="btnHoldGlobal" onclick="gcHold()">Hold</button>
+            <button class="gcb gcb-action" id="btnRecordGlobal" onclick="gcRecord()">Record</button>
+            <div class="gcb-sep"></div>
+            <button class="gcb gcb-hangup" onclick="hangupGlobalCall()">Hang Up</button>
+        </div>
+    </div>
+    <div class="container">
+        <header style="position: relative;">
+            <h1>{{ config.name }}</h1>
+            <p>{{ config.description }}</p>
+            {% if current_user and current_user.is_authenticated %}
+            <div class="user-info">
+                {{ current_user.name }} | <a href="{{ url_for('gateway_auth.logout') }}">Logout</a>
+            </div>
+            {% endif %}
+        </header>
+
+        <nav id="mainNav">
+            <a href="{{ url_for('web.index') }}" {% if active_nav == 'home' %}class="active"{% endif %} data-pwa-hide>My Numbers</a>
+            <a href="{{ url_for('web.phone') }}" {% if active_nav == 'phone' %}class="active"{% endif %} id="navPhoneLink">📞 Phone</a>
+            <a href="{{ url_for('web.my_devices') }}" {% if active_nav == 'my_devices' %}class="active"{% endif %} data-pwa-hide>My Devices</a>
+            <a href="{{ url_for('web.recordings') }}" {% if active_nav == 'recordings' %}class="active"{% endif %} data-pwa-hide>🎙️ Recordings</a>
+            <a href="{{ url_for('web.reports') }}" {% if active_nav == 'reports' %}class="active"{% endif %} data-pwa-hide>📈 Reports</a>
+            <a href="{{ url_for('web.leaderboard') }}" {% if active_nav == 'leaderboard' %}class="active"{% endif %} data-pwa-hide>🏆 Leaderboard</a>
+            {% if current_user and (current_user.role in ('manager', 'admin') or current_user.is_admin) %}
+            <a href="{{ url_for('web.team') }}" {% if active_nav == 'team' %}class="active"{% endif %} data-pwa-hide>👥 Team</a>
+            {% endif %}
+            {% if current_user and current_user.is_admin %}
+            <a href="{{ url_for('web.admin') }}" {% if active_nav in ['admin', 'visualizer', 'desk_phones', 'activity', 'setup'] %}class="active"{% endif %} data-pwa-hide>Admin</a>
+            {% endif %}
+        </nav>
+
+        <main>
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="flash flash-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <!-- Phone App install prompt (shown when not installed and not on phone page) -->
+            {% if softphone_enabled %}
+            <div id="phoneAppPrompt" style="display: none; margin-bottom: 20px; padding: 15px 20px; background: linear-gradient(135deg, #fff5f5, #fff0f0); border: 2px solid #e74c3c; border-radius: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <strong style="color: #e74c3c;">📞 Install the Phone App</strong>
+                        <p style="margin: 5px 0 0 0; font-size: 0.9em; color: #495057;">
+                            To receive and make calls, you need to install the {{ product_name }} Phone web app.
+                            Click the install button in your browser's address bar, or use the button below.
+                        </p>
+                    </div>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <button id="btnInstallPwa" class="btn" style="white-space: nowrap;" onclick="installPhoneApp()">Install Phone App</button>
+                        <button class="btn btn-secondary" style="white-space: nowrap;" onclick="dismissPhonePrompt()">Later</button>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% block content %}{% endblock %}
+        </main>
+
+        <footer>
+            <p>{{ config.name }} v{{ config.version }} | {{ config.personality }}</p>
+        </footer>
+    </div>
+
+    <!-- Two-click delete confirmation handler -->
+    <script>
+    document.querySelectorAll('.confirm-delete').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            if (!this.dataset.confirmed) {
+                e.preventDefault();
+                this.dataset.confirmed = 'true';
+                this.dataset.confirmedAt = Date.now();
+                this.dataset.originalText = this.textContent;
+                this.textContent = 'Sure?';
+                this.classList.add('confirming');
+            } else {
+                const elapsed = Date.now() - parseInt(this.dataset.confirmedAt);
+                if (elapsed < 300) {
+                    e.preventDefault();
+                }
+            }
+        });
+    });
+    document.addEventListener('click', function(e) {
+        document.querySelectorAll('.confirm-delete.confirming').forEach(btn => {
+            if (!btn.contains(e.target)) {
+                btn.textContent = btn.dataset.originalText;
+                btn.classList.remove('confirming');
+                delete btn.dataset.confirmed;
+                delete btn.dataset.confirmedAt;
+            }
+        });
+    });
+    </script>
+
+    <!-- PWA: Service worker registration + install prompt -->
+    <script>
+    (function() {
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+        const isPhonePage = window.location.pathname === '/phone';
+
+        // In standalone PWA mode: hide non-essential nav items and ensure we're on /phone
+        if (isStandalone) {
+            document.querySelectorAll('[data-pwa-hide]').forEach(el => el.style.display = 'none');
+            if (!isPhonePage) {
+                window.location.href = '/phone';
+            }
+        }
+
+        // Register service worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/static/sw.js').catch(e => {
+                console.log('SW registration failed:', e.message);
+            });
+        }
+
+        // Capture the install prompt
+        let deferredPrompt = null;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+
+            // Show the install banner (unless dismissed recently or on phone page in standalone)
+            if (!isStandalone && !isPhonePage) {
+                const dismissed = localStorage.getItem('phoneAppPromptDismissed');
+                if (!dismissed || Date.now() - parseInt(dismissed) > 86400000) { // re-show after 24h
+                    const prompt = document.getElementById('phoneAppPrompt');
+                    if (prompt) prompt.style.display = '';
+                }
+            }
+        });
+
+        window.installPhoneApp = function() {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then(choice => {
+                    if (choice.outcome === 'accepted') {
+                        const prompt = document.getElementById('phoneAppPrompt');
+                        if (prompt) prompt.style.display = 'none';
+                    }
+                    deferredPrompt = null;
+                });
+            } else {
+                // Fallback: direct them to manual install
+                const prompt = document.getElementById('phoneAppPrompt');
+                if (prompt) {
+                    prompt.querySelector('p').innerHTML =
+                        '<strong>To install:</strong> Click the install icon in your browser\'s address bar ' +
+                        '(Chrome: three dots menu → "Install {{ product_name }} Phone", Edge: app icon in address bar). ' +
+                        'Then launch it from your desktop or Start menu.';
+                }
+            }
+        };
+
+        window.dismissPhonePrompt = function() {
+            const prompt = document.getElementById('phoneAppPrompt');
+            if (prompt) prompt.style.display = 'none';
+            localStorage.setItem('phoneAppPromptDismissed', Date.now().toString());
+        };
+
+        // On non-phone pages in browser (not PWA), make phone nav link informative
+        const phoneLink = document.getElementById('navPhoneLink');
+        if (phoneLink && !isStandalone && !isPhonePage) {
+            phoneLink.title = 'Open in the Phone App for best experience';
+        }
+    })();
+    </script>
+
+    <!-- Twilio Voice SDK (loaded before extra_js so phone.html can use it) -->
+    {% if current_user and current_user.is_authenticated and softphone_enabled %}
+    <script src="https://unpkg.com/@twilio/voice-sdk@2/dist/twilio.min.js"></script>
+    {% endif %}
+
+    {% block extra_js %}{% endblock %}
+
+    <!-- Global Twilio Device + queue/call notifications (all pages) -->
+    {% if current_user and current_user.is_authenticated and softphone_enabled %}
+    <script>
+    (function() {
+        const banner = document.getElementById('globalIncomingCall');
+        const callerNumber = document.getElementById('globalCallerNumber');
+        const isPhonePage = window.location.pathname === '/phone';
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+        let lastQueueCount = 0;
+        let globalDevice = null;
+        let globalIncomingCall = null;
+
+        // Make device accessible globally so phone.html can reuse it
+        window.tinaDevice = null;
+
+        // Initialize Twilio Device for incoming calls
+        // Only in PWA (standalone) mode on non-phone pages.
+        // On the phone page (browser or PWA), phone.html handles device init.
+        // On regular website (non-standalone, non-phone), no device — just queue polling.
+        async function initGlobalDevice() {
+            if (typeof Twilio === 'undefined') {
+                console.log('Twilio SDK not loaded');
+                return;
+            }
+
+            // On the phone page, let phone.html handle full initialization
+            if (isPhonePage) return;
+
+            // Only register the device in standalone PWA mode
+            if (!isStandalone) return;
+
+            try {
+                const response = await fetch('/api/voice/token', {
+                    method: 'POST',
+                    credentials: 'same-origin'
+                });
+
+                if (!response.ok) return;
+
+                const data = await response.json();
+
+                globalDevice = new Twilio.Device(data.token, {
+                    codecPreferences: ['opus', 'pcmu'],
+                    enableRingingState: true
+                });
+
+                globalDevice.on('registered', () => {
+                    console.log('{{ product_name }} softphone: ready for incoming calls');
+                    // Request notification permission for incoming call alerts
+                    if ('Notification' in window && Notification.permission === 'default') {
+                        Notification.requestPermission();
+                    }
+                });
+
+                globalDevice.on('error', (error) => {
+                    console.error('{{ product_name }} softphone error:', error.message || error);
+                });
+
+                globalDevice.on('incoming', (call) => {
+                    globalIncomingCall = call;
+                    const from = call.parameters.From || 'Unknown';
+                    callerNumber.textContent = from;
+                    document.getElementById('globalCallBannerTitle').textContent = 'Incoming Call';
+                    banner.classList.add('active');
+
+                    // System notification (visible even when PWA is minimized)
+                    let callNotification = null;
+                    if ('Notification' in window && Notification.permission === 'granted') {
+                        callNotification = new Notification('Incoming Call', {
+                            body: from,
+                            icon: '/static/phone-icon-192.png',
+                            tag: 'incoming-call',
+                            requireInteraction: true
+                        });
+                        callNotification.onclick = () => {
+                            window.focus();
+                            callNotification.close();
+                        };
+                    }
+
+                    call.on('cancel', () => {
+                        banner.classList.remove('active');
+                        globalIncomingCall = null;
+                        if (callNotification) callNotification.close();
+                    });
+
+                    call.on('disconnect', () => {
+                        clearInterval(globalCallTimer);
+                        banner.classList.remove('active');
+                        document.getElementById('globalCallActions').style.display = 'flex';
+                        document.getElementById('globalActiveCallActions').style.display = 'none';
+                        globalIncomingCall = null;
+                        globalMuted = false;
+                        if (callNotification) callNotification.close();
+                    });
+                });
+
+                window.tinaDevice = globalDevice;
+                await globalDevice.register();
+
+            } catch (e) {
+                console.log('Softphone init error:', e.message);
+            }
+        }
+
+        // Queue polling (works alongside the device for queue-based calls)
+        async function checkQueue() {
+            try {
+                const response = await fetch('/api/queue/callers', {
+                    credentials: 'same-origin'
+                });
+                if (!response.ok) return;
+
+                const data = await response.json();
+                const callers = (data.callers || []).filter(c => c.status === 'waiting');
+                const count = callers.length;
+
+                // Only show queue banner if no direct incoming call is active
+                if (count > 0 && !globalIncomingCall) {
+                    const firstCaller = callers[0];
+                    let text = '';
+                    if (count === 1) {
+                        text = firstCaller.customer_name || firstCaller.caller_number || 'Unknown caller';
+                    } else {
+                        const highPriority = callers.filter(c => c.priority === 'high').length;
+                        text = `${count} callers waiting`;
+                        if (highPriority > 0) text += ` (${highPriority} high priority)`;
+                    }
+                    callerNumber.textContent = text;
+                    document.getElementById('globalCallBannerTitle').textContent = 'Caller Waiting';
+                    // On regular website, show "Open Phone App" instead of "Answer"
+                    const answerBtn = document.getElementById('btnAnswerOrOpen');
+                    if (answerBtn && !isStandalone) {
+                        answerBtn.textContent = 'Open Phone App';
+                    }
+                    banner.classList.add('active');
+                } else if (count === 0 && !globalIncomingCall) {
+                    banner.classList.remove('active');
+                }
+
+                lastQueueCount = count;
+            } catch (error) {
+                console.log('Queue check error:', error.message);
+            }
+        }
+
+        let globalCallTimer = null;
+        let globalCallSeconds = 0;
+        let gcState = { muted: false, held: false, recording: false, recordingSid: null };
+        let gcCallerFrom = '';
+
+        function gcResetState() {
+            clearInterval(globalCallTimer);
+            gcState = { muted: false, held: false, recording: false, recordingSid: null };
+            document.getElementById('globalCallActions').style.display = 'flex';
+            document.getElementById('globalActiveCallActions').style.display = 'none';
+            document.getElementById('btnMuteGlobal').textContent = 'Mute';
+            document.getElementById('btnMuteGlobal').classList.remove('active-toggle');
+            document.getElementById('btnHoldGlobal').textContent = 'Hold';
+            document.getElementById('btnHoldGlobal').classList.remove('active-toggle');
+            document.getElementById('btnRecordGlobal').textContent = 'Record';
+            document.getElementById('btnRecordGlobal').classList.remove('active-toggle');
+            banner.style.animation = '';
+        }
+
+        function gcStartTimer() {
+            globalCallSeconds = 0;
+            globalCallTimer = setInterval(() => {
+                globalCallSeconds++;
+                const m = String(Math.floor(globalCallSeconds / 60)).padStart(2, '0');
+                const s = String(globalCallSeconds % 60).padStart(2, '0');
+                callerNumber.textContent = gcCallerFrom + ' — ' + m + ':' + s;
+            }, 1000);
+        }
+
+        // Answer call in-place (PWA) or navigate to phone page (website)
+        window.answerGlobalCall = function() {
+            if (globalIncomingCall) {
+                // Direct incoming call (PWA mode) — accept in-place
+                globalIncomingCall.accept();
+                gcCallerFrom = globalIncomingCall.parameters.From || 'Unknown';
+                document.getElementById('globalCallActions').style.display = 'none';
+                document.getElementById('globalActiveCallActions').style.display = 'flex';
+                document.getElementById('globalCallBannerTitle').textContent = 'On Call';
+                banner.style.animation = 'none';
+                gcStartTimer();
+            } else {
+                // Queue notification (website) — navigate to phone page
+                window.location.href = '/phone';
+            }
+        };
+
+        // Hang up
+        window.hangupGlobalCall = function() {
+            if (globalIncomingCall) {
+                globalIncomingCall.disconnect();
+                globalIncomingCall = null;
+            }
+            gcResetState();
+            banner.classList.remove('active');
+        };
+
+        // Mute
+        window.gcMute = function() {
+            if (!globalIncomingCall) return;
+            gcState.muted = !gcState.muted;
+            globalIncomingCall.mute(gcState.muted);
+            const btn = document.getElementById('btnMuteGlobal');
+            btn.textContent = gcState.muted ? 'Unmute' : 'Mute';
+            btn.classList.toggle('active-toggle', gcState.muted);
+        };
+
+        // Hold (mute-based for direct calls)
+        window.gcHold = function() {
+            if (!globalIncomingCall) return;
+            gcState.held = !gcState.held;
+            globalIncomingCall.mute(gcState.held);
+            if (gcState.held) gcState.muted = true;
+            const btn = document.getElementById('btnHoldGlobal');
+            btn.textContent = gcState.held ? 'Resume' : 'Hold';
+            btn.classList.toggle('active-toggle', gcState.held);
+            const muteBtn = document.getElementById('btnMuteGlobal');
+            muteBtn.textContent = gcState.held ? 'Unmute' : 'Mute';
+            muteBtn.classList.toggle('active-toggle', gcState.held);
+        };
+
+        // Record
+        window.gcRecord = async function() {
+            if (!globalIncomingCall) return;
+            const callSid = globalIncomingCall.parameters.CallSid;
+            if (!callSid) return;
+
+            const btn = document.getElementById('btnRecordGlobal');
+            btn.disabled = true;
+
+            try {
+                if (gcState.recording) {
+                    const resp = await fetch('/api/voice/recording/stop', {
+                        method: 'POST', credentials: 'same-origin',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ call_sid: callSid })
+                    });
+                    if (resp.ok) {
+                        gcState.recording = false;
+                        gcState.recordingSid = null;
+                        btn.textContent = 'Record';
+                        btn.classList.remove('active-toggle');
+                    }
+                } else {
+                    const resp = await fetch('/api/voice/recording/start', {
+                        method: 'POST', credentials: 'same-origin',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ call_sid: callSid })
+                    });
+                    const data = await resp.json();
+                    if (resp.ok && data.success) {
+                        gcState.recording = true;
+                        gcState.recordingSid = data.recording_sid;
+                        btn.textContent = 'Stop Rec';
+                        btn.classList.add('active-toggle');
+                    }
+                }
+            } catch (e) {
+                console.error('Recording error:', e);
+            }
+            btn.disabled = false;
+        };
+
+        // Dismiss (reject incoming or hide queue notification)
+        window.rejectGlobalCall = function() {
+            if (globalIncomingCall) {
+                globalIncomingCall.reject();
+                globalIncomingCall = null;
+            }
+            gcResetState();
+            banner.classList.remove('active');
+            lastQueueCount = 999;
+            setTimeout(() => { lastQueueCount = 0; }, 30000);
+        };
+
+        // Resume AudioContext on first interaction (Chrome autoplay policy)
+        document.addEventListener('click', function() {
+            if (globalDevice && globalDevice.audio) {
+                const ctx = globalDevice.audio._audioContext;
+                if (ctx && ctx.state === 'suspended') ctx.resume();
+            }
+        }, { once: true });
+
+        // Initialize
+        initGlobalDevice();
+        if (!isPhonePage) {
+            checkQueue();
+            setInterval(checkQueue, 5000);
+        }
+    })();
+    </script>
+    {% endif %}
+</body>
+</html>

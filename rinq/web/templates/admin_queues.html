@@ -1,0 +1,383 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+.queue-card {
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    background: #fafafa;
+}
+.queue-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    cursor: pointer;
+}
+.queue-header:hover {
+    background: #f0f0f0;
+}
+.queue-content {
+    display: none;
+    padding: 0 15px 15px 15px;
+    border-top: 1px solid #e9ecef;
+}
+.member-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-bottom: 1px solid #eee;
+    border-radius: 4px;
+    margin: 2px 0;
+}
+.member-row:hover {
+    background: #f0f0f0;
+}
+.member-row .member-delete {
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+.member-row:hover .member-delete {
+    opacity: 1;
+}
+.member-delete {
+    background: none;
+    border: none;
+    color: #999;
+    cursor: pointer;
+    padding: 2px 6px;
+    font-size: 1.1em;
+    line-height: 1;
+}
+.member-delete:hover {
+    color: #dc3545;
+}
+{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <div>
+        <h2 style="margin: 0;">📞 Queues</h2>
+        <p class="text-muted" style="margin: 5px 0 0 0;">
+            Manage call queues and their members.
+        </p>
+    </div>
+    <a href="{{ url_for('web.admin') }}" class="btn btn-secondary">← Back to Admin</a>
+</div>
+
+<div class="card">
+    {% if queues %}
+    {% for queue in queues %}
+    <div id="queue_{{ queue.id }}" class="queue-card">
+        <!-- Queue Header (always visible, clickable to expand) -->
+        <div class="queue-header" onclick="toggleQueueCard({{ queue.id }})">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span class="queue-toggle" id="queueToggle{{ queue.id }}" style="font-size: 0.8em; color: #666;">▶</span>
+                <div>
+                    <strong style="font-size: 1.1em;">{{ queue.name }}</strong>
+                    <span class="text-muted" style="margin-left: 10px; font-size: 0.85em;">
+                        {% set members = queue.get('members', []) %}
+                        {{ members|length }} member{% if members|length != 1 %}s{% endif %}
+                        · {{ queue.ring_strategy or 'simultaneous' }}
+                        {% if queue.allow_self_service %}· <span style="color: #28a745;">self-service</span>{% endif %}
+                        {% if queue.offer_callback %}· <span style="color: #856404;">callback</span>{% endif %}
+                    </span>
+                    {% if queue.description %}
+                    <br><small class="text-muted">{{ queue.description }}</small>
+                    {% endif %}
+                </div>
+            </div>
+            <div style="display: flex; gap: 8px;" onclick="event.stopPropagation();">
+                <form method="post" action="{{ url_for('web.delete_queue', queue_id=queue.id) }}" style="margin: 0;">
+                    <button type="submit" class="btn btn-small btn-danger confirm-delete">Delete</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Queue Content (collapsible) -->
+        <div id="queueContent{{ queue.id }}" class="queue-content">
+            <!-- Action buttons -->
+            <div style="display: flex; gap: 8px; margin: 15px 0;">
+                <button type="button" class="btn btn-small" onclick="toggleEditQueue({{ queue.id }})">✏️ Edit</button>
+            </div>
+
+            <!-- Edit Queue Form (hidden by default) -->
+            <div id="editQueue{{ queue.id }}" style="display: none; margin-bottom: 15px; padding: 15px; background: white; border: 1px solid #ddd; border-radius: 8px;">
+                <form method="post" action="{{ url_for('web.update_queue', queue_id=queue.id) }}">
+                    <h4 style="margin: 0 0 15px 0;">Edit Queue</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                        <div>
+                            <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Name</label>
+                            <input type="text" name="name" value="{{ queue.name }}" required
+                                   style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                        <div>
+                            <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Description</label>
+                            <input type="text" name="description" value="{{ queue.description or '' }}"
+                                   style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                        <div>
+                            <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Ring Strategy</label>
+                            <select name="ring_strategy" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                <option value="simultaneous" {% if queue.ring_strategy == 'simultaneous' or not queue.ring_strategy %}selected{% endif %}>Simultaneous (ring all)</option>
+                                <option value="round_robin" {% if queue.ring_strategy == 'round_robin' %}selected{% endif %}>Round Robin</option>
+                                <option value="sequential" {% if queue.ring_strategy == 'sequential' %}selected{% endif %}>Sequential</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Hold Music</label>
+                            <select name="hold_music_id" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                <option value="">Default (Clockwork Waltz)</option>
+                                {% for audio in audio_files if audio.file_type == 'hold_music' %}
+                                <option value="{{ audio.id }}" {% if queue.hold_music_id == audio.id %}selected{% endif %}>{{ audio.name }}{% if audio.duration_seconds %} ({{ audio.duration_seconds }}s){% endif %}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">On Call Rejection</label>
+                            <select name="reject_action" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                <option value="continue" {% if queue.reject_action == 'continue' or not queue.reject_action %}selected{% endif %}>Continue ringing (keep caller in queue)</option>
+                                <option value="voicemail" {% if queue.reject_action == 'voicemail' %}selected{% endif %}>Go to voicemail immediately</option>
+                            </select>
+                            <p class="text-muted" style="margin: 3px 0 0 0; font-size: 0.8em;">
+                                What happens when an agent rejects (declines) a call
+                            </p>
+                        </div>
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <label style="font-size: 0.85em; color: #666;">Send to voicemail after
+                            <input type="number" name="max_wait_plays" value="{{ queue.max_wait_time if queue.max_wait_time else '' }}"
+                                   min="1" max="30" placeholder="—"
+                                   style="width: 60px; padding: 4px 6px; border: 1px solid #ddd; border-radius: 4px;">
+                            music plays
+                        </label>
+                        <p class="text-muted" style="margin: 5px 0 0 0; font-size: 0.85em;">
+                            Caller is sent to voicemail after the hold music has played this many times. Leave blank for no limit.
+                        </p>
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" name="allow_self_service" value="1"
+                                   {% if queue.allow_self_service %}checked{% endif %}>
+                            <span style="font-weight: 600; font-size: 0.9em;">Allow self-service membership</span>
+                        </label>
+                        <p class="text-muted" style="margin: 5px 0 0 22px; font-size: 0.85em;">
+                            Staff can join/leave this queue from their dashboard
+                        </p>
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" name="allow_voicemail_escape" value="1"
+                                   {% if queue.allow_voicemail_escape %}checked{% endif %}>
+                            <span style="font-weight: 600; font-size: 0.9em;">Allow voicemail escape</span>
+                        </label>
+                        <p class="text-muted" style="margin: 5px 0 0 22px; font-size: 0.85em;">
+                            Callers can press 1 while waiting to leave a voicemail instead
+                        </p>
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" name="offer_callback" value="1"
+                                   {% if queue.offer_callback %}checked{% endif %}
+                                   onchange="document.getElementById('callbackThreshold{{ queue.id }}').style.display = this.checked ? 'block' : 'none'">
+                            <span style="font-weight: 600; font-size: 0.9em;">Offer callback</span>
+                        </label>
+                        <p class="text-muted" style="margin: 5px 0 0 22px; font-size: 0.85em;">
+                            After waiting, callers can press 2 to request a callback instead of holding
+                        </p>
+                        <div id="callbackThreshold{{ queue.id }}" style="margin: 8px 0 0 22px; {% if not queue.offer_callback %}display: none;{% endif %}">
+                            <label style="font-size: 0.85em; color: #666;">Offer after waiting
+                                <input type="number" name="callback_threshold" value="{{ queue.callback_threshold or 60 }}"
+                                       min="0" max="600" style="width: 60px; padding: 4px 6px; border: 1px solid #ddd; border-radius: 4px;">
+                                seconds
+                            </label>
+                        </div>
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <label style="font-size: 0.85em; color: #666;">Announce options after
+                            <input type="number" name="escape_announcement_delay" value="{{ queue.escape_announcement_delay if queue.escape_announcement_delay is not none else 1 }}"
+                                   min="0" max="10" style="width: 60px; padding: 4px 6px; border: 1px solid #ddd; border-radius: 4px;">
+                            music plays
+                        </label>
+                        <p class="text-muted" style="margin: 5px 0 0 0; font-size: 0.85em;">
+                            How many times the hold music plays before announcing voicemail/callback options. Set to 0 to announce before the first music play.
+                        </p>
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <label style="font-size: 0.85em; color: #666;">Repeat announcement every
+                            <input type="number" name="escape_repeat_interval" value="{{ queue.escape_repeat_interval if queue.escape_repeat_interval is not none else 2 }}"
+                                   min="0" max="10" style="width: 60px; padding: 4px 6px; border: 1px solid #ddd; border-radius: 4px;">
+                            music plays
+                        </label>
+                        <p class="text-muted" style="margin: 5px 0 0 0; font-size: 0.85em;">
+                            How many times the hold music plays between each announcement. Set to 0 to only announce once.
+                        </p>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button type="submit" class="btn">Save Changes</button>
+                        <button type="button" class="btn btn-secondary" onclick="toggleEditQueue({{ queue.id }})">Cancel</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Queue Members -->
+            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #e9ecef;">
+                <strong style="font-size: 0.9em;">👥 Members</strong>
+                {% set members = queue.get('members', []) %}
+                {% if members %}
+                <div style="margin-top: 8px;">
+                    {% for m in members %}
+                    <div class="member-row">
+                        <span class="badge badge-info">{{ m.user_email.split('@')[0] }}</span>
+                        <span class="text-muted" style="font-size: 0.85em;">{{ m.user_email }}</span>
+                        <form method="post" action="{{ url_for('web.remove_queue_member', queue_id=queue.id, member_id=m.id) }}"
+                              style="margin-left: auto;">
+                            <button type="submit" class="member-delete confirm-delete" title="Remove">×</button>
+                        </form>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted" style="margin: 8px 0 0 0; font-size: 0.85em;">No members yet. Add team members below.</p>
+                {% endif %}
+
+                <!-- Add Member Form -->
+                {% set member_emails = members|map(attribute='user_email')|list %}
+                {% set available_staff = all_staff|rejectattr('email', 'in', member_emails)|list %}
+                {% if available_staff %}
+                <form method="post" action="{{ url_for('web.add_queue_member', queue_id=queue.id) }}"
+                      style="display: flex; gap: 8px; align-items: end; margin-top: 10px; padding: 10px; background: white; border-radius: 5px; border: 1px solid #e0e0e0;">
+                    <div>
+                        <label style="display: block; font-size: 0.8em; color: #666; margin-bottom: 2px;">Staff Member</label>
+                        <select name="user_email" required
+                                style="padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; min-width: 220px;">
+                            <option value="">Select staff...</option>
+                            {% for staff in available_staff %}
+                            <option value="{{ staff.email }}">{{ staff.email.split('@')[0] }} (ext {{ staff.extension }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-small">Add Member</button>
+                </form>
+                {% else %}
+                <p class="text-muted" style="margin: 10px 0 0 0; font-size: 0.85em;">
+                    {% if all_staff %}
+                    All available staff are already in this queue.
+                    {% else %}
+                    No staff have logged into {{ product_name }} yet. Staff get an extension when they first log in.
+                    {% endif %}
+                </p>
+                {% endif %}
+            </div>
+        </div><!-- End queue-content -->
+    </div><!-- End queue-card -->
+    {% endfor %}
+    {% else %}
+    <p class="text-muted" style="padding: 10px;">No queues yet. Create one below.</p>
+    {% endif %}
+
+    <!-- Create New Queue Form -->
+    <form method="post" action="{{ url_for('web.create_queue') }}" style="margin-top: 15px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+        <h3 style="margin: 0 0 15px 0; font-size: 1.1em;">New Queue:</h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+            <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Queue Name</label>
+                <input type="text" name="name" placeholder="e.g., Sales Team" required
+                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+            </div>
+            <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Description</label>
+                <input type="text" name="description" placeholder="Optional description"
+                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+            </div>
+            <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Ring Strategy</label>
+                <select name="ring_strategy" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+                    <option value="simultaneous">Simultaneous (ring all)</option>
+                    <option value="round_robin">Round Robin</option>
+                    <option value="sequential">Sequential</option>
+                </select>
+            </div>
+            <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Hold Music</label>
+                <select name="hold_music_id" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+                    <option value="">Default (Clockwork Waltz)</option>
+                    {% for audio in audio_files if audio.file_type == 'hold_music' %}
+                    <option value="{{ audio.id }}">{{ audio.name }}{% if audio.duration_seconds %} ({{ audio.duration_seconds }}s){% endif %}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">On Call Rejection</label>
+                <select name="reject_action" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+                    <option value="continue">Continue ringing (keep caller in queue)</option>
+                    <option value="voicemail">Go to voicemail immediately</option>
+                </select>
+            </div>
+        </div>
+        <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" name="allow_self_service" value="1">
+                <span style="font-size: 0.9em;">Allow self-service membership</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" name="allow_voicemail_escape" value="1">
+                <span style="font-size: 0.9em;">Allow voicemail escape (press 1)</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" name="offer_callback" value="1">
+                <span style="font-size: 0.9em;">Offer callback (press 2)</span>
+            </label>
+            <button type="submit" class="btn">Create Queue</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Toggle individual queue card expand/collapse
+function toggleQueueCard(queueId) {
+    const content = document.getElementById('queueContent' + queueId);
+    const toggle = document.getElementById('queueToggle' + queueId);
+
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        toggle.textContent = '▼';
+    } else {
+        content.style.display = 'none';
+        toggle.textContent = '▶';
+    }
+}
+
+// Toggle edit queue form visibility
+function toggleEditQueue(queueId) {
+    const form = document.getElementById('editQueue' + queueId);
+    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+}
+
+// Handle URL hash to open specific queue
+(function handleUrlHash() {
+    const hash = window.location.hash;
+    if (hash && hash.length > 1) {
+        const target = hash.substring(1);
+        if (target.startsWith('queue_')) {
+            const queueId = target.replace('queue_', '');
+            const content = document.getElementById('queueContent' + queueId);
+            const toggle = document.getElementById('queueToggle' + queueId);
+            if (content) {
+                content.style.display = 'block';
+                if (toggle) toggle.textContent = '▼';
+            }
+            const card = document.getElementById('queue_' + queueId);
+            if (card) {
+                setTimeout(() => {
+                    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 100);
+            }
+        }
+    }
+})();
+</script>
+{% endblock %}

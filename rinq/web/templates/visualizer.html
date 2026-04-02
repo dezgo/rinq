@@ -1,0 +1,848 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+.flow-container {
+    padding: 20px;
+    overflow-x: auto;
+}
+
+.flow-diagram {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    min-width: 600px;
+}
+
+.flow-node {
+    padding: 15px 25px;
+    border-radius: 8px;
+    text-align: center;
+    min-width: 200px;
+    max-width: 300px;
+    position: relative;
+}
+
+.flow-node.phone {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.flow-node.greeting {
+    background: #3498db;
+    color: white;
+}
+
+.flow-node.decision {
+    background: #f39c12;
+    color: white;
+    transform: rotate(0deg);
+    border-radius: 4px;
+    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+    padding: 30px 40px;
+    min-width: 180px;
+}
+
+.flow-node.decision-label {
+    background: transparent;
+    color: #333;
+    padding: 5px;
+    font-weight: 600;
+}
+
+.flow-node.queue {
+    background: #27ae60;
+    color: white;
+}
+
+.flow-node.closed {
+    background: #e74c3c;
+    color: white;
+}
+
+.flow-node.audio {
+    background: #9b59b6;
+    color: white;
+}
+
+.flow-node.end {
+    background: #27ae60;
+    color: white;
+    border-radius: 20px;
+}
+
+.flow-node.schedule {
+    background: #16a085;
+    color: white;
+}
+
+.flow-node h3 {
+    margin: 0 0 5px 0;
+    font-size: 1em;
+    color: inherit;
+}
+
+.flow-node p {
+    margin: 0;
+    font-size: 0.85em;
+    opacity: 0.9;
+}
+
+.flow-node .subtitle {
+    font-size: 0.75em;
+    opacity: 0.7;
+    margin-top: 3px;
+}
+
+/* Clickable nodes */
+a.flow-node {
+    text-decoration: none;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    display: block;
+}
+
+a.flow-node:hover {
+    transform: scale(1.03);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+a.flow-node::after {
+    content: '✏️';
+    position: absolute;
+    top: 5px;
+    right: 8px;
+    font-size: 0.7em;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+a.flow-node:hover::after {
+    opacity: 0.8;
+}
+
+.flow-arrow {
+    width: 2px;
+    height: 30px;
+    background: #bdc3c7;
+    position: relative;
+}
+
+.flow-arrow::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 8px solid #bdc3c7;
+}
+
+.flow-arrow.short {
+    height: 15px;
+}
+
+/* Simple connector line (no arrowhead) - used before branches */
+.flow-connector {
+    width: 2px;
+    height: 20px;
+    background: #bdc3c7;
+}
+
+.flow-branch {
+    display: flex;
+    gap: 80px;
+    position: relative;
+    padding-top: 25px;
+}
+
+.flow-branch-side {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    position: relative;
+}
+
+/* Vertical line dropping down from horizontal connector to branch label */
+.flow-branch-side::before {
+    content: '';
+    width: 2px;
+    height: 25px;
+    background: #bdc3c7;
+    position: absolute;
+    top: -25px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+/* Horizontal arm extending from center to middle of gap */
+.flow-branch-side::after {
+    content: '';
+    height: 2px;
+    background: #bdc3c7;
+    position: absolute;
+    top: -25px;
+    width: calc(50% + 40px); /* From center of box to middle of 80px gap */
+}
+
+.flow-branch-side:first-child::after {
+    left: 50%;
+}
+
+.flow-branch-side:last-child::after {
+    right: 50%;
+}
+
+/* Smaller gap variant for nested branches */
+.flow-branch.small-gap {
+    gap: 40px;
+}
+
+.flow-branch.small-gap .flow-branch-side::after {
+    width: calc(50% + 20px); /* From center of box to middle of 40px gap */
+}
+
+.branch-label {
+    font-weight: 600;
+    font-size: 0.85em;
+    color: #666;
+    margin-bottom: 5px;
+    padding: 3px 10px;
+    background: #f8f9fa;
+    border-radius: 10px;
+}
+
+.branch-label.yes {
+    color: #27ae60;
+    background: #e8f8f0;
+}
+
+.branch-label.no {
+    color: #e74c3c;
+    background: #fdeaea;
+}
+
+.members-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    justify-content: center;
+    margin-top: 8px;
+}
+
+.member-badge {
+    background: rgba(255,255,255,0.2);
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.75em;
+}
+
+.holiday-section {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed rgba(255,255,255,0.3);
+}
+
+.holiday-item {
+    font-size: 0.8em;
+    opacity: 0.9;
+    margin-top: 3px;
+}
+
+.holiday-item .has-audio {
+    color: #a8e6cf;
+}
+
+.no-flow-assigned {
+    text-align: center;
+    padding: 40px;
+    color: #6c757d;
+}
+
+.phone-selector {
+    margin-bottom: 20px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.phone-selector select {
+    padding: 10px 15px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 1em;
+    min-width: 300px;
+}
+
+.legend {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    margin-top: 20px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85em;
+}
+
+.legend-color {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+}
+
+.business-hours-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 5px;
+    margin-top: 10px;
+    font-size: 0.7em;
+}
+
+.day-cell {
+    text-align: center;
+    padding: 3px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 3px;
+}
+
+.day-cell.closed {
+    background: rgba(0,0,0,0.2);
+    opacity: 0.6;
+}
+
+.flow-info-box {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 15px;
+    margin-top: 20px;
+}
+
+.flow-info-box h4 {
+    margin: 0 0 10px 0;
+    font-size: 1em;
+    color: #333;
+}
+
+.flow-info-box ul {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.flow-info-box li {
+    margin-bottom: 5px;
+    color: #666;
+}
+{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <div>
+        <h2 style="margin: 0;">📊 Call Flow Visualizer</h2>
+        <p class="text-muted" style="margin: 5px 0 0 0;">
+            See how incoming calls are routed through the system.
+        </p>
+    </div>
+    <a href="{{ url_for('web.admin') }}" class="btn btn-secondary">← Back to Admin</a>
+</div>
+
+<div class="card">
+    <div class="phone-selector">
+        <label><strong>Select Phone Number:</strong></label>
+        <select id="phoneSelect" onchange="updateVisualization()">
+            <option value="">-- Choose a phone number --</option>
+            {% for number in phone_numbers %}
+            <option value="{{ number.sid }}"
+                    data-flow-id="{{ number.call_flow_id or '' }}"
+                    {% if selected_sid == number.sid %}selected{% endif %}>
+                {{ number.phone_number }}
+                {% if number.friendly_name %} - {{ number.friendly_name }}{% endif %}
+                {% if number.call_flow_id %}
+                    {% for flow in call_flows if flow.id == number.call_flow_id %}
+                    ({{ flow.name }})
+                    {% endfor %}
+                {% else %}
+                (No flow assigned)
+                {% endif %}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    {% if selected_number %}
+        {% if selected_flow %}
+        <div class="flow-container">
+            <div class="flow-diagram">
+                <!-- Phone Number -->
+                <div class="flow-node phone">
+                    <h3>📱 {{ selected_number.phone_number }}</h3>
+                    {% if selected_number.friendly_name %}
+                    <p>{{ selected_number.friendly_name }}</p>
+                    {% endif %}
+                </div>
+
+                <div class="flow-arrow"></div>
+
+                <!-- Call Flow -->
+                <a href="{{ url_for('web.admin_call_flows') }}" class="flow-node" style="background: #2c3e50; color: white;" title="Edit call flows">
+                    <h3>🔀 {{ selected_flow.name }}</h3>
+                    {% if selected_flow.description %}
+                    <p>{{ selected_flow.description }}</p>
+                    {% endif %}
+                </a>
+
+                {% if selected_flow.greeting_audio_id %}
+                <div class="flow-arrow"></div>
+
+                <!-- Greeting -->
+                <a href="{{ url_for('web.admin_audio') }}" class="flow-node greeting" title="Edit audio files">
+                    <h3>🎵 Play Greeting</h3>
+                    {% for audio in audio_files if audio.id == selected_flow.greeting_audio_id %}
+                    <p>{{ audio.name }}</p>
+                    {% endfor %}
+                </a>
+                {% endif %}
+
+                <div class="flow-arrow"></div>
+
+                {% if selected_schedule %}
+                <!-- FIRST DECISION: Is it a holiday? (checked FIRST) -->
+                {% if selected_schedule.holidays %}
+                <a href="{{ url_for('web.admin_schedules') }}" class="flow-node schedule" title="Edit schedules & holidays">
+                    <h3>📅 Is Today a Holiday?</h3>
+                    <p class="subtitle">{{ selected_schedule.name }}</p>
+                    <div class="holiday-section" style="border-top: none; padding-top: 5px; margin-top: 5px;">
+                        {% for holiday in selected_schedule.holidays[:3] %}
+                        <div class="holiday-item">
+                            {{ holiday.date }}: {{ holiday.name }}
+                            {% if holiday.audio_id %}<span class="has-audio">🎵</span>{% endif %}
+                        </div>
+                        {% endfor %}
+                        {% if selected_schedule.holidays|length > 3 %}
+                        <div class="holiday-item">+ {{ selected_schedule.holidays|length - 3 }} more...</div>
+                        {% endif %}
+                    </div>
+                </a>
+
+                <div class="flow-connector"></div>
+
+                <!-- Holiday decision branch -->
+                <div class="flow-branch">
+                    <!-- YES - It's a holiday -->
+                    <div class="flow-branch-side">
+                        <span class="branch-label" style="background: #f5eef8; color: #9b59b6;">YES - Holiday</span>
+                        <div class="flow-arrow short"></div>
+
+                        <a href="{{ url_for('web.admin_audio') }}" class="flow-node audio" title="Edit holiday audio">
+                            <h3>🎵 Play Holiday Audio</h3>
+                            <p>Specific message for this holiday</p>
+                        </a>
+
+                        <div class="flow-arrow"></div>
+                        <div class="flow-node" style="background: #9b59b6; color: white; border-radius: 20px;">
+                            <h3>Call Ended</h3>
+                        </div>
+                    </div>
+
+                    <!-- NO - Not a holiday, continue to schedule check -->
+                    <div class="flow-branch-side">
+                        <span class="branch-label yes">NO - Not a Holiday</span>
+                        <div class="flow-arrow short"></div>
+
+                        <!-- SECOND DECISION: Check business hours -->
+                        <a href="{{ url_for('web.admin_schedules') }}" class="flow-node schedule" title="Edit business hours">
+                            <h3>🕐 Check Business Hours</h3>
+                            <p class="subtitle">{{ selected_schedule.name }}</p>
+                            <div class="business-hours-grid">
+                                {% set hours = selected_schedule.business_hours_parsed or {} %}
+                                {% for day in ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] %}
+                                <div class="day-cell {% if not hours.get(day) %}closed{% endif %}">
+                                    <div>{{ day[:2]|upper }}</div>
+                                    {% if hours.get(day) %}
+                                    <div>{{ hours[day].open[:5] }}-{{ hours[day].close[:5] }}</div>
+                                    {% else %}
+                                    <div>-</div>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </a>
+
+                        <div class="flow-connector"></div>
+
+                        <!-- Business hours decision branch -->
+                        <div class="flow-branch small-gap">
+                            <!-- OPEN -->
+                            <div class="flow-branch-side">
+                                <span class="branch-label yes">✓ OPEN</span>
+                                <div class="flow-arrow short"></div>
+
+                                {% if selected_queue %}
+                                <a href="{{ url_for('web.admin_queues') }}" class="flow-node queue" title="Edit queues">
+                                    <h3>📞 {{ selected_queue.name }}</h3>
+                                    {% if selected_queue.members %}
+                                    <div class="members-list">
+                                        {% for member in selected_queue.members %}
+                                        <span class="member-badge">{{ member.user_email.split('@')[0] }}</span>
+                                        {% endfor %}
+                                    </div>
+                                    {% else %}
+                                    <p>No members</p>
+                                    {% endif %}
+                                </a>
+                                {% elif selected_flow.open_forward_number %}
+                                <a href="{{ url_for('web.admin_call_flows') }}" class="flow-node" style="background: #1abc9c; color: white;" title="Edit call flows">
+                                    <h3>📲 Forward</h3>
+                                    <p>{{ selected_flow.open_forward_number }}</p>
+                                </a>
+                                {% else %}
+                                <a href="{{ url_for('web.admin_call_flows') }}" class="flow-node" style="background: #95a5a6; color: white;" title="Configure routing">
+                                    <h3>⚠️ No Routing</h3>
+                                    <p>Not configured</p>
+                                </a>
+                                {% endif %}
+
+                                <div class="flow-arrow"></div>
+                                <div class="flow-node end">
+                                    <h3>Call Connected</h3>
+                                </div>
+                            </div>
+
+                            <!-- CLOSED -->
+                            <div class="flow-branch-side">
+                                <span class="branch-label no">✗ CLOSED</span>
+                                <div class="flow-arrow short"></div>
+
+                                {% if selected_flow.closed_action == 'voicemail' %}
+                                <!-- Voicemail flow -->
+                                <a href="{{ url_for('web.admin_call_flows') }}" class="flow-node closed" title="Edit closed settings">
+                                    <h3>🔇 Closed Message</h3>
+                                    {% if selected_flow.closed_audio_id %}
+                                        {% for audio in audio_files if audio.id == selected_flow.closed_audio_id %}
+                                        <p>{{ audio.name }}</p>
+                                        {% endfor %}
+                                    {% else %}
+                                    <p>Default TTS message</p>
+                                    {% endif %}
+                                </a>
+
+                                <div class="flow-arrow"></div>
+                                <a href="{{ url_for('web.admin_call_flows') }}" class="flow-node" style="background: #9b59b6; color: white;" title="Edit voicemail settings">
+                                    <h3>🎤 Record Voicemail</h3>
+                                    <p>Up to 2 minutes</p>
+                                </a>
+
+                                <div class="flow-arrow"></div>
+                                <div class="flow-node" style="background: {% if selected_voicemail_dest %}#3498db{% else %}#95a5a6{% endif %}; color: white;">
+                                    {% if selected_voicemail_dest %}
+                                    <h3>{% if selected_voicemail_dest.routing_type == 'zendesk' %}🎫 Zendesk Ticket{% else %}📧 Email{% endif %}</h3>
+                                    <p>{{ selected_voicemail_dest.name }}</p>
+                                    {% else %}
+                                    <h3>📧 Route to</h3>
+                                    <p>Not configured</p>
+                                    {% endif %}
+                                </div>
+
+                                <div class="flow-arrow"></div>
+                                <div class="flow-node" style="background: #9b59b6; color: white; border-radius: 20px;">
+                                    <h3>Call Ended</h3>
+                                </div>
+
+                                {% elif selected_flow.closed_action == 'forward' %}
+                                <!-- After-hours forward flow -->
+                                <a href="{{ url_for('web.admin_call_flows') }}" class="flow-node" style="background: #1abc9c; color: white;" title="Edit forward settings">
+                                    <h3>📲 Forward After Hours</h3>
+                                    <p>{{ selected_flow.closed_forward_number or 'Not configured' }}</p>
+                                </a>
+
+                                <div class="flow-arrow"></div>
+                                <div class="flow-node end">
+                                    <h3>Call Connected</h3>
+                                </div>
+
+                                {% else %}
+                                <!-- Default: Just play message and hang up -->
+                                <a href="{{ url_for('web.admin_call_flows') }}" class="flow-node closed" title="Edit closed message">
+                                    <h3>🔇 Closed Message</h3>
+                                    {% if selected_flow.closed_audio_id %}
+                                        {% for audio in audio_files if audio.id == selected_flow.closed_audio_id %}
+                                        <p>{{ audio.name }}</p>
+                                        {% endfor %}
+                                    {% else %}
+                                    <p>Default TTS message</p>
+                                    {% endif %}
+                                </a>
+
+                                <div class="flow-arrow"></div>
+                                <div class="flow-node" style="background: #e74c3c; color: white; border-radius: 20px;">
+                                    <h3>Call Ended</h3>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {% else %}
+                <!-- Schedule exists but no holidays - just check business hours -->
+                <a href="{{ url_for('web.admin_schedules') }}" class="flow-node schedule" title="Edit business hours">
+                    <h3>🕐 Check Business Hours</h3>
+                    <p class="subtitle">{{ selected_schedule.name }}</p>
+                    <div class="business-hours-grid">
+                        {% set hours = selected_schedule.business_hours_parsed or {} %}
+                        {% for day in ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] %}
+                        <div class="day-cell {% if not hours.get(day) %}closed{% endif %}">
+                            <div>{{ day[:2]|upper }}</div>
+                            {% if hours.get(day) %}
+                            <div>{{ hours[day].open[:5] }}-{{ hours[day].close[:5] }}</div>
+                            {% else %}
+                            <div>-</div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </a>
+
+                <div class="flow-connector"></div>
+
+                <!-- Business hours branch (no holidays) -->
+                <div class="flow-branch">
+                    <!-- OPEN -->
+                    <div class="flow-branch-side">
+                        <span class="branch-label yes">✓ OPEN</span>
+                        <div class="flow-arrow short"></div>
+
+                        {% if selected_queue %}
+                        <a href="{{ url_for('web.admin_queues') }}" class="flow-node queue" title="Edit queues">
+                            <h3>📞 {{ selected_queue.name }}</h3>
+                            {% if selected_queue.members %}
+                            <div class="members-list">
+                                {% for member in selected_queue.members %}
+                                <span class="member-badge">{{ member.user_email.split('@')[0] }}</span>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <p>No members</p>
+                            {% endif %}
+                        </a>
+                        {% elif selected_flow.open_forward_number %}
+                        <a href="{{ url_for('web.admin_call_flows') }}" class="flow-node" style="background: #1abc9c; color: white;" title="Edit call flows">
+                            <h3>📲 Forward</h3>
+                            <p>{{ selected_flow.open_forward_number }}</p>
+                        </a>
+                        {% else %}
+                        <a href="{{ url_for('web.admin_call_flows') }}" class="flow-node" style="background: #95a5a6; color: white;" title="Configure routing">
+                            <h3>⚠️ No Routing</h3>
+                            <p>Not configured</p>
+                        </a>
+                        {% endif %}
+
+                        <div class="flow-arrow"></div>
+                        <div class="flow-node end">
+                            <h3>Call Connected</h3>
+                        </div>
+                    </div>
+
+                    <!-- CLOSED -->
+                    <div class="flow-branch-side">
+                        <span class="branch-label no">✗ CLOSED</span>
+                        <div class="flow-arrow short"></div>
+
+                        {% if selected_flow.closed_action == 'voicemail' %}
+                        <!-- Voicemail flow -->
+                        <a href="{{ url_for('web.admin_call_flows') }}" class="flow-node closed" title="Edit closed settings">
+                            <h3>🔇 Closed Message</h3>
+                            {% if selected_flow.closed_audio_id %}
+                                {% for audio in audio_files if audio.id == selected_flow.closed_audio_id %}
+                                <p>{{ audio.name }}</p>
+                                {% endfor %}
+                            {% else %}
+                            <p>Default TTS message</p>
+                            {% endif %}
+                        </a>
+
+                        <div class="flow-arrow"></div>
+                        <a href="{{ url_for('web.admin_call_flows') }}" class="flow-node" style="background: #9b59b6; color: white;" title="Edit voicemail settings">
+                            <h3>🎤 Record Voicemail</h3>
+                            <p>Up to 2 minutes</p>
+                        </a>
+
+                        <div class="flow-arrow"></div>
+                        <div class="flow-node" style="background: {% if selected_voicemail_dest %}#3498db{% else %}#95a5a6{% endif %}; color: white;">
+                            {% if selected_voicemail_dest %}
+                            <h3>{% if selected_voicemail_dest.routing_type == 'zendesk' %}🎫 Zendesk Ticket{% else %}📧 Email{% endif %}</h3>
+                            <p>{{ selected_voicemail_dest.name }}</p>
+                            {% else %}
+                            <h3>📧 Route to</h3>
+                            <p>Not configured</p>
+                            {% endif %}
+                        </div>
+
+                        <div class="flow-arrow"></div>
+                        <div class="flow-node" style="background: #9b59b6; color: white; border-radius: 20px;">
+                            <h3>Call Ended</h3>
+                        </div>
+
+                        {% elif selected_flow.closed_action == 'forward' %}
+                        <!-- After-hours forward flow -->
+                        <a href="{{ url_for('web.admin_call_flows') }}" class="flow-node" style="background: #1abc9c; color: white;" title="Edit forward settings">
+                            <h3>📲 Forward After Hours</h3>
+                            <p>{{ selected_flow.closed_forward_number or 'Not configured' }}</p>
+                        </a>
+
+                        <div class="flow-arrow"></div>
+                        <div class="flow-node end">
+                            <h3>Call Connected</h3>
+                        </div>
+
+                        {% else %}
+                        <!-- Default: Just play message and hang up -->
+                        <a href="{{ url_for('web.admin_call_flows') }}" class="flow-node closed" title="Edit closed message">
+                            <h3>🔇 Closed Message</h3>
+                            {% if selected_flow.closed_audio_id %}
+                                {% for audio in audio_files if audio.id == selected_flow.closed_audio_id %}
+                                <p>{{ audio.name }}</p>
+                                {% endfor %}
+                            {% else %}
+                            <p>Default TTS message</p>
+                            {% endif %}
+                        </a>
+
+                        <div class="flow-arrow"></div>
+                        <div class="flow-node" style="background: #e74c3c; color: white; border-radius: 20px;">
+                            <h3>Call Ended</h3>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+
+                {% else %}
+                <!-- No schedule = always open, straight to queue -->
+                <a href="{{ url_for('web.admin_call_flows') }}" class="flow-node" style="background: #95a5a6; color: white;" title="Add a schedule">
+                    <h3>⏰ No Schedule</h3>
+                    <p>Always open (24/7)</p>
+                </a>
+
+                <div class="flow-arrow"></div>
+
+                {% if selected_queue %}
+                <a href="{{ url_for('web.admin_queues') }}" class="flow-node queue" title="Edit queues">
+                    <h3>📞 {{ selected_queue.name }}</h3>
+                    {% if selected_queue.members %}
+                    <div class="members-list">
+                        {% for member in selected_queue.members %}
+                        <span class="member-badge">{{ member.user_email.split('@')[0] }}</span>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p>No members</p>
+                    {% endif %}
+                </a>
+                {% elif selected_flow.open_forward_number %}
+                <a href="{{ url_for('web.admin_call_flows') }}" class="flow-node" style="background: #1abc9c; color: white;" title="Edit call flows">
+                    <h3>📲 Forward</h3>
+                    <p>{{ selected_flow.open_forward_number }}</p>
+                </a>
+                {% else %}
+                <a href="{{ url_for('web.admin_call_flows') }}" class="flow-node" style="background: #95a5a6; color: white;" title="Configure routing">
+                    <h3>⚠️ No Routing</h3>
+                    <p>Not configured</p>
+                </a>
+                {% endif %}
+
+                <div class="flow-arrow"></div>
+                <div class="flow-node end">
+                    <h3>Call Connected</h3>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Info Box -->
+        <div class="flow-info-box">
+            <h4>💡 How Call Routing Works</h4>
+            <ul>
+                <li><strong>Step 1:</strong> Check if today is a holiday → if yes, play holiday audio and end call</li>
+                <li><strong>Step 2:</strong> If not a holiday, check business hours</li>
+                <li><strong>Step 3:</strong> If open → route to queue</li>
+                <li><strong>Step 4:</strong> If closed → depending on settings: play message, take voicemail, or forward</li>
+            </ul>
+        </div>
+
+        {% else %}
+        <!-- No call flow assigned -->
+        <div class="no-flow-assigned">
+            <h3>⚠️ No Call Flow Assigned</h3>
+            <p>This phone number doesn't have a call flow configured.</p>
+            <p>
+                {% if selected_number.forward_to %}
+                <strong>Legacy forwarding:</strong> {{ selected_number.forward_to }}
+                {% else %}
+                Calls will receive a "not configured" message.
+                {% endif %}
+            </p>
+            <a href="{{ url_for('web.admin_call_flows') }}" class="btn" style="margin-top: 15px;">
+                Create a Call Flow
+            </a>
+        </div>
+        {% endif %}
+    {% else %}
+    <div class="no-flow-assigned">
+        <p>Select a phone number above to see its call flow visualization.</p>
+    </div>
+    {% endif %}
+
+    <!-- Legend -->
+    <div class="legend">
+        <div class="legend-item">
+            <div class="legend-color" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);"></div>
+            <span>Phone Number</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #3498db;"></div>
+            <span>Greeting Audio</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #16a085;"></div>
+            <span>Schedule Check</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #27ae60;"></div>
+            <span>Queue</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #9b59b6;"></div>
+            <span>Audio Playback</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #e74c3c;"></div>
+            <span>Closed Message</span>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function updateVisualization() {
+    const select = document.getElementById('phoneSelect');
+    const sid = select.value;
+    if (sid) {
+        window.location.href = '{{ url_for("web.visualizer") }}?sid=' + encodeURIComponent(sid);
+    } else {
+        window.location.href = '{{ url_for("web.visualizer") }}';
+    }
+}
+</script>
+{% endblock %}

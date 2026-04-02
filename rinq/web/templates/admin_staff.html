@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+.signals {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.signal {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.8em;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: #f0f0f0;
+    color: #666;
+}
+.signal.active {
+    background: #d4edda;
+    color: #155724;
+}
+.signal.strong {
+    background: #cce5ff;
+    color: #004085;
+}
+.locked-icon {
+    font-size: 0.85em;
+    cursor: help;
+}
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <div>
+            <h2 style="margin: 0;">Staff Extensions</h2>
+            <p class="text-muted" style="margin: 5px 0 0 0;">
+                Staff are auto-activated when they have call history, queue membership, or a phone assignment.
+                Manual overrides are locked and won't be changed by auto-activation.
+            </p>
+        </div>
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <form method="post" action="{{ url_for('web.regenerate_all_staff_audio') }}" style="margin: 0;">
+                <button type="submit" class="btn btn-secondary" style="white-space: nowrap;">Regenerate All Audio</button>
+            </form>
+            <a href="{{ url_for('web.admin') }}" class="btn" style="background: #6c757d;">Back to Admin</a>
+        </div>
+    </div>
+
+    {% if extensions %}
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Extension</th>
+                <th>Usage Signals</th>
+                <th>Directory</th>
+                <th>Audio</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ext in extensions %}
+            {% set sig = signals.get(ext.email, {}) %}
+            <tr style="{% if not ext.is_active %}opacity: 0.6;{% endif %}">
+                <td>
+                    {{ ext.email.split('@')[0] | replace('.', ' ') | title }}
+                    <div class="text-muted" style="font-size: 0.8em;">{{ ext.email }}</div>
+                </td>
+                <td>
+                    <form method="post" action="{{ url_for('web.update_staff_extension', email=ext.email) }}" style="margin: 0; display: inline-flex; align-items: center; gap: 4px;">
+                        <input type="text" name="extension" value="{{ ext.extension }}" style="width: 60px; padding: 2px 6px; font-weight: 600; text-align: center; border: 1px solid #ddd; border-radius: 4px; font-size: 0.95em;" maxlength="6">
+                        <button type="submit" class="btn btn-secondary" style="padding: 2px 8px; font-size: 0.8em;">Set</button>
+                    </form>
+                </td>
+                <td>
+                    <div class="signals">
+                        {% if sig.get('total_calls', 0) > 0 %}
+                            <span class="signal strong" title="Last call: {{ sig.get('last_call_at', 'unknown')[:10] }}">
+                                {{ sig['total_calls'] }} calls
+                            </span>
+                        {% else %}
+                            <span class="signal" title="No calls in {{ product_name }}">0 calls</span>
+                        {% endif %}
+
+                        {% if sig.get('in_queue_count', 0) > 0 %}
+                            <span class="signal active">{{ sig['in_queue_count'] }} queue{{ 's' if sig['in_queue_count'] != 1 else '' }}</span>
+                        {% endif %}
+
+                        {% if sig.get('has_phone_assignment') %}
+                            <span class="signal active">assigned #</span>
+                        {% endif %}
+
+                        {% if sig.get('has_sip_user') %}
+                            <span class="signal active">SIP</span>
+                        {% endif %}
+                    </div>
+                </td>
+                <td>
+                    {% if ext.show_in_pam %}
+                        <span class="badge badge-success">visible</span>
+                    {% else %}
+                        <span class="text-muted">hidden</span>
+                    {% endif %}
+                </td>
+                <td style="white-space: nowrap;">
+                    {% if ext.name_audio_path %}
+                        <span title="Audio: {{ ext.name_audio_text }}">&#9989;</span>
+                    {% else %}
+                        <span class="text-muted" title="No name audio">&#8212;</span>
+                    {% endif %}
+                    <form method="post" action="{{ url_for('web.regenerate_staff_audio', email=ext.email) }}" style="margin: 0; display: inline;">
+                        <button type="submit" class="btn btn-secondary" style="padding: 2px 8px; font-size: 0.75em;" title="Regenerate name audio">&#128260;</button>
+                    </form>
+                </td>
+                <td>
+                    {% if ext.is_active %}
+                        <span class="badge badge-success">active</span>
+                    {% else %}
+                        <span class="badge" style="background: #e9ecef; color: #666;">inactive</span>
+                    {% endif %}
+                    {% if ext.is_active_locked %}
+                        <span class="locked-icon" title="Manually set - auto-activation won't change this">&#128274;</span>
+                    {% endif %}
+                </td>
+                <td style="white-space: nowrap;">
+                    <form method="post" action="{{ url_for('web.toggle_staff_active', email=ext.email) }}" style="margin: 0; display: inline;">
+                        {% if ext.is_active %}
+                            <button type="submit" class="btn btn-secondary" style="padding: 4px 12px; font-size: 0.85em;">Deactivate</button>
+                        {% else %}
+                            <button type="submit" class="btn" style="padding: 4px 12px; font-size: 0.85em;">Activate</button>
+                        {% endif %}
+                    </form>
+                    {% if ext.is_active_locked %}
+                    <form method="post" action="{{ url_for('web.unlock_staff_active', email=ext.email) }}" style="margin: 0; display: inline;">
+                        <button type="submit" class="btn btn-secondary" style="padding: 4px 12px; font-size: 0.85em;" title="Remove manual override, allow auto-activation">Unlock</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="text-muted">No staff have logged into {{ product_name }} yet.</p>
+    {% endif %}
+</div>
+{% endblock %}

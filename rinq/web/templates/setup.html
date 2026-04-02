@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+
+{% block title_suffix %} - Setup{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>Twilio Configuration</h2>
+
+    {% if configured %}
+        <table>
+            <tr>
+                <td><strong>Status</strong></td>
+                <td><span class="badge badge-success">Connected</span></td>
+            </tr>
+            {% if account_info and not account_info.get('error') %}
+            <tr>
+                <td><strong>Account</strong></td>
+                <td>{{ account_info.friendly_name }}</td>
+            </tr>
+            <tr>
+                <td><strong>Type</strong></td>
+                <td>{{ account_info.type }}</td>
+            </tr>
+            <tr>
+                <td><strong>Created</strong></td>
+                <td>{{ account_info.date_created }}</td>
+            </tr>
+            {% endif %}
+        </table>
+    {% else %}
+        <div class="empty-state">
+            <span class="badge badge-danger">Not Configured</span>
+            <p class="text-muted" style="margin-top: 10px;">
+                Set TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN in your .env file.
+            </p>
+        </div>
+    {% endif %}
+</div>
+
+{% if configured %}
+<div class="card" style="margin-top: 20px;">
+    <h2>Desk Phone Setup Status</h2>
+    <p class="text-muted">For SIP phones (Zoiper, desk phones) to work, the credential list must be linked to the SIP domain.</p>
+
+    {% if sip_setup_status %}
+        <table>
+            <tr>
+                <td><strong>SIP Domain</strong></td>
+                <td>
+                    {% if sip_setup_status.has_domain %}
+                        <span class="badge badge-success">OK</span>
+                        <code style="margin-left: 10px;">{{ sip_setup_status.domain_name }}</code>
+                    {% else %}
+                        <span class="badge badge-danger">Missing</span>
+                    {% endif %}
+                </td>
+            </tr>
+            <tr>
+                <td><strong>Credential List</strong></td>
+                <td>
+                    {% if sip_setup_status.has_credential_list %}
+                        <span class="badge badge-success">Configured</span>
+                    {% else %}
+                        <span class="badge badge-danger">Not Configured</span>
+                    {% endif %}
+                </td>
+            </tr>
+            <tr>
+                <td><strong>Linked for Calls</strong></td>
+                <td>
+                    {% if sip_setup_status.calls_linked %}
+                        <span class="badge badge-success">Linked</span>
+                    {% elif sip_setup_status.has_domain and sip_setup_status.has_credential_list %}
+                        <span class="badge badge-danger">Not Linked</span>
+                    {% else %}
+                        <span class="badge badge-warning">N/A</span>
+                    {% endif %}
+                </td>
+            </tr>
+            <tr>
+                <td><strong>Linked for Registrations</strong></td>
+                <td>
+                    {% if sip_setup_status.registrations_linked %}
+                        <span class="badge badge-success">Linked</span>
+                    {% elif sip_setup_status.has_domain and sip_setup_status.has_credential_list %}
+                        <span class="badge badge-danger">Not Linked</span>
+                        <span class="text-muted" style="margin-left: 5px;">(causes 403 errors)</span>
+                    {% else %}
+                        <span class="badge badge-warning">N/A</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% if sip_setup_status.has_domain and sip_setup_status.has_credential_list and not sip_setup_status.is_linked %}
+            <tr>
+                <td></td>
+                <td>
+                    <form method="POST" action="{{ url_for('web.link_credential_list') }}" style="margin-top: 10px;">
+                        <button type="submit" class="btn btn-small">Link Credential List Now</button>
+                    </form>
+                </td>
+            </tr>
+            {% endif %}
+        </table>
+
+        {% if sip_setup_status.issues %}
+        <div class="help-tip" style="margin-top: 15px; background: #fff3cd; border-color: #ffc107;">
+            <strong>Issues:</strong>
+            <ul style="margin: 5px 0 0 20px; padding: 0;">
+                {% for issue in sip_setup_status.issues %}
+                <li>{{ issue }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    {% endif %}
+</div>
+
+<div class="card" style="margin-top: 20px;">
+    <h2>SIP Domains</h2>
+    <p class="text-muted">SIP domains are used for VoIP phone endpoints (softphones, desk phones).</p>
+
+    {% if sip_domains %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Domain Name</th>
+                    <th>Friendly Name</th>
+                    <th>SID</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for domain in sip_domains %}
+                <tr>
+                    <td><code>{{ domain.domain_name }}</code></td>
+                    <td>{{ domain.friendly_name }}</td>
+                    <td class="text-muted">{{ domain.sid[:20] }}...</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <div class="empty-state">
+            <h3>No SIP domains</h3>
+            <p class="text-muted">
+                Create a SIP domain in the Twilio Console to enable VoIP endpoints.
+            </p>
+        </div>
+    {% endif %}
+</div>
+
+<div class="card" style="margin-top: 20px;">
+    <h2>Credential Lists</h2>
+    <p class="text-muted">Credential lists contain SIP usernames/passwords for staff phones.</p>
+
+    {% if credential_lists %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>SID</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cl in credential_lists %}
+                <tr>
+                    <td>{{ cl.friendly_name }}</td>
+                    <td class="text-muted">{{ cl.sid[:20] }}...</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <div class="empty-state">
+            <h3>No credential lists</h3>
+            <p class="text-muted">
+                Create a credential list in the Twilio Console to manage staff phone credentials.
+            </p>
+        </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<div class="card" style="margin-top: 20px;">
+    <h2>Webhook URLs</h2>
+    <p class="text-muted">Configure this URL on each phone number in Twilio:</p>
+
+    <table>
+        <tr>
+            <td><strong>Incoming Call</strong></td>
+            <td><code>https://tina.watsonblinds.com.au/api/voice/incoming</code></td>
+        </tr>
+    </table>
+
+    <div class="help-tip" style="margin-top: 15px;">
+        In Twilio Console: <strong>Phone Numbers &rarr; Manage &rarr; Active Numbers &rarr; [number] &rarr; Voice Configuration</strong><br>
+        Set "A call comes in" to <strong>Webhook</strong> with the URL above and <strong>HTTP POST</strong>.
+    </div>
+</div>
+{% endblock %}

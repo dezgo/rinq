@@ -1,0 +1,978 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+.quick-create {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.quick-create input, .quick-create select {
+    padding: 6px 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+.conditional-field {
+    display: none;
+    margin-top: 10px;
+    padding: 10px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+}
+.conditional-field.visible {
+    display: block;
+}
+{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <div>
+        <h2 style="margin: 0;">🔀 Call Flows</h2>
+        <p class="text-muted" style="margin: 5px 0 0 0;">
+            Define how incoming calls are handled - greetings, routing, and schedules.
+        </p>
+    </div>
+    <a href="{{ url_for('web.admin') }}" class="btn btn-secondary">← Back to Admin</a>
+</div>
+
+<div class="card">
+    {% if call_flows %}
+    {% for flow in call_flows %}
+    <div id="flow_{{ flow.id }}" style="padding: 15px; background: #f8f9fa; border-radius: 8px; margin-bottom: 15px;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div style="flex: 1;">
+                <h3 style="margin: 0 0 5px 0;">{{ flow.name }}</h3>
+                {% if flow.description %}
+                <p class="text-muted" style="margin: 0 0 10px 0;">{{ flow.description }}</p>
+                {% endif %}
+
+                <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px;">
+                    {% if flow.greeting_audio_id %}
+                        {% for a in audio_files if a.id == flow.greeting_audio_id %}
+                        <span class="badge badge-info">🎵 {{ a.name }}</span>
+                        {% endfor %}
+                    {% endif %}
+
+                    {% if flow.open_action == 'extension_directory' %}
+                        <span class="badge badge-info">📟 Extension Directory</span>
+                    {% elif flow.open_action == 'forward' and flow.open_forward_number %}
+                        <span class="badge badge-info">📲 Open Forward: {{ flow.open_forward_number }}</span>
+                    {% elif flow.open_queue_id %}
+                        {% for q in queues if q.id == flow.open_queue_id %}
+                        <span class="badge badge-success">📞 Queue: {{ q.name }}</span>
+                        {% endfor %}
+                    {% endif %}
+
+                    {% if flow.schedule_id %}
+                        {% for s in schedules if s.id == flow.schedule_id %}
+                        <span class="badge badge-warning">🕐 {{ s.name }}</span>
+                        {% endfor %}
+                    {% else %}
+                        <span class="badge badge-secondary">24/7</span>
+                    {% endif %}
+
+                    {% if flow.open_action in ('queue', None) %}
+                        {% if flow.open_no_answer_action == 'ai_receptionist' %}
+                            <span class="badge badge-success" title="AI answers when staff don't pick up">🤖 Stuart (no answer)</span>
+                        {% elif flow.open_no_answer_action == 'voicemail' %}
+                            <span class="badge badge-secondary">📧 Voicemail (no answer)</span>
+                        {% endif %}
+                    {% endif %}
+
+                    {% if flow.closed_action == 'ai_receptionist' %}
+                        <span class="badge badge-success" title="AI answers after hours">🤖 Stuart (closed)</span>
+                    {% elif flow.closed_action == 'voicemail' %}
+                        {% set vm_dest = namespace(name=None, type=None, detail=None) %}
+                        {% for dest in voicemail_destinations if dest.id == flow.voicemail_destination_id %}
+                            {% set vm_dest.name = dest.name %}
+                            {% if dest.routing_type == 'zendesk' or dest.zendesk_group_id %}
+                                {% set vm_dest.type = 'Zendesk' %}
+                                {% for g in zendesk_groups if g.id == dest.zendesk_group_id %}
+                                    {% set vm_dest.detail = g.name %}
+                                {% endfor %}
+                            {% else %}
+                                {% set vm_dest.type = 'Email' %}
+                                {% set vm_dest.detail = dest.email %}
+                            {% endif %}
+                        {% endfor %}
+                        {% if vm_dest.name %}
+                        <span class="badge badge-info" title="{{ vm_dest.type }}: {{ vm_dest.detail }}">📧 VM → {{ vm_dest.name }}</span>
+                        {% else %}
+                        <span class="badge badge-warning">📧 Voicemail (no destination)</span>
+                        {% endif %}
+                    {% elif flow.closed_action == 'forward' %}
+                        <span class="badge badge-info">📲 Forward: {{ flow.closed_forward_number }}</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 5px; align-items: center;">
+                <button type="button" class="btn btn-small" onclick="toggleEditFlow({{ flow.id }})">Edit</button>
+                <form method="post" action="{{ url_for('web.clone_call_flow', flow_id=flow.id) }}" style="margin: 0; display: flex;">
+                    <button type="submit" class="btn btn-small btn-info">Clone</button>
+                </form>
+                <form method="post" action="{{ url_for('web.delete_call_flow', flow_id=flow.id) }}" style="margin: 0; display: flex;">
+                    <button type="submit" class="btn btn-small btn-danger confirm-delete">Delete</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Edit Form (hidden by default) -->
+        <div id="edit_flow_{{ flow.id }}" class="edit-form" style="display: none; margin-top: 15px; padding: 15px; background: #fff; border: 1px solid #ddd; border-radius: 5px;">
+            <form method="post" action="{{ url_for('web.update_call_flow', flow_id=flow.id) }}">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div>
+                        <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Flow Name</label>
+                        <input type="text" name="name" value="{{ flow.name }}" required
+                               style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Description</label>
+                        <input type="text" name="description" value="{{ flow.description or '' }}" placeholder="Optional description"
+                               style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div>
+                        <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">🎵 Greeting Audio</label>
+                        <select name="greeting_audio_id" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+                            <option value="">-- No Greeting --</option>
+                            {% for audio in audio_files if audio.file_type == 'greeting' %}
+                            <option value="{{ audio.id }}" {% if flow.greeting_audio_id == audio.id %}selected{% endif %}>{{ audio.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">When Open — Action</label>
+                        <select name="open_action" id="edit_open_action_{{ flow.id }}" onchange="updateEditOpenFields({{ flow.id }})"
+                                style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+                            <option value="queue" {% if flow.open_action == 'queue' %}selected{% endif %}>📞 Route to Queue</option>
+                            <option value="extension_directory" {% if flow.open_action == 'extension_directory' %}selected{% endif %}>📟 Extension Directory</option>
+                            <option value="forward" {% if flow.open_action == 'forward' %}selected{% endif %}>📲 Forward to Number</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="edit_schedule_row_{{ flow.id }}" style="{% if flow.open_action != 'queue' %}display: none;{% else %}display: grid;{% endif %} grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div>
+                        <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Business Hours Schedule</label>
+                        <select name="schedule_id" id="edit_schedule_id_{{ flow.id }}" onchange="updateEditScheduleFields({{ flow.id }})"
+                                style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+                            <option value="">Always open (24/7)</option>
+                            {% for schedule in schedules %}
+                            <option value="{{ schedule.id }}" {% if flow.schedule_id == schedule.id %}selected{% endif %}>{{ schedule.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Forward number (shown when open_action = forward) -->
+                <div id="edit_open_forward_fields_{{ flow.id }}" {% if flow.open_action != 'forward' %}style="display: none;"{% endif %}>
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">📲 Forward to number (open hours)</label>
+                        <input type="tel" name="open_forward_number" value="{{ flow.open_forward_number or '' }}" placeholder="+61400000000"
+                               style="width: 100%; max-width: 300px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+                    </div>
+                </div>
+
+                <!-- Queue fields (shown when open_action = queue) -->
+                <div id="edit_queue_fields_{{ flow.id }}" {% if flow.open_action == 'extension_directory' or flow.open_action == 'forward' %}style="display: none;"{% endif %}>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                        <div>
+                            <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Route to Queue</label>
+                            <select name="open_queue_id" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+                                <option value="">-- Select Queue --</option>
+                                {% for queue in queues %}
+                                <option value="{{ queue.id }}" {% if flow.open_queue_id == queue.id %}selected{% endif %}>{{ queue.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- When No Answer (Open Hours) -->
+                    <div style="margin-bottom: 15px; padding: 15px; background: #eef7ee; border: 1px solid #c3e6cb; border-radius: 8px;">
+                        <h4 style="margin: 0 0 10px 0; font-size: 1em; color: #155724;">📞 When No Answer (open hours)</h4>
+                        <p style="margin: 0 0 10px 0; font-size: 0.85em; color: #6c757d;">What happens if staff don't pick up during business hours.</p>
+                        <select name="open_no_answer_action" style="width: 100%; max-width: 300px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+                            <option value="ai_receptionist" {% if flow.open_no_answer_action == 'ai_receptionist' %}selected{% endif %}>🤖 AI Receptionist (Stuart)</option>
+                            <option value="voicemail" {% if flow.open_no_answer_action == 'voicemail' %}selected{% endif %}>📧 Voicemail</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Extension Directory fields (shown when open_action = extension_directory) -->
+                <div id="edit_ext_fields_{{ flow.id }}" {% if flow.open_action != 'extension_directory' %}style="display: none;"{% endif %}>
+                    <div style="margin-bottom: 15px; padding: 15px; background: #eef0ff; border: 1px solid #c3cbe6; border-radius: 8px;">
+                        <h4 style="margin: 0 0 10px 0; font-size: 1em; color: #1c2478;">📟 Extension Directory Settings</h4>
+                        <p style="margin: 0 0 10px 0; font-size: 0.85em; color: #6c757d;">Callers enter a 4-digit extension to reach a staff member directly.</p>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                            <div>
+                                <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Prompt Audio</label>
+                                <select name="extension_prompt_audio_id" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+                                    <option value="">-- Default TTS --</option>
+                                    {% for audio in audio_files if audio.file_type == 'greeting' %}
+                                    <option value="{{ audio.id }}" {% if flow.extension_prompt_audio_id == audio.id %}selected{% endif %}>{{ audio.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div>
+                                <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Invalid Extension Audio</label>
+                                <select name="extension_invalid_audio_id" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+                                    <option value="">-- Default TTS --</option>
+                                    {% for audio in audio_files if audio.file_type == 'greeting' %}
+                                    <option value="{{ audio.id }}" {% if flow.extension_invalid_audio_id == audio.id %}selected{% endif %}>{{ audio.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- When Closed Section (hidden when 24/7) -->
+                <div id="edit_closed_section_{{ flow.id }}" style="margin-bottom: 15px; padding: 15px; background: #fef3f3; border: 1px solid #f5c6cb; border-radius: 8px; {% if not flow.schedule_id or flow.open_action != 'queue' %}display: none;{% endif %}">
+                    <h4 style="margin: 0 0 10px 0; font-size: 1em; color: #721c24;">🔇 When Closed</h4>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 10px;">
+                        <div>
+                            <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Action</label>
+                            <select name="closed_action" id="edit_closed_action_{{ flow.id }}" onchange="updateEditClosedFields({{ flow.id }})"
+                                    style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+                                <option value="ai_receptionist" {% if flow.closed_action == 'ai_receptionist' %}selected{% endif %}>🤖 AI Receptionist (Stuart)</option>
+                                <option value="message" {% if flow.closed_action == 'message' %}selected{% endif %}>Play message and hang up</option>
+                                <option value="voicemail" {% if flow.closed_action == 'voicemail' %}selected{% endif %}>Take voicemail</option>
+                                <option value="forward" {% if flow.closed_action == 'forward' %}selected{% endif %}>Forward to number</option>
+                            </select>
+                        </div>
+                        <div id="edit_closed_audio_{{ flow.id }}" {% if flow.closed_action in ('forward', 'ai_receptionist') %}style="display: none;"{% endif %}>
+                            <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Audio Message</label>
+                            <select name="closed_audio_id" id="edit_audio_select_{{ flow.id }}" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+                                <option value="">-- Default TTS message --</option>
+                                {% for audio in audio_files if audio.file_type == 'closed' %}
+                                <option value="{{ audio.id }}" data-type="closed" {% if flow.closed_audio_id == audio.id %}selected{% endif %}>{{ audio.name }}</option>
+                                {% endfor %}
+                                {% for audio in audio_files if audio.file_type == 'voicemail' %}
+                                <option value="{{ audio.id }}" data-type="voicemail" {% if flow.closed_audio_id == audio.id %}selected{% endif %}>{{ audio.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Message Sequence (Advanced) -->
+                    <div id="edit_message_parts_{{ flow.id }}" {% if flow.closed_action in ('forward', 'ai_receptionist') %}style="display: none;"{% endif %}>
+                        <input type="hidden" name="closed_message_parts" id="edit_parts_json_{{ flow.id }}"
+                               value="{{ flow.closed_message_parts or '' }}">
+                        <div style="margin-top: 10px; padding: 12px; background: #fff; border: 1px solid #e0e0e0; border-radius: 6px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                                <label style="font-weight: 600; font-size: 0.9em;">Message Sequence</label>
+                                <span style="font-size: 0.75em; color: #6c757d;">Overrides single audio above when configured</span>
+                            </div>
+                            <div id="edit_parts_list_{{ flow.id }}" style="min-height: 20px; margin-bottom: 8px;"></div>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <select id="edit_parts_add_type_{{ flow.id }}" style="padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.85em;">
+                                    <option value="audio">Audio file</option>
+                                    <option value="opentime">Opening time</option>
+                                    <option value="openday">Opening day</option>
+                                </select>
+                                <select id="edit_parts_add_audio_{{ flow.id }}" style="padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.85em;">
+                                    <option value="">-- Select audio --</option>
+                                    {% for audio in audio_files if audio.file_type in ('closed', 'voicemail', 'greeting') %}
+                                    <option value="{{ audio.id }}">{{ audio.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="button" class="btn btn-sm" onclick="addMessagePart('edit', {{ flow.id }})"
+                                        style="padding: 6px 12px; font-size: 0.85em;">+ Add</button>
+                            </div>
+                            <p style="margin: 6px 0 0 0; font-size: 0.75em; color: #6c757d;">
+                                Build a custom sequence mixing recorded audio with dynamic opening time/day. Opening day is automatically skipped if reopening same day.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Voicemail destination -->
+                    <div id="edit_voicemail_{{ flow.id }}" {% if flow.closed_action != 'voicemail' %}style="display: none;"{% endif %}>
+                        <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">📧 Send voicemail to</label>
+                        <select name="voicemail_destination_id" style="width: 100%; max-width: 400px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+                            <option value="">-- Select destination --</option>
+                            {% for dest in voicemail_destinations %}
+                            <option value="{{ dest.id }}" {% if flow.voicemail_destination_id == dest.id %}selected{% endif %}>{{ dest.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Forward number -->
+                    <div id="edit_forward_{{ flow.id }}" {% if flow.closed_action != 'forward' %}style="display: none;"{% endif %}>
+                        <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">📲 Forward to number</label>
+                        <input type="tel" name="closed_forward_number" value="{{ flow.closed_forward_number or '' }}" placeholder="+61400000000"
+                               style="width: 100%; max-width: 300px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 10px;">
+                    <button type="submit" class="btn">Save Changes</button>
+                    <button type="button" class="btn btn-secondary" onclick="toggleEditFlow({{ flow.id }})">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p class="text-muted" style="padding: 10px;">No call flows yet. Create one below to define how calls are handled.</p>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('web.create_call_flow') }}" style="margin-top: 15px; padding: 20px; background: #f8f9fa; border-radius: 8px;">
+        <h3 style="margin: 0 0 15px 0; font-size: 1.1em;">New Call Flow:</h3>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+            <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Flow Name</label>
+                <input type="text" name="name" placeholder="e.g., Canberra Sales" required
+                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+            </div>
+            <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">
+                    🎵 Greeting Audio
+                    <span style="font-weight: normal; color: #6c757d;">(plays when call connects)</span>
+                </label>
+                <select name="greeting_audio_id" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+                    <option value="">-- No Greeting --</option>
+                    {% for audio in audio_files if audio.file_type == 'greeting' %}
+                    <option value="{{ audio.id }}">{{ audio.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+            <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">When Open — Action</label>
+                <select name="open_action" id="create_open_action" onchange="updateCreateOpenFields()"
+                        style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+                    <option value="queue">📞 Route to Queue</option>
+                    <option value="extension_directory">📟 Extension Directory</option>
+                    <option value="forward">📲 Forward to Number</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="create_schedule_row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+            <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Business Hours Schedule</label>
+                <select name="schedule_id" id="create_schedule_id" onchange="updateCreateScheduleFields()"
+                        style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+                    <option value="">Always open (24/7)</option>
+                    {% for schedule in schedules %}
+                    <option value="{{ schedule.id }}">{{ schedule.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <!-- Forward number (shown when open_action = forward) -->
+        <div id="create_open_forward_fields" style="display: none;">
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">📲 Forward to number (open hours)</label>
+                <input type="tel" name="open_forward_number" placeholder="+61400000000"
+                       style="width: 100%; max-width: 300px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+            </div>
+        </div>
+
+        <!-- Queue fields (shown when open_action = queue) -->
+        <div id="create_queue_fields">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                <div>
+                    <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Route to Queue</label>
+                    <select name="open_queue_id" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+                        <option value="">-- Select Queue --</option>
+                        {% for queue in queues %}
+                        <option value="{{ queue.id }}">{{ queue.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <!-- When No Answer (Open Hours) -->
+            <div style="margin-bottom: 15px; padding: 15px; background: #eef7ee; border: 1px solid #c3e6cb; border-radius: 8px;">
+                <h4 style="margin: 0 0 10px 0; font-size: 1em; color: #155724;">📞 When No Answer (open hours)</h4>
+                <p style="margin: 0 0 10px 0; font-size: 0.85em; color: #6c757d;">What happens if staff don't pick up during business hours.</p>
+                <select name="open_no_answer_action" style="width: 100%; max-width: 300px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+                    <option value="ai_receptionist" selected>🤖 AI Receptionist (Stuart)</option>
+                    <option value="voicemail">📧 Voicemail</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Extension Directory fields (shown when open_action = extension_directory) -->
+        <div id="create_ext_fields" style="display: none;">
+            <div style="margin-bottom: 15px; padding: 15px; background: #eef0ff; border: 1px solid #c3cbe6; border-radius: 8px;">
+                <h4 style="margin: 0 0 10px 0; font-size: 1em; color: #1c2478;">📟 Extension Directory Settings</h4>
+                <p style="margin: 0 0 10px 0; font-size: 0.85em; color: #6c757d;">Callers enter a 4-digit extension to reach a staff member directly.</p>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div>
+                        <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Prompt Audio</label>
+                        <select name="extension_prompt_audio_id" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+                            <option value="">-- Default TTS --</option>
+                            {% for audio in audio_files if audio.file_type == 'greeting' %}
+                            <option value="{{ audio.id }}">{{ audio.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Invalid Extension Audio</label>
+                        <select name="extension_invalid_audio_id" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+                            <option value="">-- Default TTS --</option>
+                            {% for audio in audio_files if audio.file_type == 'greeting' %}
+                            <option value="{{ audio.id }}">{{ audio.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- When Closed Section (hidden when 24/7) -->
+        <div id="create_closed_section" style="margin-bottom: 15px; padding: 15px; background: #fef3f3; border: 1px solid #f5c6cb; border-radius: 8px; display: none;">
+            <h4 style="margin: 0 0 10px 0; font-size: 1em; color: #721c24;">🔇 When Closed (outside business hours or holidays)</h4>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 10px;">
+                <div>
+                    <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Action</label>
+                    <select name="closed_action" id="closed_action" onchange="updateClosedFields()"
+                            style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+                        <option value="ai_receptionist">🤖 AI Receptionist (Stuart)</option>
+                        <option value="message">Play message and hang up</option>
+                        <option value="voicemail">Take voicemail</option>
+                        <option value="forward">Forward to number</option>
+                    </select>
+                </div>
+                <div id="create_closed_audio">
+                    <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Audio Message</label>
+                    <select name="closed_audio_id" id="create_audio_select" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+                        <option value="">-- Default TTS message --</option>
+                        {% for audio in audio_files if audio.file_type == 'closed' %}
+                        <option value="{{ audio.id }}" data-type="closed">{{ audio.name }}</option>
+                        {% endfor %}
+                        {% for audio in audio_files if audio.file_type == 'voicemail' %}
+                        <option value="{{ audio.id }}" data-type="voicemail">{{ audio.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <!-- Message Sequence (Advanced) -->
+            <div id="create_message_parts">
+                <input type="hidden" name="closed_message_parts" id="create_parts_json" value="">
+                <div style="margin-top: 10px; padding: 12px; background: #fff; border: 1px solid #e0e0e0; border-radius: 6px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                        <label style="font-weight: 600; font-size: 0.9em;">Message Sequence</label>
+                        <span style="font-size: 0.75em; color: #6c757d;">Overrides single audio above when configured</span>
+                    </div>
+                    <div id="create_parts_list" style="min-height: 20px; margin-bottom: 8px;"></div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <select id="create_parts_add_type" style="padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.85em;">
+                            <option value="audio">Audio file</option>
+                            <option value="opentime">Opening time</option>
+                            <option value="openday">Opening day</option>
+                        </select>
+                        <select id="create_parts_add_audio" style="padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.85em;">
+                            <option value="">-- Select audio --</option>
+                            {% for audio in audio_files if audio.file_type in ('closed', 'voicemail', 'greeting') %}
+                            <option value="{{ audio.id }}">{{ audio.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="button" class="btn btn-sm" onclick="addMessagePart('create', null)"
+                                style="padding: 6px 12px; font-size: 0.85em;">+ Add</button>
+                    </div>
+                    <p style="margin: 6px 0 0 0; font-size: 0.75em; color: #6c757d;">
+                        Build a custom sequence mixing recorded audio with dynamic opening time/day. Opening day is automatically skipped if reopening same day.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Voicemail destination (shown when action = voicemail) -->
+            <div id="voicemail_fields" class="conditional-field">
+                <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">
+                    📧 Send voicemail to
+                </label>
+                <select name="voicemail_destination_id" style="width: 100%; max-width: 400px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+                    <option value="">-- Select destination --</option>
+                    {% for dest in voicemail_destinations %}
+                    <option value="{{ dest.id }}">{{ dest.name }}</option>
+                    {% endfor %}
+                </select>
+                <p style="margin: 5px 0 0 0; font-size: 0.8em; color: #6c757d;">
+                    Caller will hear the closed audio, then leave a message. Recording will be routed to the selected destination.
+                    {% if not voicemail_destinations %}
+                    <br><strong>Note:</strong> Add voicemail destinations below first.
+                    {% endif %}
+                </p>
+            </div>
+
+            <!-- Forward number (shown when action = forward) -->
+            <div id="forward_fields" class="conditional-field">
+                <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">
+                    📲 Forward to number
+                </label>
+                <input type="tel" name="closed_forward_number" placeholder="+61400000000"
+                       style="width: 100%; max-width: 300px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+                <p style="margin: 5px 0 0 0; font-size: 0.8em; color: #6c757d;">
+                    Calls outside business hours will be forwarded to this number (e.g., on-call mobile).
+                </p>
+            </div>
+        </div>
+
+        <p style="margin: 0 0 15px 0; font-size: 0.85em; color: #6c757d;">
+            💡 <strong>Call flow:</strong> Greeting plays → Route to queue (or handle closed action if outside hours)
+        </p>
+
+        <button type="submit" class="btn">Create Call Flow</button>
+    </form>
+</div>
+
+<!-- Voicemail Destinations Management -->
+<div class="card" style="margin-top: 30px;">
+    <h2 style="margin: 0 0 15px 0;">📧 Voicemail Destinations</h2>
+    <p class="text-muted" style="margin: 0 0 15px 0;">
+        Configure where voicemail recordings are routed. Create a Zendesk ticket or send to an email address.
+    </p>
+
+    <div class="help-tip" style="margin-bottom: 15px; font-size: 0.9em;">
+        <strong>💡 How it works:</strong> Each call flow selects a voicemail destination (above in "When Closed" settings).
+        When voicemail is triggered—either during closed hours or a holiday closure—the recording is routed to that destination.
+    </div>
+
+    {% if voicemail_destinations %}
+    <div style="margin-bottom: 20px;">
+        {% for dest in voicemail_destinations %}
+        <div id="dest_{{ dest.id }}" style="padding: 15px; background: #f8f9fa; border-radius: 8px; margin-bottom: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div style="flex: 1;">
+                    <h4 style="margin: 0 0 8px 0;">{{ dest.name }}</h4>
+                    {% if dest.routing_type == 'zendesk' or dest.zendesk_group_id %}
+                    {% set group_name = namespace(value='Group #' ~ dest.zendesk_group_id) %}
+                    {% for g in zendesk_groups %}
+                        {% if g.id == dest.zendesk_group_id %}
+                            {% set group_name.value = g.name %}
+                        {% endif %}
+                    {% endfor %}
+                    <p style="margin: 0;">
+                        <span class="badge badge-info">Zendesk Ticket</span>
+                        <span style="margin-left: 8px; color: #495057;">{{ group_name.value }}</span>
+                    </p>
+                    {% else %}
+                    <p style="margin: 0;">
+                        <span class="badge badge-warning">Email</span>
+                        <span style="margin-left: 8px; font-family: monospace; color: #495057;">{{ dest.email }}</span>
+                    </p>
+                    {% endif %}
+                    {% if dest.description %}
+                    <p class="text-muted" style="margin: 5px 0 0 0; font-size: 0.9em;">{{ dest.description }}</p>
+                    {% endif %}
+                </div>
+                <div style="display: flex; gap: 5px; align-items: center;">
+                    <button type="button" class="btn btn-small" onclick="toggleEditDest({{ dest.id }})">Edit</button>
+                    <form method="post" action="{{ url_for('web.delete_voicemail_destination', destination_id=dest.id) }}" style="margin: 0; display: flex;">
+                        <button type="submit" class="btn btn-small btn-danger confirm-delete">Delete</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Edit Form (hidden by default) -->
+            <div id="edit_dest_{{ dest.id }}" style="display: none; margin-top: 15px; padding: 15px; background: #fff; border: 1px solid #ddd; border-radius: 5px;">
+                <form method="post" action="{{ url_for('web.update_voicemail_destination', destination_id=dest.id) }}">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                        <div>
+                            <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Name</label>
+                            <input type="text" name="name" value="{{ dest.name }}" required
+                                   style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+                        </div>
+                        <div>
+                            <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Routing Type</label>
+                            <select name="routing_type" id="edit_routing_type_{{ dest.id }}" onchange="toggleRoutingFields('edit', {{ dest.id }})"
+                                    style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+                                <option value="zendesk" {% if dest.routing_type == 'zendesk' or dest.zendesk_group_id %}selected{% endif %}>Zendesk Ticket</option>
+                                <option value="email" {% if dest.routing_type == 'email' and not dest.zendesk_group_id %}selected{% endif %}>Email</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                        <div id="edit_zendesk_field_{{ dest.id }}" {% if dest.routing_type == 'email' and not dest.zendesk_group_id %}style="display: none;"{% endif %}>
+                            <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Zendesk Group</label>
+                            <select name="zendesk_group_id" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+                                <option value="">-- Select group --</option>
+                                {% for group in zendesk_groups %}
+                                <option value="{{ group.id }}" {% if dest.zendesk_group_id == group.id %}selected{% endif %}>{{ group.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div id="edit_email_field_{{ dest.id }}" {% if dest.routing_type != 'email' or dest.zendesk_group_id %}style="display: none;"{% endif %}>
+                            <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Email Address</label>
+                            <input type="email" name="email" value="{{ dest.email or '' }}" placeholder="support@example.com"
+                                   style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+                        </div>
+                        <div>
+                            <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Description (optional)</label>
+                            <input type="text" name="description" value="{{ dest.description or '' }}" placeholder="e.g., After-hours support"
+                                   style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button type="submit" class="btn">Save Changes</button>
+                        <button type="button" class="btn btn-secondary" onclick="toggleEditDest({{ dest.id }})">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-muted" style="padding: 10px;">No voicemail destinations yet. Add one below.</p>
+    {% endif %}
+
+    <!-- Create New Destination Form -->
+    <form id="create_dest_form" method="post" action="{{ url_for('web.create_voicemail_destination') }}" style="padding: 15px; background: #f8f9fa; border-radius: 8px;">
+        <h4 style="margin: 0 0 15px 0; font-size: 1em;">Add New Destination:</h4>
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1.5fr auto; gap: 10px; align-items: end;">
+            <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.85em;">Name</label>
+                <input type="text" name="name" placeholder="e.g., Batemans Bay" required
+                       style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+            </div>
+            <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.85em;">Routing Type</label>
+                <select name="routing_type" id="create_routing_type" onchange="toggleRoutingFields('create')"
+                        style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    <option value="zendesk" selected>Zendesk Ticket</option>
+                    <option value="email">Email</option>
+                </select>
+            </div>
+            <div id="create_zendesk_field">
+                <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.85em;">Zendesk Group</label>
+                <select name="zendesk_group_id" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    <option value="">-- Select group --</option>
+                    {% for group in zendesk_groups %}
+                    <option value="{{ group.id }}">{{ group.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div id="create_email_field" style="display: none;">
+                <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.85em;">Email Address</label>
+                <input type="email" name="email" placeholder="support@example.com"
+                       style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+            </div>
+            <button type="submit" class="btn">Add</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Filter audio options based on action type
+function filterAudioOptions(selectId, action) {
+    const audioSelect = document.getElementById(selectId);
+    if (!audioSelect) return;
+
+    const options = audioSelect.querySelectorAll('option[data-type]');
+    const targetType = (action === 'voicemail') ? 'voicemail' : 'closed';
+
+    options.forEach(opt => {
+        if (opt.dataset.type === targetType) {
+            opt.style.display = '';
+        } else {
+            opt.style.display = 'none';
+            // Deselect if currently selected but wrong type
+            if (opt.selected) {
+                audioSelect.value = '';
+            }
+        }
+    });
+}
+
+function updateClosedFields() {
+    const action = document.getElementById('closed_action').value;
+    const audioDiv = document.getElementById('create_closed_audio');
+    const voicemailFields = document.getElementById('voicemail_fields');
+    const forwardFields = document.getElementById('forward_fields');
+    const partsDiv = document.getElementById('create_message_parts');
+
+    voicemailFields.classList.remove('visible');
+    forwardFields.classList.remove('visible');
+
+    if (action === 'ai_receptionist') {
+        audioDiv.style.display = 'none';
+        partsDiv.style.display = 'none';
+    } else if (action === 'forward') {
+        audioDiv.style.display = 'none';
+        partsDiv.style.display = 'none';
+        forwardFields.classList.add('visible');
+    } else {
+        audioDiv.style.display = 'block';
+        partsDiv.style.display = 'block';
+        filterAudioOptions('create_audio_select', action);
+        if (action === 'voicemail') {
+            voicemailFields.classList.add('visible');
+        }
+    }
+}
+
+function toggleEditFlow(flowId) {
+    const editDiv = document.getElementById('edit_flow_' + flowId);
+    if (editDiv.style.display === 'none') {
+        editDiv.style.display = 'block';
+    } else {
+        editDiv.style.display = 'none';
+    }
+}
+
+function toggleEditDest(destId) {
+    const editDiv = document.getElementById('edit_dest_' + destId);
+    if (editDiv.style.display === 'none') {
+        editDiv.style.display = 'block';
+    } else {
+        editDiv.style.display = 'none';
+    }
+}
+
+// Toggle routing fields based on routing type selection
+function toggleRoutingFields(mode, destId) {
+    let routingType, zendeskField, emailField;
+
+    if (mode === 'create') {
+        routingType = document.getElementById('create_routing_type').value;
+        zendeskField = document.getElementById('create_zendesk_field');
+        emailField = document.getElementById('create_email_field');
+    } else {
+        routingType = document.getElementById('edit_routing_type_' + destId).value;
+        zendeskField = document.getElementById('edit_zendesk_field_' + destId);
+        emailField = document.getElementById('edit_email_field_' + destId);
+    }
+
+    if (routingType === 'zendesk') {
+        zendeskField.style.display = '';
+        emailField.style.display = 'none';
+    } else {
+        zendeskField.style.display = 'none';
+        emailField.style.display = '';
+    }
+}
+
+function updateEditClosedFields(flowId) {
+    const action = document.getElementById('edit_closed_action_' + flowId).value;
+    const audioDiv = document.getElementById('edit_closed_audio_' + flowId);
+    const voicemailDiv = document.getElementById('edit_voicemail_' + flowId);
+    const forwardDiv = document.getElementById('edit_forward_' + flowId);
+    const partsDiv = document.getElementById('edit_message_parts_' + flowId);
+
+    // Hide all optional fields (including audio for ai_receptionist)
+    voicemailDiv.style.display = 'none';
+    forwardDiv.style.display = 'none';
+
+    // Show/hide fields based on action
+    if (action === 'ai_receptionist') {
+        audioDiv.style.display = 'none';
+        if (partsDiv) partsDiv.style.display = 'none';
+    } else if (action === 'forward') {
+        audioDiv.style.display = 'none';
+        if (partsDiv) partsDiv.style.display = 'none';
+        forwardDiv.style.display = 'block';
+    } else {
+        audioDiv.style.display = 'block';
+        if (partsDiv) partsDiv.style.display = 'block';
+        filterAudioOptions('edit_audio_select_' + flowId, action);
+        if (action === 'voicemail') {
+            voicemailDiv.style.display = 'block';
+        }
+    }
+}
+
+function updateCreateOpenFields() {
+    const action = document.getElementById('create_open_action').value;
+    const isQueue = action === 'queue';
+    document.getElementById('create_open_forward_fields').style.display = (action === 'forward') ? '' : 'none';
+    document.getElementById('create_queue_fields').style.display = isQueue ? '' : 'none';
+    document.getElementById('create_ext_fields').style.display = (action === 'extension_directory') ? '' : 'none';
+    document.getElementById('create_schedule_row').style.display = isQueue ? '' : 'none';
+    if (isQueue) {
+        updateCreateScheduleFields();
+    } else {
+        document.getElementById('create_closed_section').style.display = 'none';
+    }
+}
+
+function updateEditOpenFields(flowId) {
+    const action = document.getElementById('edit_open_action_' + flowId).value;
+    const isQueue = action === 'queue';
+    document.getElementById('edit_open_forward_fields_' + flowId).style.display = (action === 'forward') ? '' : 'none';
+    document.getElementById('edit_queue_fields_' + flowId).style.display = isQueue ? '' : 'none';
+    document.getElementById('edit_ext_fields_' + flowId).style.display = (action === 'extension_directory') ? '' : 'none';
+    document.getElementById('edit_schedule_row_' + flowId).style.display = isQueue ? '' : 'none';
+    if (isQueue) {
+        updateEditScheduleFields(flowId);
+    } else {
+        document.getElementById('edit_closed_section_' + flowId).style.display = 'none';
+    }
+}
+
+function updateCreateScheduleFields() {
+    const hasSchedule = document.getElementById('create_schedule_id').value !== '';
+    document.getElementById('create_closed_section').style.display = hasSchedule ? '' : 'none';
+}
+
+function updateEditScheduleFields(flowId) {
+    const hasSchedule = document.getElementById('edit_schedule_id_' + flowId).value !== '';
+    document.getElementById('edit_closed_section_' + flowId).style.display = hasSchedule ? '' : 'none';
+}
+
+// === Message Parts Segment Builder ===
+// Audio name lookup for display
+const audioNameMap = {
+    {% for audio in audio_files %}
+    {{ audio.id }}: {{ audio.name | tojson }},
+    {% endfor %}
+};
+
+// Store parts arrays keyed by "mode_flowId" e.g. "edit_5" or "create_null"
+const messagePartsStore = {};
+
+function getPartsKey(mode, flowId) {
+    return mode + '_' + (flowId || 'null');
+}
+
+function getPartsArray(mode, flowId) {
+    const key = getPartsKey(mode, flowId);
+    if (!messagePartsStore[key]) {
+        messagePartsStore[key] = [];
+    }
+    return messagePartsStore[key];
+}
+
+function initMessageParts(mode, flowId) {
+    const key = getPartsKey(mode, flowId);
+    const jsonInput = document.getElementById(mode + '_parts_json' + (flowId ? '_' + flowId : ''));
+    if (!jsonInput || !jsonInput.value) {
+        messagePartsStore[key] = [];
+        return;
+    }
+    try {
+        messagePartsStore[key] = JSON.parse(jsonInput.value);
+    } catch(e) {
+        messagePartsStore[key] = [];
+    }
+    renderMessageParts(mode, flowId);
+}
+
+function addMessagePart(mode, flowId) {
+    const suffix = flowId ? '_' + flowId : '';
+    const typeSelect = document.getElementById(mode + '_parts_add_type' + suffix);
+    const audioSelect = document.getElementById(mode + '_parts_add_audio' + suffix);
+    const partType = typeSelect.value;
+    const parts = getPartsArray(mode, flowId);
+
+    if (partType === 'audio') {
+        const audioId = parseInt(audioSelect.value);
+        if (!audioId) return;
+        parts.push({type: 'audio', audio_id: audioId});
+    } else {
+        parts.push({type: partType});
+    }
+    updatePartsJson(mode, flowId);
+    renderMessageParts(mode, flowId);
+}
+
+function removeMessagePart(mode, flowId, index) {
+    const parts = getPartsArray(mode, flowId);
+    parts.splice(index, 1);
+    updatePartsJson(mode, flowId);
+    renderMessageParts(mode, flowId);
+}
+
+function moveMessagePart(mode, flowId, index, direction) {
+    const parts = getPartsArray(mode, flowId);
+    const newIndex = index + direction;
+    if (newIndex < 0 || newIndex >= parts.length) return;
+    const temp = parts[index];
+    parts[index] = parts[newIndex];
+    parts[newIndex] = temp;
+    updatePartsJson(mode, flowId);
+    renderMessageParts(mode, flowId);
+}
+
+function updatePartsJson(mode, flowId) {
+    const suffix = flowId ? '_' + flowId : '';
+    const jsonInput = document.getElementById(mode + '_parts_json' + suffix);
+    const parts = getPartsArray(mode, flowId);
+    jsonInput.value = parts.length > 0 ? JSON.stringify(parts) : '';
+}
+
+function getPartLabel(part) {
+    if (part.type === 'audio') {
+        const name = audioNameMap[part.audio_id] || 'Audio #' + part.audio_id;
+        return '<span style="color: #155724;">&#9654; ' + name + '</span>';
+    } else if (part.type === 'opentime') {
+        return '<span style="color: #856404;">&#128340; Opening time</span>';
+    } else if (part.type === 'openday') {
+        return '<span style="color: #856404;">&#128197; Opening day</span>';
+    }
+    return part.type;
+}
+
+function renderMessageParts(mode, flowId) {
+    const suffix = flowId ? '_' + flowId : '';
+    const listDiv = document.getElementById(mode + '_parts_list' + suffix);
+    const parts = getPartsArray(mode, flowId);
+
+    if (parts.length === 0) {
+        listDiv.innerHTML = '<span style="font-size: 0.8em; color: #999;">No segments yet — add segments below to build a custom closed message.</span>';
+        return;
+    }
+
+    let html = '';
+    parts.forEach(function(part, i) {
+        html += '<div style="display: flex; align-items: center; gap: 6px; padding: 5px 8px; margin-bottom: 3px; background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 4px; font-size: 0.85em;">';
+        html += '<span style="color: #999; font-size: 0.8em; min-width: 18px;">' + (i + 1) + '.</span>';
+        html += '<span style="flex: 1;">' + getPartLabel(part) + '</span>';
+        html += '<button type="button" onclick="moveMessagePart(\'' + mode + '\',' + (flowId || 'null') + ',' + i + ',-1)" style="border:none; background:none; cursor:pointer; padding:2px; opacity:' + (i === 0 ? '0.3' : '0.7') + ';" ' + (i === 0 ? 'disabled' : '') + ' title="Move up">&#9650;</button>';
+        html += '<button type="button" onclick="moveMessagePart(\'' + mode + '\',' + (flowId || 'null') + ',' + i + ',1)" style="border:none; background:none; cursor:pointer; padding:2px; opacity:' + (i === parts.length - 1 ? '0.3' : '0.7') + ';" ' + (i === parts.length - 1 ? 'disabled' : '') + ' title="Move down">&#9660;</button>';
+        html += '<button type="button" onclick="removeMessagePart(\'' + mode + '\',' + (flowId || 'null') + ',' + i + ')" style="border:none; background:none; cursor:pointer; padding:2px; color:#dc3545; font-size:1.1em;" title="Remove">&#10005;</button>';
+        html += '</div>';
+    });
+    listDiv.innerHTML = html;
+}
+
+// Toggle audio select visibility when type changes
+function updatePartTypeSelect(mode, flowId) {
+    const suffix = flowId ? '_' + flowId : '';
+    const typeSelect = document.getElementById(mode + '_parts_add_type' + suffix);
+    const audioSelect = document.getElementById(mode + '_parts_add_audio' + suffix);
+    audioSelect.style.display = typeSelect.value === 'audio' ? '' : 'none';
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    updateClosedFields();
+    updateCreateOpenFields();
+    updateCreateScheduleFields();
+    initMessageParts('create', null);
+
+    // Bind type select change for create form
+    var createTypeSelect = document.getElementById('create_parts_add_type');
+    if (createTypeSelect) {
+        createTypeSelect.addEventListener('change', function() { updatePartTypeSelect('create', null); });
+    }
+
+    // Also initialize filters for any existing flows
+    {% for flow in call_flows %}
+    filterAudioOptions('edit_audio_select_{{ flow.id }}', '{{ flow.closed_action or "message" }}');
+    updateEditOpenFields({{ flow.id }});
+    updateEditScheduleFields({{ flow.id }});
+    initMessageParts('edit', {{ flow.id }});
+    var editTypeSelect_{{ flow.id }} = document.getElementById('edit_parts_add_type_{{ flow.id }}');
+    if (editTypeSelect_{{ flow.id }}) {
+        editTypeSelect_{{ flow.id }}.addEventListener('change', function() { updatePartTypeSelect('edit', {{ flow.id }}); });
+    }
+    {% endfor %}
+});
+</script>
+{% endblock %}

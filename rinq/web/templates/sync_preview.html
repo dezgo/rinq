@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+
+{% block title_suffix %} - Sync Template{% endblock %}
+
+{% block extra_css %}
+.sync-status {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 0.85em;
+    font-weight: 500;
+}
+.sync-status.ok {
+    background: #d4edda;
+    color: #155724;
+}
+.sync-status.missing {
+    background: #f8d7da;
+    color: #721c24;
+}
+.sync-status.has_extra {
+    background: #fff3cd;
+    color: #856404;
+}
+.schedule-card {
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+    background: #fafafa;
+}
+.holiday-list {
+    margin: 10px 0;
+    padding-left: 15px;
+}
+.holiday-item {
+    padding: 4px 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.holiday-missing {
+    color: #dc3545;
+}
+.holiday-matched {
+    color: #28a745;
+}
+.holiday-extra {
+    color: #ffc107;
+}
+{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <h2 style="margin: 0;">🔄 Sync Template: {{ preview.template.name }}</h2>
+    <a href="{{ url_for('web.admin_templates') }}" class="btn btn-secondary">← Back to Templates</a>
+</div>
+
+{% if preview.template.description %}
+<p class="text-muted">{{ preview.template.description }}</p>
+{% endif %}
+
+<div class="card" style="margin-bottom: 20px;">
+    <h3>Template Holidays ({{ preview.template['items']|length }})</h3>
+    {% if preview.template['items'] %}
+    <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px;">
+        {% for item in preview.template['items'] %}
+        <span class="badge badge-info">
+            {{ item.name }} ({{ item.date }})
+        </span>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-muted">This template has no holidays yet. Add some first.</p>
+    {% endif %}
+</div>
+
+{% if preview.schedules %}
+<form method="post" action="{{ url_for('web.apply_template', template_id=preview.template.id) }}">
+    <div class="card" style="margin-bottom: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h3 style="margin: 0;">Schedules Comparison</h3>
+            <button type="submit" class="btn">Apply Template to Selected</button>
+        </div>
+
+        <p class="text-muted" style="margin-bottom: 15px;">
+            Select schedules to sync. Missing holidays will be added; existing holidays won't be duplicated.
+        </p>
+
+        {% for schedule in preview.schedules %}
+        <div class="schedule-card">
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <input type="checkbox" name="schedule_ids" value="{{ schedule.id }}"
+                       id="schedule_{{ schedule.id }}"
+                       {% if schedule.missing %}checked{% endif %}
+                       style="width: 20px; height: 20px;">
+                <label for="schedule_{{ schedule.id }}" style="flex: 1; cursor: pointer;">
+                    <strong style="font-size: 1.1em;">{{ schedule.name }}</strong>
+                </label>
+                <span class="sync-status {{ schedule.status }}">
+                    {% if schedule.status == 'ok' %}
+                    ✓ Synced
+                    {% elif schedule.status == 'missing' %}
+                    ⚠ {{ schedule.missing|length }} Missing
+                    {% elif schedule.status == 'has_extra' %}
+                    ℹ Has Extra
+                    {% endif %}
+                </span>
+            </div>
+
+            {% if schedule.missing or schedule.matched or schedule.extra %}
+            <div style="margin-top: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                {% if schedule.missing %}
+                <div>
+                    <strong class="holiday-missing">❌ Missing ({{ schedule.missing|length }}):</strong>
+                    <div class="holiday-list">
+                        {% for item in schedule.missing %}
+                        <div class="holiday-item holiday-missing">
+                            {{ item.name }} ({{ item.date }})
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if schedule.matched %}
+                <div>
+                    <strong class="holiday-matched">✓ Already Present ({{ schedule.matched|length }}):</strong>
+                    <div class="holiday-list">
+                        {% for item in schedule.matched %}
+                        <div class="holiday-item holiday-matched">
+                            {{ item.name }} ({{ item.date }})
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if schedule.extra %}
+                <div>
+                    <strong class="holiday-extra">+ Additional/Ad-hoc ({{ schedule.extra|length }}):</strong>
+                    <div class="holiday-list">
+                        {% for item in schedule.extra %}
+                        <div class="holiday-item holiday-extra">
+                            {{ item.name }} ({{ item.date }})
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+
+        <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e9ecef; display: flex; justify-content: space-between; align-items: center;">
+            <div class="text-muted">
+                💡 <strong>Tip:</strong> Schedules with missing holidays are pre-selected.
+                "Additional/Ad-hoc" holidays are store-specific and won't be affected.
+            </div>
+            <button type="submit" class="btn">Apply Template to Selected</button>
+        </div>
+    </div>
+</form>
+{% else %}
+<div class="card">
+    <div class="empty-state">
+        {% if not preview.has_linked_schedules %}
+        <h3>🔗 No Schedules Linked</h3>
+        <p class="text-muted">
+            This template has no schedules linked to it.<br>
+            Link schedules to this template first, then you can sync holidays.
+        </p>
+        <p style="margin-top: 10px;">
+            <strong>How it works:</strong> Each template should only sync to relevant schedules.<br>
+            For example, "ACT Public Holidays" should link to Canberra store schedules only.
+        </p>
+        {% else %}
+        <h3>No Schedules Found</h3>
+        <p class="text-muted">Create some schedules first, then come back to sync holidays.</p>
+        {% endif %}
+        <a href="{{ url_for('web.admin_templates') }}" class="btn">← Back to Templates</a>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

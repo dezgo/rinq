@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+.source-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    font-weight: 500;
+}
+.source-badge.manual { background: #d1ecf1; color: #0c5460; }
+.source-badge.assigned { background: #d4edda; color: #155724; }
+.source-badge.section { background: #d1f2eb; color: #0c6b58; }
+.source-badge.default { background: #e2e3e5; color: #383d41; }
+.source-badge.none { background: #f8d7da; color: #721c24; }
+.caller-id-select { width: 100%; padding: 4px 6px; border: 1px solid #dee2e6; border-radius: 4px; font-size: 0.9em; }
+.caller-id-select.changed { border-color: #007bff; background: #e8f0fe; }
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2 style="margin: 0;">Outbound Caller ID Overview</h2>
+        <div style="display: flex; gap: 10px;">
+            <a href="{{ url_for('web.admin') }}" class="btn" style="background: #6c757d;">Back to Admin</a>
+            <button type="submit" form="caller-id-form" class="btn" id="save-btn" disabled>Save Changes</button>
+        </div>
+    </div>
+
+    <p class="text-muted">
+        Shows which outbound caller ID each active user would use when making calls.
+        Use the Manual Override column to set a specific caller ID, or leave on "Auto" to use the resolved default.
+    </p>
+
+    {% if staff %}
+    <form id="caller-id-form" method="POST" action="{{ url_for('web.admin_caller_id_save') }}">
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Resolved Caller ID</th>
+                <th>Source</th>
+                <th>Manual Override</th>
+                <th>Assigned Numbers</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for person in staff %}
+            <tr>
+                <td>
+                    {{ person.name }}
+                    <div class="text-muted" style="font-size: 0.85em;">{{ person.email }}</div>
+                </td>
+                <td style="font-family: monospace;">
+                    {% if person.caller_id %}
+                        {{ person.caller_id_display }}
+                    {% else %}
+                        <span class="text-muted">-</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <span class="source-badge {{ person.source }}">{{ person.source_label }}</span>
+                </td>
+                <td>
+                    <select name="caller_id_{{ person.email }}" class="caller-id-select"
+                            data-original="{{ person.manual_caller_id or '' }}"
+                            onchange="trackChanges(this)">
+                        <option value="">Auto</option>
+                        {% for opt in caller_id_options %}
+                        <option value="{{ opt.value }}" {% if person.manual_caller_id == opt.value %}selected{% endif %}>
+                            {{ opt.label }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </td>
+                <td>
+                    {% if person.assigned_numbers %}
+                        {% for num in person.assigned_numbers %}
+                            <div style="font-size: 0.9em;">{{ num }}</div>
+                        {% endfor %}
+                    {% else %}
+                        <span class="text-muted">-</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </form>
+    {% else %}
+    <div class="empty-state">
+        <h3>No active staff</h3>
+        <p class="text-muted">No active staff extensions found.</p>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function trackChanges(el) {
+    const changed = el.value !== el.dataset.original;
+    el.classList.toggle('changed', changed);
+
+    // Enable/disable save button based on any changes
+    const anyChanged = document.querySelectorAll('.caller-id-select.changed').length > 0;
+    document.getElementById('save-btn').disabled = !anyChanged;
+}
+</script>
+{% endblock %}

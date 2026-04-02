@@ -1,0 +1,399 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+.template-card {
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    background: #fafafa;
+}
+.template-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    cursor: pointer;
+}
+.template-header:hover {
+    background: #f0f0f0;
+}
+.template-content {
+    display: none;
+    padding: 0 15px 15px 15px;
+    border-top: 1px solid #e9ecef;
+}
+.item-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+    border-radius: 4px;
+    margin: 2px 0;
+}
+.item-row:hover {
+    background: #f0f0f0;
+}
+.item-row .edit-hint {
+    opacity: 0;
+    color: #888;
+    font-size: 0.85em;
+    transition: opacity 0.15s;
+}
+.item-row:hover .edit-hint {
+    opacity: 1;
+}
+.item-row .item-delete {
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+.item-row:hover .item-delete {
+    opacity: 1;
+}
+.item-delete {
+    background: none;
+    border: none;
+    color: #999;
+    cursor: pointer;
+    padding: 2px 6px;
+    font-size: 1.1em;
+    line-height: 1;
+}
+.item-delete:hover {
+    color: #dc3545;
+}
+{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <div>
+        <h2 style="margin: 0;">📋 Holiday Templates</h2>
+        <p class="text-muted" style="margin: 5px 0 0 0;">
+            Create templates for public holidays (e.g., "ACT Public Holidays 2026").
+            Then sync them to multiple schedules at once.
+        </p>
+    </div>
+    <a href="{{ url_for('web.admin') }}" class="btn btn-secondary">← Back to Admin</a>
+</div>
+
+<div class="card">
+    {% if holiday_templates %}
+    {% for template in holiday_templates %}
+    <div id="template_{{ template.id }}" class="template-card">
+        <!-- Template Header (always visible, clickable to expand) -->
+        <div class="template-header" onclick="toggleTemplateCard({{ template.id }})">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span class="template-toggle" id="templateToggle{{ template.id }}" style="font-size: 0.8em; color: #666;">▶</span>
+                <div>
+                    <strong style="font-size: 1.1em;">{{ template.name }}</strong>
+                    <span class="text-muted" style="margin-left: 10px; font-size: 0.85em;">
+                        {{ template['items']|length }} holiday{% if template['items']|length != 1 %}s{% endif %}
+                        {% if template.linked_schedules %} · {{ template.linked_schedules|length }} schedule{% if template.linked_schedules|length != 1 %}s{% endif %}{% endif %}
+                    </span>
+                    {% if template.description %}
+                    <br><small class="text-muted">{{ template.description }}</small>
+                    {% endif %}
+                </div>
+            </div>
+            <div style="display: flex; gap: 8px;" onclick="event.stopPropagation();">
+                {% if template.linked_schedules %}
+                <a href="{{ url_for('web.template_sync_preview', template_id=template.id) }}" class="btn btn-small">
+                    🔄 Sync ({{ template.linked_schedules|length }})
+                </a>
+                {% else %}
+                <span class="btn btn-small btn-secondary" style="cursor: not-allowed; opacity: 0.6;" title="Link schedules first">
+                    🔄 Sync (0)
+                </span>
+                {% endif %}
+                <form method="post" action="{{ url_for('web.delete_template', template_id=template.id) }}" style="margin: 0;">
+                    <button type="submit" class="btn btn-small btn-danger confirm-delete">Delete</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Template Content (collapsible) -->
+        <div id="templateContent{{ template.id }}" class="template-content">
+            <!-- Action buttons -->
+            <div style="display: flex; gap: 8px; margin: 15px 0;">
+                <button type="button" class="btn btn-small" onclick="toggleEditTemplate({{ template.id }})">✏️ Edit</button>
+                <button type="button" class="btn btn-small" onclick="toggleCloneTemplate({{ template.id }})">📋 Clone</button>
+                {% if template.source_url or template.data_as_at %}
+                <span class="text-muted" style="margin-left: auto; font-size: 0.85em;">
+                    {% if template.source_url %}
+                    📄 <a href="{{ template.source_url }}" target="_blank" rel="noopener">Source</a>
+                    {% endif %}
+                    {% if template.source_url and template.data_as_at %} | {% endif %}
+                    {% if template.data_as_at %}📅 Data as at: {{ template.data_as_at }}{% endif %}
+                </span>
+                {% endif %}
+            </div>
+
+            <!-- Edit Template Form (hidden by default) -->
+            <div id="editTemplate{{ template.id }}" style="display: none; margin-bottom: 15px; padding: 15px; background: white; border: 1px solid #ddd; border-radius: 8px;">
+                <form method="post" action="{{ url_for('web.update_template', template_id=template.id) }}">
+                    <h4 style="margin: 0 0 15px 0;">Edit Template</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                        <div>
+                            <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Template Name</label>
+                            <input type="text" name="name" value="{{ template.name }}" required
+                                   style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                        <div>
+                            <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Description</label>
+                            <input type="text" name="description" value="{{ template.description or '' }}"
+                                   style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 15px; margin-bottom: 15px;">
+                        <div>
+                            <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Source URL</label>
+                            <input type="url" name="source_url" value="{{ template.source_url or '' }}"
+                                   placeholder="https://..."
+                                   style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                        <div>
+                            <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Data As At</label>
+                            <input type="date" name="data_as_at" value="{{ template.data_as_at or '' }}"
+                                   style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button type="submit" class="btn">Save Changes</button>
+                        <button type="button" class="btn btn-secondary" onclick="toggleEditTemplate({{ template.id }})">Cancel</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Clone Template Form (hidden by default) -->
+            <div id="cloneTemplate{{ template.id }}" style="display: none; margin-bottom: 15px; padding: 15px; background: #f0f7ff; border: 1px solid #b3d4fc; border-radius: 8px;">
+                <form method="post" action="{{ url_for('web.clone_template', template_id=template.id) }}">
+                    <h4 style="margin: 0 0 15px 0;">📋 Clone Template</h4>
+                    <p class="text-muted" style="margin-bottom: 15px;">
+                        Create a copy of "{{ template.name }}" with all {{ template['items']|length }} holidays.
+                    </p>
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">New Template Name</label>
+                        <input type="text" name="name" value="{{ template.name }} (Copy)" required
+                               style="width: 100%; max-width: 400px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button type="submit" class="btn">Create Clone</button>
+                        <button type="button" class="btn btn-secondary" onclick="toggleCloneTemplate({{ template.id }})">Cancel</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Template Items -->
+            {% if template['items'] %}
+            <div style="margin-top: 10px;">
+                {% for item in template['items'] %}
+                <!-- Item view row (click to edit) -->
+                <div id="item-view-{{ item.id }}" class="item-row" onclick="toggleEditItem({{ item.id }})">
+                    <span class="edit-hint">✏️</span>
+                    <span style="min-width: 150px;">{{ item.name }}</span>
+                    <span class="badge badge-info">📅 {{ item.date }}</span>
+                    <form method="post" action="{{ url_for('web.remove_template_item', template_id=template.id, item_id=item.id) }}"
+                          style="margin-left: auto;" onclick="event.stopPropagation();">
+                        <button type="submit" class="item-delete confirm-delete" title="Delete">×</button>
+                    </form>
+                </div>
+                <!-- Item edit form (hidden) -->
+                <div id="item-edit-{{ item.id }}" style="display: none; padding: 10px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 5px; margin: 5px 0;">
+                    <form method="post" action="{{ url_for('web.update_template_item', template_id=template.id, item_id=item.id) }}"
+                          style="display: flex; gap: 10px; align-items: end; flex-wrap: wrap;">
+                        <div>
+                            <label style="display: block; font-size: 0.8em; color: #666; margin-bottom: 2px;">Name</label>
+                            <input type="text" name="name" value="{{ item.name }}" required
+                                   style="padding: 6px; border: 1px solid #ddd; border-radius: 4px; width: 160px;">
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 0.8em; color: #666; margin-bottom: 2px;">Date</label>
+                            <input type="date" name="date" value="{{ item.date }}" required
+                                   style="padding: 6px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                        <button type="submit" class="btn btn-small">Save</button>
+                        <button type="button" class="btn btn-small btn-secondary" onclick="toggleEditItem({{ item.id }})">Cancel</button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Add Holiday to Template Form -->
+            <form method="post" action="{{ url_for('web.add_template_item', template_id=template.id) }}"
+                  style="display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; margin-top: 15px; padding: 10px; background: white; border-radius: 5px; border: 1px solid #e0e0e0;">
+                <div>
+                    <label style="display: block; font-size: 0.8em; color: #666; margin-bottom: 2px;">Holiday Name</label>
+                    <input type="text" name="name" placeholder="e.g., Easter Monday" required
+                           style="padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; width: 150px;">
+                </div>
+                <div>
+                    <label style="display: block; font-size: 0.8em; color: #666; margin-bottom: 2px;">Date</label>
+                    <input type="date" name="date" required
+                           style="padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+                <button type="submit" class="btn btn-small">Add to Template</button>
+            </form>
+
+            <!-- Linked Schedules Section -->
+            <div style="margin-top: 10px; padding: 10px; background: #f0f9ff; border-radius: 5px; border: 1px solid #b3e0ff;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <strong style="font-size: 0.9em;">🔗 Linked Schedules</strong>
+                    {% if template.linked_schedules %}
+                    <span class="badge badge-success">{{ template.linked_schedules|length }} linked</span>
+                    {% else %}
+                    <span class="badge badge-warning">None linked</span>
+                    {% endif %}
+                </div>
+
+                {% if template.linked_schedules %}
+                <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;">
+                    {% for sched in template.linked_schedules %}
+                    <div style="display: inline-flex; align-items: center; gap: 5px; background: white; padding: 4px 8px; border-radius: 4px; border: 1px solid #ddd;">
+                        <span>{{ sched.name }}</span>
+                        <form method="post" action="{{ url_for('web.unlink_schedule_from_template', template_id=template.id, schedule_id=sched.id) }}" style="margin: 0;">
+                            <button type="submit" class="btn btn-small btn-danger confirm-delete" style="padding: 1px 5px; font-size: 0.8em;">×</button>
+                        </form>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted" style="margin: 5px 0; font-size: 0.85em;">
+                    ⚠️ No schedules linked. Link schedules below to enable syncing.
+                </p>
+                {% endif %}
+
+                <!-- Add Schedule Link Form -->
+                {% set unlinked_schedules = schedules|selectattr('is_active')|rejectattr('id', 'in', template.linked_schedules|map(attribute='id')|list)|list %}
+                {% if unlinked_schedules %}
+                <form method="post" action="{{ url_for('web.link_schedule_to_template', template_id=template.id) }}"
+                      style="display: flex; gap: 8px; align-items: center;">
+                    <select name="schedule_id" required style="padding: 5px 10px; border: 1px solid #ddd; border-radius: 4px; flex: 1; max-width: 200px;">
+                        <option value="">-- Select schedule --</option>
+                        {% for sched in unlinked_schedules %}
+                        <option value="{{ sched.id }}">{{ sched.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="btn btn-small">Link Schedule</button>
+                </form>
+                {% else %}
+                <p class="text-muted" style="margin: 5px 0; font-size: 0.85em;">All schedules are linked to this template.</p>
+                {% endif %}
+            </div>
+        </div><!-- End template-content -->
+    </div><!-- End template-card -->
+    {% endfor %}
+    {% else %}
+    <p class="text-muted" style="padding: 10px;">No holiday templates yet. Create one below to manage public holidays across multiple schedules.</p>
+    {% endif %}
+
+    <!-- Create New Template Form -->
+    <form method="post" action="{{ url_for('web.create_template') }}"
+          style="margin-top: 15px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+        <h3 style="margin: 0 0 15px 0; font-size: 1.1em;">New Holiday Template:</h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+            <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Template Name</label>
+                <input type="text" name="name" placeholder="e.g., ACT Public Holidays 2026" required
+                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+            </div>
+            <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Description</label>
+                <input type="text" name="description" placeholder="e.g., Public holidays for ACT stores"
+                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+            </div>
+        </div>
+        <div style="display: grid; grid-template-columns: 2fr 1fr auto; gap: 15px; align-items: end;">
+            <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Source URL</label>
+                <input type="url" name="source_url" placeholder="e.g., https://www.fairwork.gov.au/employment-conditions/public-holidays"
+                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+            </div>
+            <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em;">Data As At</label>
+                <input type="date" name="data_as_at"
+                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+            </div>
+            <button type="submit" class="btn">Create Template</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Toggle individual template card expand/collapse
+function toggleTemplateCard(templateId) {
+    const content = document.getElementById('templateContent' + templateId);
+    const toggle = document.getElementById('templateToggle' + templateId);
+
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        toggle.textContent = '▼';
+    } else {
+        content.style.display = 'none';
+        toggle.textContent = '▶';
+    }
+}
+
+// Handle URL hash to open specific template
+(function handleUrlHash() {
+    const hash = window.location.hash;
+    if (hash && hash.length > 1) {
+        const target = hash.substring(1);
+        if (target.startsWith('template_')) {
+            const templateId = target.replace('template_', '');
+            const content = document.getElementById('templateContent' + templateId);
+            const toggle = document.getElementById('templateToggle' + templateId);
+            if (content) {
+                content.style.display = 'block';
+                if (toggle) toggle.textContent = '▼';
+            }
+            const card = document.getElementById('template_' + templateId);
+            if (card) {
+                setTimeout(() => {
+                    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 100);
+            }
+        }
+    }
+})();
+
+// Toggle edit template form visibility
+function toggleEditTemplate(templateId) {
+    const form = document.getElementById('editTemplate' + templateId);
+    if (form.style.display === 'none') {
+        form.style.display = 'block';
+        document.getElementById('cloneTemplate' + templateId).style.display = 'none';
+    } else {
+        form.style.display = 'none';
+    }
+}
+
+// Toggle clone template form visibility
+function toggleCloneTemplate(templateId) {
+    const form = document.getElementById('cloneTemplate' + templateId);
+    if (form.style.display === 'none') {
+        form.style.display = 'block';
+        document.getElementById('editTemplate' + templateId).style.display = 'none';
+    } else {
+        form.style.display = 'none';
+    }
+}
+
+// Toggle item edit form
+function toggleEditItem(itemId) {
+    const viewRow = document.getElementById('item-view-' + itemId);
+    const editRow = document.getElementById('item-edit-' + itemId);
+
+    if (editRow.style.display === 'none') {
+        viewRow.style.display = 'none';
+        editRow.style.display = 'block';
+    } else {
+        viewRow.style.display = 'flex';
+        editRow.style.display = 'none';
+    }
+}
+</script>
+{% endblock %}
