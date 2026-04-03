@@ -1,0 +1,1187 @@
+/**
+ * Bot Team Shared CSS
+ *
+ * Common styles for all bot web UIs. Uses CSS custom properties for theming.
+ *
+ * Usage:
+ * 1. Link this stylesheet: <link rel="stylesheet" href="{{ chester_url }}/shared-static/css/bot-team.css">
+ * 2. Set bot-specific colors in a <style> block:
+ *    <style>
+ *      :root {
+ *        --bot-primary: #16a085;
+ *        --bot-primary-hover: #138d75;
+ *        --bot-primary-light: #d5f4e6;
+ *        --bot-header-bg: linear-gradient(135deg, #16a085 0%, #1abc9c 100%);
+ *      }
+ *    </style>
+ * 3. Add any bot-specific styles after the shared CSS
+ */
+
+/* ==========================================================================
+   CSS Custom Properties (Defaults)
+   ========================================================================== */
+
+:root {
+    /* Primary colors - override these per bot */
+    --bot-primary: #3498db;
+    --bot-primary-hover: #2980b9;
+    --bot-primary-light: #d6eaf8;
+    --bot-header-bg: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+    --bot-header-text: #ffffff;
+    --bot-header-text-muted: #bdc3c7;
+
+    /* Standard colors - usually don't need to override */
+    --color-success: #27ae60;
+    --color-success-hover: #229954;
+    --color-success-light: #d4edda;
+    --color-success-dark: #155724;
+
+    --color-danger: #e74c3c;
+    --color-danger-hover: #c0392b;
+    --color-danger-light: #f8d7da;
+    --color-danger-dark: #721c24;
+
+    --color-warning: #f39c12;
+    --color-warning-hover: #e67e22;
+    --color-warning-light: #fff3cd;
+    --color-warning-dark: #856404;
+
+    --color-info: #3498db;
+    --color-info-light: #cce5ff;
+    --color-info-dark: #004085;
+
+    --color-secondary: #95a5a6;
+    --color-secondary-hover: #7f8c8d;
+
+    /* Text colors */
+    --text-primary: #333333;
+    --text-secondary: #2c3e50;
+    --text-muted: #6c757d;
+    --text-light: #7f8c8d;
+
+    /* Background colors */
+    --bg-body: #f5f5f5;
+    --bg-card: #ffffff;
+    --bg-card-alt: #f8f9fa;
+    --bg-table-header: #f8f9fa;
+    --bg-table-hover: #f8f9fa;
+
+    /* Border colors */
+    --border-color: #e0e0e0;
+    --border-color-light: #ecf0f1;
+    --border-color-dark: #ddd;
+
+    /* Spacing */
+    --container-max-width: 1200px;
+    --card-padding: 20px;
+    --card-border-radius: 8px;
+
+    /* Transitions */
+    --transition-fast: 0.2s;
+    --transition-normal: 0.3s;
+}
+
+
+/* ==========================================================================
+   Environment Banner (Staging/Development Warning)
+   ========================================================================== */
+
+.env-banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10000;
+    padding: 10px 20px;
+    text-align: center;
+    font-weight: 600;
+    font-size: 14px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.env-banner-staging {
+    background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+    color: white;
+}
+
+.env-banner-development {
+    background: linear-gradient(135deg, #17a2b8 0%, #20c997 100%);
+    color: white;
+}
+
+/* Push body content down when banner is present */
+body.has-env-banner {
+    padding-top: 44px;
+}
+
+
+/* ==========================================================================
+   Reset & Base
+   ========================================================================== */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    line-height: 1.6;
+    color: var(--text-primary);
+    background: var(--bg-body);
+}
+
+
+/* ==========================================================================
+   Layout
+   ========================================================================== */
+
+.container {
+    max-width: var(--container-max-width);
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.card {
+    background: var(--bg-card);
+    border-radius: var(--card-border-radius);
+    padding: var(--card-padding);
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.card h2 {
+    margin-bottom: 15px;
+    color: var(--text-secondary);
+}
+
+.card h3 {
+    margin-bottom: 15px;
+    color: var(--text-secondary);
+}
+
+.card-header {
+    padding: 15px 20px;
+    border-bottom: 1px solid var(--border-color-light);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.card-header h2 {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 0;
+}
+
+.card-body {
+    padding: 20px;
+}
+
+
+/* ==========================================================================
+   Header & Navigation
+   ========================================================================== */
+
+header {
+    background: var(--bot-header-bg);
+    color: var(--bot-header-text);
+    padding: 20px 0;
+    margin-bottom: 30px;
+    position: relative;
+}
+
+header h1 {
+    font-size: 28px;
+    font-weight: 600;
+}
+
+header p {
+    color: var(--bot-header-text-muted);
+    margin-top: 5px;
+}
+
+.user-info {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    text-align: right;
+    font-size: 0.9em;
+}
+
+.user-email {
+    color: var(--bot-header-text-muted);
+    margin-bottom: 8px;
+}
+
+nav {
+    margin-top: 15px;
+}
+
+nav a {
+    color: var(--bot-header-text);
+    text-decoration: none;
+    margin-right: 20px;
+    padding: 8px 15px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    transition: background var(--transition-fast);
+}
+
+nav a:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+nav a.active {
+    background: var(--bot-primary);
+}
+
+/* Nav list styling */
+nav ul {
+    list-style: none;
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+nav ul li {
+    list-style: none;
+}
+
+/* Standard nav-bar style (nav outside header, like Skye)
+   Apply by adding nav-bar class or overriding in bot styles */
+nav.nav-bar,
+.nav-bar-style nav {
+    background: #f8f9fa;
+    padding: 15px 20px;
+    border-bottom: 2px solid #e9ecef;
+    margin-top: 0;
+}
+
+nav.nav-bar a,
+.nav-bar-style nav a {
+    color: var(--bot-primary);
+    background: transparent;
+    padding: 8px 15px;
+    border-radius: 4px;
+    transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+nav.nav-bar a:hover,
+nav.nav-bar a.active,
+.nav-bar-style nav a:hover,
+.nav-bar-style nav a.active {
+    background: var(--bot-primary);
+    color: white;
+}
+
+
+/* ==========================================================================
+   Buttons
+   ========================================================================== */
+
+.btn {
+    display: inline-block;
+    padding: 10px 20px;
+    background: var(--bot-primary);
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1;
+    vertical-align: middle;
+    transition: background var(--transition-fast);
+}
+
+.btn:hover {
+    background: var(--bot-primary-hover);
+}
+
+.btn-primary {
+    background: var(--bot-primary);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: var(--bot-primary-hover);
+}
+
+.btn-success {
+    background: var(--color-success);
+    color: white;
+}
+
+.btn-success:hover {
+    background: var(--color-success-hover);
+}
+
+.btn-danger {
+    background: var(--color-danger);
+    color: white;
+}
+
+.btn-danger:hover {
+    background: var(--color-danger-hover);
+}
+
+.btn-warning {
+    background: var(--color-warning);
+    color: white;
+}
+
+.btn-warning:hover {
+    background: var(--color-warning-hover);
+}
+
+.btn-secondary {
+    background: var(--color-secondary);
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: var(--color-secondary-hover);
+}
+
+.btn-small,
+.btn-sm {
+    padding: 6px 12px;
+    font-size: 12px;
+}
+
+.btn-logout {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 6px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 0.85em;
+    transition: background var(--transition-fast);
+}
+
+.btn-logout:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+
+/* ==========================================================================
+   Badges
+   ========================================================================== */
+
+.badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+/* Rounded badge variant (used by hugo, skye, grant) */
+.badge-pill {
+    border-radius: 20px;
+    padding: 4px 12px;
+}
+
+.badge-success,
+.badge-active {
+    background: var(--color-success-light);
+    color: var(--color-success-dark);
+}
+
+.badge-danger,
+.badge-error,
+.badge-failed {
+    background: var(--color-danger-light);
+    color: var(--color-danger-dark);
+}
+
+.badge-warning {
+    background: var(--color-warning-light);
+    color: var(--color-warning-dark);
+}
+
+.badge-info {
+    background: var(--color-info-light);
+    color: var(--color-info-dark);
+}
+
+.badge-secondary {
+    background: #e2e3e5;
+    color: #6c757d;
+}
+
+/* Solid badge variants (for emphasis) */
+.badge-success-solid {
+    background: var(--color-success);
+    color: white;
+}
+
+.badge-danger-solid {
+    background: var(--color-danger);
+    color: white;
+}
+
+.badge-warning-solid {
+    background: var(--color-warning);
+    color: white;
+}
+
+.badge-info-solid {
+    background: var(--color-info);
+    color: white;
+}
+
+.badge-primary-solid {
+    background: var(--bot-primary);
+    color: white;
+}
+
+
+/* ==========================================================================
+   Alerts & Flash Messages
+   ========================================================================== */
+
+.alert,
+.flash {
+    padding: 15px;
+    border-radius: 4px;
+    margin-bottom: 20px;
+}
+
+.alert-success,
+.flash-success,
+.flash.success {
+    background: var(--color-success-light);
+    color: var(--color-success-dark);
+    border: 1px solid #c3e6cb;
+}
+
+.alert-error,
+.flash-error,
+.flash.error {
+    background: var(--color-danger-light);
+    color: var(--color-danger-dark);
+    border: 1px solid #f5c6cb;
+}
+
+.alert-warning,
+.flash-warning,
+.flash.warning {
+    background: var(--color-warning-light);
+    color: var(--color-warning-dark);
+    border: 1px solid #ffeeba;
+}
+
+.alert-info,
+.flash-info,
+.flash.info {
+    background: var(--color-info-light);
+    color: var(--color-info-dark);
+    border: 1px solid #b8daff;
+}
+
+.error {
+    background: var(--color-danger);
+    color: white;
+    padding: 15px;
+    border-radius: 4px;
+    margin-bottom: 20px;
+}
+
+
+/* ==========================================================================
+   Forms
+   ========================================================================== */
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label,
+label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="tel"],
+input[type="search"],
+input[type="number"],
+select,
+textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border-color-dark);
+    border-radius: 4px;
+    font-size: 14px;
+    font-family: inherit;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    outline: none;
+    border-color: var(--bot-primary);
+}
+
+textarea {
+    min-height: 100px;
+    resize: vertical;
+}
+
+input[type="checkbox"] {
+    margin-right: 8px;
+}
+
+.form-inline {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.form-inline input,
+.form-inline select {
+    width: auto;
+}
+
+
+/* ==========================================================================
+   Tables
+   ========================================================================== */
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th,
+td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color-light);
+}
+
+th {
+    background: var(--bg-table-header);
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+tr:hover {
+    background: var(--bg-table-hover);
+}
+
+
+/* ==========================================================================
+   Intro/Info Boxes
+   ========================================================================== */
+
+.intro-box,
+.info-box {
+    background: var(--bot-primary-light);
+    border-left: 4px solid var(--bot-primary);
+    padding: 15px 20px;
+    margin-bottom: 20px;
+    border-radius: 4px;
+}
+
+.intro-box p,
+.info-box p {
+    margin: 0;
+    color: #555;
+    line-height: 1.6;
+}
+
+.intro-box strong,
+.info-box strong {
+    color: var(--text-secondary);
+}
+
+
+/* ==========================================================================
+   Search Bar
+   ========================================================================== */
+
+.search-bar {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.search-bar input[type="search"],
+.search-bar input[type="text"] {
+    width: 100%;
+    max-width: 500px;
+    padding: 12px 16px;
+    font-size: 15px;
+    border: 1px solid var(--border-color-dark);
+    border-radius: 4px;
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.search-bar input:focus {
+    outline: none;
+    border-color: var(--bot-primary);
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+
+/* ==========================================================================
+   Filter Bar
+   ========================================================================== */
+
+.filter-bar,
+.filters {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: white;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.filter-bar label {
+    display: inline-block;
+    margin-right: 10px;
+    margin-bottom: 0;
+}
+
+.filter-bar select,
+.filters select {
+    width: auto;
+    display: inline-block;
+    padding: 8px 12px;
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    font-size: 0.9em;
+}
+
+
+/* ==========================================================================
+   Pagination
+   ========================================================================== */
+
+.pagination {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.pagination a,
+.pagination span {
+    padding: 8px 12px;
+    background: white;
+    border: 1px solid var(--border-color-dark);
+    border-radius: 4px;
+    text-decoration: none;
+    color: var(--text-primary);
+}
+
+.pagination a:hover {
+    background: var(--bg-card-alt);
+}
+
+.pagination .current {
+    background: var(--bot-primary);
+    color: white;
+    border-color: var(--bot-primary);
+}
+
+
+/* ==========================================================================
+   Empty State & Contextual Help
+
+   Use these styles to guide users when features need configuration or when
+   there's no data to display. Good UX means users never feel lost!
+   ========================================================================== */
+
+/* Basic empty state - centered message when there's no data */
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-light);
+}
+
+.empty-state h3 {
+    margin-bottom: 10px;
+    color: var(--text-secondary);
+}
+
+.empty-state p {
+    margin-bottom: 15px;
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* Setup guide - prominent box for features that need configuration */
+.setup-guide {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border: 2px dashed var(--border-color-dark);
+    border-radius: 12px;
+    padding: 40px;
+    text-align: center;
+    margin: 20px 0;
+}
+
+.setup-guide h3 {
+    color: var(--text-secondary);
+    margin-bottom: 15px;
+    font-size: 1.3em;
+}
+
+.setup-guide p {
+    color: var(--text-muted);
+    margin-bottom: 20px;
+    max-width: 500px;
+    margin-left: auto;
+    margin-right: auto;
+    line-height: 1.6;
+}
+
+.setup-guide .setup-icon {
+    font-size: 3em;
+    margin-bottom: 15px;
+    opacity: 0.6;
+}
+
+.setup-guide .btn {
+    margin-top: 10px;
+}
+
+/* Help tip - inline help text for sections */
+.help-tip {
+    background: var(--color-info-light);
+    border-left: 4px solid var(--color-info);
+    padding: 12px 16px;
+    margin-bottom: 20px;
+    border-radius: 0 4px 4px 0;
+    font-size: 0.9em;
+    color: var(--color-info-dark);
+}
+
+.help-tip strong {
+    display: block;
+    margin-bottom: 4px;
+}
+
+.help-tip a {
+    color: var(--color-info-dark);
+    font-weight: 600;
+}
+
+/* Section help - subtle description under section headers */
+.section-help {
+    color: var(--text-muted);
+    font-size: 0.9em;
+    font-style: italic;
+    margin-top: -10px;
+    margin-bottom: 15px;
+}
+
+/* Info icon with tooltip */
+.info-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    background: var(--color-info);
+    color: white;
+    border-radius: 50%;
+    font-size: 12px;
+    font-weight: bold;
+    cursor: help;
+    margin-left: 6px;
+    vertical-align: middle;
+}
+
+.info-icon:hover {
+    background: var(--color-info-dark);
+}
+
+/* Tooltip container for info icons */
+.tooltip-container {
+    position: relative;
+    display: inline-block;
+}
+
+.tooltip-container .tooltip-text {
+    visibility: hidden;
+    opacity: 0;
+    position: absolute;
+    z-index: 100;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--text-secondary);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.85em;
+    font-style: normal;
+    white-space: nowrap;
+    max-width: 250px;
+    white-space: normal;
+    text-align: left;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    transition: opacity 0.2s, visibility 0.2s;
+}
+
+.tooltip-container .tooltip-text::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: var(--text-secondary) transparent transparent transparent;
+}
+
+.tooltip-container:hover .tooltip-text {
+    visibility: visible;
+    opacity: 1;
+}
+
+/* Getting started checklist */
+.getting-started {
+    background: white;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.getting-started h4 {
+    margin-bottom: 15px;
+    color: var(--text-secondary);
+}
+
+.getting-started ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.getting-started li {
+    padding: 8px 0;
+    padding-left: 28px;
+    position: relative;
+    border-bottom: 1px solid var(--border-color-light);
+}
+
+.getting-started li:last-child {
+    border-bottom: none;
+}
+
+.getting-started li::before {
+    content: "○";
+    position: absolute;
+    left: 0;
+    color: var(--text-muted);
+}
+
+.getting-started li.completed::before {
+    content: "✓";
+    color: var(--color-success);
+}
+
+.getting-started li a {
+    color: var(--bot-primary);
+}
+
+
+/* ==========================================================================
+   Stats Grid
+   ========================================================================== */
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    margin-bottom: 30px;
+}
+
+.stat-card {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.stat-value {
+    font-size: 2em;
+    font-weight: bold;
+    color: var(--bot-primary);
+}
+
+.stat-label {
+    color: var(--text-muted);
+    font-size: 0.9em;
+}
+
+
+/* ==========================================================================
+   Expandable Text (Click to Expand)
+   ========================================================================== */
+
+.expandable-text {
+    cursor: pointer;
+    max-width: 300px;
+}
+
+.expandable-text .truncated {
+    display: inline;
+}
+
+.expandable-text .full {
+    display: none;
+    white-space: pre-wrap;
+    word-break: break-word;
+    background: var(--bg-card-alt);
+    padding: 8px;
+    border-radius: 4px;
+    margin-top: 5px;
+    border: 1px solid var(--border-color-light);
+    font-family: monospace;
+    font-size: 0.85em;
+}
+
+.expandable-text.expanded .truncated {
+    display: none;
+}
+
+.expandable-text.expanded .full {
+    display: block;
+}
+
+.expandable-text:not(.expanded):hover .truncated {
+    text-decoration: underline;
+}
+
+.expand-hint {
+    color: var(--text-muted);
+    font-size: 0.8em;
+    margin-left: 5px;
+}
+
+
+/* ==========================================================================
+   Loading States
+   ========================================================================== */
+
+.loading {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.loading-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 9999;
+    justify-content: center;
+    align-items: center;
+}
+
+.loading-overlay.active {
+    display: flex;
+}
+
+.loading-content {
+    background: white;
+    padding: 30px 50px;
+    border-radius: 8px;
+    text-align: center;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.loading-spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid var(--bot-primary);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 15px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+
+/* ==========================================================================
+   Footer
+   ========================================================================== */
+
+footer {
+    background: var(--bg-card-alt);
+    padding: 20px 30px;
+    text-align: center;
+    color: var(--text-muted);
+    border-top: 2px solid var(--border-color-light);
+}
+
+
+/* ==========================================================================
+   Utility Classes
+   ========================================================================== */
+
+.text-muted {
+    color: var(--text-muted);
+}
+
+.text-success {
+    color: var(--color-success);
+}
+
+.text-danger {
+    color: var(--color-danger);
+}
+
+.text-warning {
+    color: var(--color-warning);
+}
+
+.text-info {
+    color: var(--color-info);
+}
+
+.text-center {
+    text-align: center;
+}
+
+.text-right {
+    text-align: right;
+}
+
+.mb-0 { margin-bottom: 0; }
+.mb-1 { margin-bottom: 10px; }
+.mb-2 { margin-bottom: 20px; }
+.mb-3 { margin-bottom: 30px; }
+
+.mt-0 { margin-top: 0; }
+.mt-1 { margin-top: 10px; }
+.mt-2 { margin-top: 20px; }
+.mt-3 { margin-top: 30px; }
+
+
+/* ==========================================================================
+   Two-Click Delete Confirmation (replaces JavaScript confirm())
+   ========================================================================== */
+
+/**
+ * Two-click confirmation for destructive actions:
+ * - First click: Button changes to "Sure?" (300ms delay before confirm accepted)
+ * - Second click: Confirms action (if 300ms+ since first click)
+ * - Click elsewhere: Resets button
+ *
+ * Usage:
+ * <form method="post" action="/delete/123" style="display: inline;">
+ *     <button type="submit" class="btn btn-danger btn-small confirm-delete">Delete</button>
+ * </form>
+ *
+ * Add to base.html (see ada/web/templates/base.html for reference)
+ */
+
+.confirm-delete.confirming {
+    background: #c0392b;
+    animation: confirmPulse 0.15s ease-out;
+}
+
+@keyframes confirmPulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+
+/* ==========================================================================
+   Responsive Design
+   ========================================================================== */
+
+@media (max-width: 768px) {
+    .container {
+        padding: 15px;
+    }
+
+    header {
+        padding: 15px 0;
+    }
+
+    header h1 {
+        font-size: 24px;
+    }
+
+    .user-info {
+        position: static;
+        text-align: left;
+        margin-top: 15px;
+    }
+
+    nav {
+        margin-top: 15px;
+    }
+
+    nav a {
+        display: inline-block;
+        margin-bottom: 10px;
+    }
+
+    nav ul {
+        flex-wrap: wrap;
+        justify-content: flex-start;
+    }
+
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    table {
+        font-size: 14px;
+    }
+
+    th, td {
+        padding: 8px;
+    }
+
+    .search-bar {
+        padding: 15px;
+    }
+
+    .filter-bar,
+    .filters {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}

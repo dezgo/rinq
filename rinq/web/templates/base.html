@@ -6,7 +6,7 @@
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#e74c3c">
     <title>{{ config.name }}{% block title_suffix %}{% endblock %}</title>
-    {% if shared_css_url %}<link rel="stylesheet" href="{{ shared_css_url }}">{% endif %}
+    {% if shared_css_url %}<link rel="stylesheet" href="{{ shared_css_url }}">{% else %}<link rel="stylesheet" href="{{ url_for('static', filename='rinq.css') }}">{% endif %}
     <style>
         :root {
             --bot-primary: #e74c3c;
