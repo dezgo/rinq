@@ -685,8 +685,14 @@ def admin_phone_numbers():
         except Exception as e:
             logger.warning(f"Could not fetch staff for dropdown: {e}")
     if not all_users:
-        # Fallback to local Tina users if Peter is unavailable
-        all_users = db.get_users()
+        # Use local staff extensions
+        for ext in db.get_all_staff_extensions():
+            if ext.get('is_active'):
+                email = ext.get('email', '')
+                user_rec = db.get_user_by_email(email) if email else None
+                name = (user_rec.get('friendly_name') if user_rec else None) or email.split('@')[0].replace('.', ' ').title()
+                all_users.append({'staff_email': email, 'friendly_name': name})
+        all_users.sort(key=lambda u: u['friendly_name'])
 
     return render_template('admin_phone_numbers.html',
                          phone_numbers=phone_numbers,
