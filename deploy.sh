@@ -26,3 +26,4 @@ else
     echo "=== WARNING: Health check failed ==="
     exit 1
 fi
+
