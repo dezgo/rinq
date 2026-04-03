@@ -7107,10 +7107,10 @@ def search_available_numbers():
     try:
         kwargs = {'limit': limit}
         if area_code:
-            # Twilio expects area code without leading 0 for AU
-            if country == 'AU' and area_code.startswith('0'):
-                area_code = area_code[1:]
-            kwargs['area_code'] = area_code
+            # Use contains with country prefix for more reliable results
+            country_prefix = {'AU': '+61', 'US': '+1', 'GB': '+44', 'NZ': '+64'}.get(country, '')
+            clean_code = area_code.lstrip('0')
+            kwargs['contains'] = f"{country_prefix}{clean_code}"
         if contains:
             kwargs['contains'] = contains
 
