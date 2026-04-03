@@ -25,26 +25,39 @@ class TwilioService:
     """Service for Twilio PBX operations."""
 
     def __init__(self):
-        self._client = None
+        self._clients = {}  # Cache clients per account SID
 
     @property
     def db(self):
         """Get database for current tenant context (not cached)."""
         return get_db()
 
+    def _get_tenant_twilio_creds(self):
+        """Get Twilio creds for current tenant, falling back to global config."""
+        try:
+            from flask import g
+            tenant = getattr(g, 'tenant', None)
+            if tenant and tenant.get('twilio_account_sid') and tenant.get('twilio_auth_token'):
+                return tenant['twilio_account_sid'], tenant['twilio_auth_token']
+        except RuntimeError:
+            pass
+        return config.twilio_account_sid, config.twilio_auth_token
+
     @property
     def client(self) -> Client:
-        """Get Twilio client (lazy initialization)."""
-        if self._client is None:
-            if not config.twilio_configured:
-                raise ValueError("Twilio credentials not configured")
-            self._client = Client(config.twilio_account_sid, config.twilio_auth_token)
-        return self._client
+        """Get Twilio client for current tenant."""
+        account_sid, auth_token = self._get_tenant_twilio_creds()
+        if not account_sid or not auth_token:
+            raise ValueError("Twilio credentials not configured")
+        if account_sid not in self._clients:
+            self._clients[account_sid] = Client(account_sid, auth_token)
+        return self._clients[account_sid]
 
     @property
     def is_configured(self) -> bool:
-        """Check if Twilio is configured."""
-        return config.twilio_configured
+        """Check if Twilio is configured for current tenant."""
+        account_sid, auth_token = self._get_tenant_twilio_creds()
+        return bool(account_sid and auth_token)
 
     # =========================================================================
     # Account Info
