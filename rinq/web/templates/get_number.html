@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title_suffix %} - Get a Number{% endblock %}
+
+{% block content %}
+<h2>Get a Phone Number</h2>
+<p>Search for available phone numbers and add one to your account.</p>
+
+<div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+    <div style="display: flex; gap: 10px; align-items: end; flex-wrap: wrap;">
+        <div>
+            <label style="font-size: 0.85em; color: #666;">Country</label>
+            <select id="country" style="padding: 8px; border-radius: 4px; border: 1px solid #ddd;">
+                <option value="AU">Australia</option>
+                <option value="US">United States</option>
+                <option value="GB">United Kingdom</option>
+                <option value="NZ">New Zealand</option>
+            </select>
+        </div>
+        <div>
+            <label style="font-size: 0.85em; color: #666;">Area Code (optional)</label>
+            <input type="text" id="area_code" placeholder="e.g. 02" style="padding: 8px; border-radius: 4px; border: 1px solid #ddd; width: 100px;">
+        </div>
+        <div>
+            <label style="font-size: 0.85em; color: #666;">Contains (optional)</label>
+            <input type="text" id="contains" placeholder="e.g. 1234" style="padding: 8px; border-radius: 4px; border: 1px solid #ddd; width: 120px;">
+        </div>
+        <button onclick="searchNumbers()" class="btn" id="searchBtn">Search</button>
+    </div>
+</div>
+
+<div id="results" style="display: none;">
+    <h3>Available Numbers</h3>
+    <div id="numberList"></div>
+</div>
+
+<div id="noResults" style="display: none; color: #666; padding: 20px; text-align: center;">
+    No numbers found. Try a different area code or country.
+</div>
+
+<div id="loading" style="display: none; padding: 20px; text-align: center; color: #666;">
+    Searching...
+</div>
+
+<script>
+async function searchNumbers() {
+    const country = document.getElementById('country').value;
+    const areaCode = document.getElementById('area_code').value.trim();
+    const contains = document.getElementById('contains').value.trim();
+
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('results').style.display = 'none';
+    document.getElementById('noResults').style.display = 'none';
+    document.getElementById('searchBtn').disabled = true;
+
+    try {
+        let url = `/api/numbers/search?country=${country}&limit=20`;
+        if (areaCode) url += `&area_code=${encodeURIComponent(areaCode)}`;
+        if (contains) url += `&contains=${encodeURIComponent(contains)}`;
+
+        const resp = await fetch(url);
+        const data = await resp.json();
+
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('searchBtn').disabled = false;
+
+        if (data.numbers && data.numbers.length > 0) {
+            const list = document.getElementById('numberList');
+            list.innerHTML = data.numbers.map(n => `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 1px solid #eee; border-radius: 5px; margin-bottom: 8px;">
+                    <div>
+                        <strong style="font-size: 1.1em;">${n.phone_number}</strong>
+                        <span style="color: #666; margin-left: 10px;">${n.locality}${n.region ? ', ' + n.region : ''}</span>
+                    </div>
+                    <button onclick="buyNumber('${n.phone_number}')" class="btn btn-small">Get This Number</button>
+                </div>
+            `).join('');
+            document.getElementById('results').style.display = 'block';
+        } else {
+            document.getElementById('noResults').style.display = 'block';
+        }
+    } catch (e) {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('searchBtn').disabled = false;
+        document.getElementById('noResults').textContent = 'Search failed: ' + e.message;
+        document.getElementById('noResults').style.display = 'block';
+    }
+}
+
+async function buyNumber(phoneNumber) {
+    if (!confirm(`Purchase ${phoneNumber}? This will be charged to your Twilio account.`)) return;
+
+    try {
+        const resp = await fetch('/api/numbers/buy', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({phone_number: phoneNumber}),
+        });
+        const data = await resp.json();
+
+        if (data.success) {
+            window.location.href = '/admin/phone-numbers';
+        } else {
+            // Use inline message instead of alert
+            const msg = document.createElement('div');
+            msg.style.cssText = 'background: #fdecea; color: #c0392b; padding: 10px; border-radius: 5px; margin: 10px 0;';
+            msg.textContent = 'Failed to purchase: ' + (data.error || 'Unknown error');
+            document.getElementById('results').prepend(msg);
+            setTimeout(() => msg.remove(), 5000);
+        }
+    } catch (e) {
+        const msg = document.createElement('div');
+        msg.style.cssText = 'background: #fdecea; color: #c0392b; padding: 10px; border-radius: 5px; margin: 10px 0;';
+        msg.textContent = 'Error: ' + e.message;
+        document.getElementById('results').prepend(msg);
+        setTimeout(() => msg.remove(), 5000);
+    }
+}
+</script>
+{% endblock %}

@@ -520,6 +520,13 @@ def update_staff_extension(email):
     return redirect(url_for('web.admin_staff'))
 
 
+@web_bp.route('/admin/get-number')
+@admin_required
+def get_number():
+    """Search and purchase phone numbers."""
+    return render_template('get_number.html', current_user=get_current_user())
+
+
 @web_bp.route('/admin/phone-numbers')
 @admin_required
 def admin_phone_numbers():

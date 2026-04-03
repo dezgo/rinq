@@ -7075,3 +7075,134 @@ def cleanup_voicemail_recordings():
         'deleted_count': deleted_count,
         'errors': errors[:10] if errors else [],  # Limit error list
     })
+
+
+# =============================================================================
+# Phone Number Provisioning (Buy/Search)
+# =============================================================================
+
+@api_bp.route('/numbers/search', methods=['GET'])
+@login_required
+def search_available_numbers():
+    """Search for available phone numbers to purchase.
+
+    GET /api/numbers/search?country=AU&area_code=02&limit=10
+
+    Returns:
+        {"numbers": [{"phone_number": "+61...", "locality": "...", "region": "..."}]}
+    """
+    user = get_current_user()
+    if not user or not user.is_admin:
+        return jsonify({'error': 'Admin access required'}), 403
+
+    country = request.args.get('country', 'AU')
+    area_code = request.args.get('area_code', '')
+    contains = request.args.get('contains', '')
+    limit = min(int(request.args.get('limit', '20')), 50)
+
+    service = get_twilio_service()
+    if not service.is_configured:
+        return jsonify({'error': 'Twilio not configured'}), 500
+
+    try:
+        kwargs = {'limit': limit}
+        if area_code:
+            # Twilio expects area code without leading 0 for AU
+            if country == 'AU' and area_code.startswith('0'):
+                area_code = area_code[1:]
+            kwargs['area_code'] = area_code
+        if contains:
+            kwargs['contains'] = contains
+
+        numbers = service.client.available_phone_numbers(country).local.list(**kwargs)
+        results = []
+        for n in numbers:
+            results.append({
+                'phone_number': n.phone_number,
+                'friendly_name': n.friendly_name,
+                'locality': n.locality or '',
+                'region': n.region or '',
+            })
+
+        return jsonify({'numbers': results})
+
+    except Exception as e:
+        logger.error(f"Number search failed: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/numbers/buy', methods=['POST'])
+@login_required
+def buy_number():
+    """Purchase a phone number and register it to the current tenant.
+
+    POST /api/numbers/buy
+    {"phone_number": "+61..."}
+
+    Returns:
+        {"success": true, "phone_number": "+61...", "sid": "PN..."}
+    """
+    user = get_current_user()
+    if not user or not user.is_admin:
+        return jsonify({'error': 'Admin access required'}), 403
+
+    phone_number = request.json.get('phone_number', '').strip()
+    if not phone_number:
+        return jsonify({'error': 'phone_number is required'}), 400
+
+    service = get_twilio_service()
+    if not service.is_configured:
+        return jsonify({'error': 'Twilio not configured'}), 500
+
+    try:
+        # Purchase the number
+        incoming = service.client.incoming_phone_numbers.create(
+            phone_number=phone_number,
+            voice_url=f"{config.webhook_base_url}/api/voice/incoming",
+            voice_method='POST',
+            status_callback=f"{config.webhook_base_url}/api/voice/status",
+            status_callback_method='POST',
+        )
+
+        # Save to local database
+        db = get_db()
+        from datetime import datetime
+        db.upsert_phone_number({
+            'sid': incoming.sid,
+            'phone_number': incoming.phone_number,
+            'friendly_name': incoming.friendly_name or incoming.phone_number,
+            'forward_to': None,
+            'is_active': 1,
+            'synced_at': datetime.utcnow().isoformat(),
+        })
+
+        # Register to tenant in master DB
+        try:
+            from flask import g
+            tenant = getattr(g, 'tenant', None)
+            if tenant:
+                from rinq.database.master import get_master_db
+                master_db = get_master_db()
+                master_db.register_phone_number(incoming.phone_number, tenant['id'])
+        except Exception as e:
+            logger.warning(f"Failed to register number to tenant: {e}")
+
+        db.log_activity(
+            action="number_purchased",
+            target=incoming.phone_number,
+            details=f"SID: {incoming.sid}",
+            performed_by=f"session:{user.email}"
+        )
+
+        logger.info(f"Purchased number {incoming.phone_number} (SID: {incoming.sid})")
+
+        return jsonify({
+            'success': True,
+            'phone_number': incoming.phone_number,
+            'sid': incoming.sid,
+            'friendly_name': incoming.friendly_name,
+        })
+
+    except Exception as e:
+        logger.error(f"Number purchase failed: {e}")
+        return jsonify({'error': str(e)}), 500
