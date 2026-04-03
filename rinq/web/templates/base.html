@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#e74c3c">
-    <title>{{ config.name }}{% block title_suffix %}{% endblock %}</title>
+    <title>{{ product_name }}{% block title_suffix %}{% endblock %}</title>
     {% if shared_css_url %}<link rel="stylesheet" href="{{ shared_css_url }}">{% else %}<link rel="stylesheet" href="{{ url_for('static', filename='rinq.css') }}">{% endif %}
     <style>
         :root {
@@ -251,7 +251,7 @@
     </div>
     <div class="container">
         <header style="position: relative;">
-            <h1>{{ config.name }}</h1>
+            <h1>{{ product_name }}</h1>
             <p>{{ config.description }}</p>
             {% if current_user and current_user.is_authenticated %}
             <div class="user-info">
@@ -307,7 +307,7 @@
         </main>
 
         <footer>
-            <p>{{ config.name }} v{{ config.version }} | {{ config.personality }}</p>
+            <p>{{ product_name }} v{{ config.version }} | {{ config.personality }}</p>
         </footer>
     </div>
 
