@@ -707,9 +707,25 @@ def _ring_targets_into_conference(dial_targets: list, conference_name: str,
                     continue
 
                 try:
+                    # For mobile/PSTN calls, caller ID must be a number we own
+                    # For client/SIP calls, any caller ID works
+                    call_from = caller_id
+                    if to_addr.startswith('+') or to_addr[0].isdigit():
+                        # PSTN call — use tenant's default or first owned number
+                        call_from = config.twilio_default_caller_id
+                        if not call_from:
+                            try:
+                                owned = service.client.incoming_phone_numbers.list(limit=1)
+                                if owned:
+                                    call_from = owned[0].phone_number
+                            except Exception:
+                                pass
+                        if not call_from:
+                            call_from = caller_id  # Last resort
+
                     call = service.client.calls.create(
                         to=to_addr,
-                        from_=caller_id,
+                        from_=call_from,
                         url=answer_url,
                         timeout=30,
                         status_callback=status_url,
@@ -4214,34 +4230,35 @@ def get_voice_token():
     if not service.is_configured:
         return jsonify({"error": "Twilio not configured"}), 500
 
-    # Check if API key is configured (required for tokens)
-    if not config.twilio_api_key or not config.twilio_api_secret:
-        return jsonify({"error": "Twilio API Key not configured. Set TWILIO_API_KEY and TWILIO_API_SECRET."}), 500
+    # Get tenant-specific Twilio creds
+    from flask import g
+    tenant = getattr(g, 'tenant', None)
+    account_sid = (tenant.get('twilio_account_sid') if tenant else None) or config.twilio_account_sid
+    api_key = (tenant.get('twilio_api_key') if tenant else None) or config.twilio_api_key
+    api_secret = (tenant.get('twilio_api_secret') if tenant else None) or config.twilio_api_secret
+    twiml_app_sid = (tenant.get('twilio_twiml_app_sid') if tenant else None) or config.twilio_twiml_app_sid
 
-    # Debug: Log what values we're using (first 10 chars only for security)
-    import logging
-    logger = logging.getLogger(__name__)
-    logger.info(f"Token generation - Account: {config.twilio_account_sid[:10] if config.twilio_account_sid else 'None'}...")
-    logger.info(f"Token generation - API Key: {config.twilio_api_key[:10] if config.twilio_api_key else 'None'}...")
-    logger.info(f"Token generation - Secret length: {len(config.twilio_api_secret) if config.twilio_api_secret else 0}")
-    logger.info(f"Token generation - TwiML App: {config.twilio_twiml_app_sid[:10] if config.twilio_twiml_app_sid else 'None'}...")
+    if not api_key or not api_secret:
+        return jsonify({"error": "Twilio API Key not configured."}), 500
+
+    logger.info(f"Token generation - Account: {account_sid[:10] if account_sid else 'None'}...")
+    logger.info(f"Token generation - API Key: {api_key[:10] if api_key else 'None'}...")
 
     # Create a unique identity for this user
-    # Use email but sanitize it for Twilio (alphanumeric + underscore only)
     identity = user.email.replace('@', '_at_').replace('.', '_')
 
     # Create access token
     token = AccessToken(
-        config.twilio_account_sid,
-        config.twilio_api_key,
-        config.twilio_api_secret,
+        account_sid,
+        api_key,
+        api_secret,
         identity=identity,
-        ttl=3600  # 1 hour
+        ttl=3600
     )
 
-    # Create Voice grant - allows making/receiving calls
+    # Create Voice grant
     voice_grant = VoiceGrant(
-        outgoing_application_sid=config.twilio_twiml_app_sid,
+        outgoing_application_sid=twiml_app_sid,
         incoming_allow=True
     )
     token.add_grant(voice_grant)
