@@ -87,9 +87,21 @@ class Config:
 
     @property
     def webhook_base_url(self):
-        """Webhook base URL for Twilio callbacks."""
+        """Webhook base URL for Twilio callbacks.
+
+        Priority: env var > tenant config > request host > None
+        """
         if self._webhook_base_url:
             return self._webhook_base_url
+        # Check tenant config
+        try:
+            from flask import g
+            tenant = getattr(g, 'tenant', None)
+            if tenant and tenant.get('webhook_base_url'):
+                return tenant['webhook_base_url'].rstrip('/')
+        except RuntimeError:
+            pass
+        # Fall back to request host
         try:
             from flask import request
             return request.host_url.rstrip('/')

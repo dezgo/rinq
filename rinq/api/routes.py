@@ -6052,6 +6052,7 @@ def get_transfer_targets():
     """
     from rinq.services.transfer_service import get_transfer_service
     transfer_service = get_transfer_service()
+    transfer_service._capture_base_url()
     targets = transfer_service.get_transfer_targets()
     return jsonify({"targets": targets})
 
@@ -6083,6 +6084,7 @@ def blind_transfer():
 
     transferred_by = get_api_caller()
     transfer_service = get_transfer_service()
+    transfer_service._capture_base_url()
 
     result = transfer_service.blind_transfer(call_sid, target, target_name, transferred_by)
 
@@ -6122,6 +6124,7 @@ def blind_transfer_direct():
 
     transferred_by = get_api_caller()
     transfer_service = get_transfer_service()
+    transfer_service._capture_base_url()
 
     # Conference-first calls should use conference-based transfer
     db = get_db()
@@ -6175,6 +6178,7 @@ def warm_transfer_start():
 
     transferred_by = get_api_caller()
     transfer_service = get_transfer_service()
+    transfer_service._capture_base_url()
 
     # Resolve conference info — check agent SID first, then customer SID
     db = get_db()
@@ -6238,6 +6242,7 @@ def warm_transfer_complete():
     call_type = data.get('call_type', 'queue')
     transferred_by = get_api_caller()
     transfer_service = get_transfer_service()
+    transfer_service._capture_base_url()
 
     call_sid = data.get('call_sid') or data.get('transfer_key')
     if not call_sid:
@@ -6274,6 +6279,7 @@ def transfer_cancel():
     call_type = data.get('call_type', 'queue')
     cancelled_by = get_api_caller()
     transfer_service = get_transfer_service()
+    transfer_service._capture_base_url()
 
     call_sid = data.get('call_sid') or data.get('transfer_key')
     if not call_sid:

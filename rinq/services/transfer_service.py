@@ -35,10 +35,22 @@ class TransferService:
 
     def __init__(self):
         self.twilio = get_twilio_service()
+        self._base_url = None
 
     @property
     def db(self):
         return get_db()
+
+    @property
+    def base_url(self):
+        """Get webhook base URL. Uses captured value if in a thread, otherwise config."""
+        if self._base_url:
+            return self._base_url
+        return self.base_url
+
+    def _capture_base_url(self):
+        """Capture the base URL from request context for use in background threads."""
+        self._base_url = self.base_url
 
     def _build_extension_dial_twiml(self, extension: str, caller_id: str) -> str | None:
         """Build TwiML to dial a staff member by extension.
@@ -302,7 +314,7 @@ class TransferService:
             # call the target into it via REST API
             caller_id = (queued_call.get('called_number') if queued_call else None) or config.twilio_default_caller_id
             new_conference = f"call_{call_sid}_xfer"
-            conference_join_url = f"{config.webhook_base_url}/api/voice/conference/join?room={new_conference}&role=agent"
+            conference_join_url = f"{self.base_url}/api/voice/conference/join?room={new_conference}&role=agent"
 
             # Resolve target address for REST API call
             if is_ext:
@@ -353,7 +365,7 @@ class TransferService:
             logger.info(f"Stored conference {new_conference} for customer={call_sid}, target={target_call.sid}")
 
             # Redirect the customer into the new conference
-            customer_conf_url = f"{config.webhook_base_url}/api/voice/conference/join?room={new_conference}&role=caller"
+            customer_conf_url = f"{self.base_url}/api/voice/conference/join?room={new_conference}&role=caller"
             self.twilio.client.calls(call_sid).update(url=customer_conf_url, method='POST')
 
             # End the original agent's call
@@ -449,7 +461,7 @@ class TransferService:
                 return {'success': False, 'error': 'Conference not found'}
 
             conference = conferences[0]
-            hold_url = f"{config.webhook_base_url}/api/voice/hold-music"
+            hold_url = f"{self.base_url}/api/voice/hold-music"
 
             # Put the caller on hold
             self.twilio.client.conferences(conference.sid).participants(call_sid).update(
@@ -470,7 +482,7 @@ class TransferService:
             # Initiate outbound call to the transfer target
             # When they answer, they join a consultation conference with the agent
             consult_twiml_url = (
-                f"{config.webhook_base_url}/api/voice/transfer/consult-join"
+                f"{self.base_url}/api/voice/transfer/consult-join"
                 f"?conference={consult_conference}&original_call={call_sid}"
             )
 
@@ -480,13 +492,13 @@ class TransferService:
                 to=target_to,
                 from_=caller_id,
                 url=consult_twiml_url,
-                status_callback=f"{config.webhook_base_url}/api/voice/transfer/consult-status?original_call={call_sid}",
+                status_callback=f"{self.base_url}/api/voice/transfer/consult-status?original_call={call_sid}",
                 status_callback_event=['initiated', 'ringing', 'answered', 'completed', 'busy', 'no-answer', 'failed', 'canceled']
             )
 
             # Move the agent to the consultation conference
             agent_consult_url = (
-                f"{config.webhook_base_url}/api/voice/transfer/agent-consult"
+                f"{self.base_url}/api/voice/transfer/agent-consult"
                 f"?conference={consult_conference}&original_call={call_sid}"
             )
 
@@ -592,7 +604,7 @@ class TransferService:
             # Move the transfer target from consultation conference to the original conference
             # We do this by redirecting their call
             target_join_url = (
-                f"{config.webhook_base_url}/api/voice/transfer/target-join"
+                f"{self.base_url}/api/voice/transfer/target-join"
                 f"?conference={original_conference}"
             )
 
@@ -708,7 +720,7 @@ class TransferService:
                             if consult_call_sid and p.call_sid == consult_call_sid:
                                 continue
                             rejoin_url = (
-                                f"{config.webhook_base_url}/api/voice/conference/join"
+                                f"{self.base_url}/api/voice/conference/join"
                                 f"?room={original_conference}&role=agent"
                             )
                             self.twilio.client.calls(p.call_sid).update(
@@ -914,7 +926,7 @@ class TransferService:
 
                 # Call the target into the existing conference
                 target_join_url = (
-                    f"{config.webhook_base_url}/api/voice/conference/join"
+                    f"{self.base_url}/api/voice/conference/join"
                     f"?room={existing_conf}&role=agent"
                 )
                 consult_call = self.twilio.client.calls.create(
@@ -922,7 +934,7 @@ class TransferService:
                     from_=caller_id,
                     url=target_join_url,
                     status_callback=(
-                        f"{config.webhook_base_url}/api/voice/transfer/consult-status"
+                        f"{self.base_url}/api/voice/transfer/consult-status"
                         f"?original_call={transfer_key}&source=call_log"
                     ),
                     status_callback_event=['answered', 'completed', 'busy', 'no-answer', 'failed', 'canceled']
@@ -942,7 +954,7 @@ class TransferService:
 
                 # Call the target into the consultation conference
                 consult_twiml_url = (
-                    f"{config.webhook_base_url}/api/voice/transfer/consult-join"
+                    f"{self.base_url}/api/voice/transfer/consult-join"
                     f"?conference={consult_conference}&original_call={transfer_key}"
                 )
                 consult_call = self.twilio.client.calls.create(
@@ -950,7 +962,7 @@ class TransferService:
                     from_=caller_id,
                     url=consult_twiml_url,
                     status_callback=(
-                        f"{config.webhook_base_url}/api/voice/transfer/consult-status"
+                        f"{self.base_url}/api/voice/transfer/consult-status"
                         f"?original_call={transfer_key}&source=call_log"
                     ),
                     status_callback_event=['answered', 'completed', 'busy', 'no-answer', 'failed', 'canceled']
@@ -958,14 +970,14 @@ class TransferService:
 
                 # Redirect agent to consultation conference
                 agent_consult_url = (
-                    f"{config.webhook_base_url}/api/voice/transfer/agent-consult"
+                    f"{self.base_url}/api/voice/transfer/agent-consult"
                     f"?conference={consult_conference}&original_call={transfer_key}"
                 )
                 self.twilio.client.calls(agent_sid).update(url=agent_consult_url)
 
                 # Now redirect customer to conference (on hold)
                 customer_conf_url = (
-                    f"{config.webhook_base_url}/api/voice/conference/join"
+                    f"{self.base_url}/api/voice/conference/join"
                     f"?room={conference_name}&role=caller"
                 )
                 self.twilio.client.calls(customer_call_sid).update(url=customer_conf_url)
@@ -1077,7 +1089,7 @@ class TransferService:
 
                 # Move target to main conference
                 target_join_url = (
-                    f"{config.webhook_base_url}/api/voice/transfer/target-join"
+                    f"{self.base_url}/api/voice/transfer/target-join"
                     f"?conference={conference_name}"
                 )
                 self.twilio.client.calls(consult_call_sid).update(url=target_join_url)
@@ -1142,7 +1154,7 @@ class TransferService:
             # (before ending the consult conference which would kill their call)
             if state['transfer_type'] == 'warm' and agent_call_sid:
                 agent_conf_url = (
-                    f"{config.webhook_base_url}/api/voice/conference/join"
+                    f"{self.base_url}/api/voice/conference/join"
                     f"?room={conference_name}&role=agent"
                 )
                 self.twilio.client.calls(agent_call_sid).update(url=agent_conf_url)
