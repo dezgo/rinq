@@ -101,27 +101,27 @@ class TransferService:
         targets = []
         seen_emails = set()
 
-        # Try staff directory for all active staff
-        try:
-            from rinq.integrations import get_staff_directory
-            staff_dir = get_staff_directory()
-            active_staff = staff_dir.get_active_staff() if staff_dir else []
-            if active_staff:
-                for s in active_staff:
-                    email = (s.get('google_primary_email') or s.get('work_email') or '').lower().strip()
-                    if email and email not in seen_emails:
-                        seen_emails.add(email)
-                        ext = self.db.get_staff_extension(email)
-                        targets.append({
-                            'email': email,
-                            'name': s.get('name', email.split('@')[0]),
-                            'has_sip': True,
-                            'has_browser': True,
-                            'extension': ext.get('extension') if ext else None,
-                        })
-                return sorted(targets, key=lambda x: x['name'].lower())
-        except Exception as e:
-            logger.warning(f"Could not fetch staff from Peter for transfer targets: {e}")
+        # Use local staff extensions as the primary source
+        extensions = self.db.get_all_staff_extensions()
+        for ext in extensions:
+            if not ext.get('is_active'):
+                continue
+            email = ext.get('email', '').lower().strip()
+            if email and email not in seen_emails:
+                seen_emails.add(email)
+                # Try to get a friendly name from the users table
+                user = self.db.get_user_by_email(email)
+                name = (user.get('friendly_name') if user else None) or email.split('@')[0].replace('.', ' ').replace('_', ' ').title()
+                targets.append({
+                    'email': email,
+                    'name': name,
+                    'has_sip': True,
+                    'has_browser': True,
+                    'extension': ext.get('extension'),
+                })
+
+        if targets:
+            return sorted(targets, key=lambda x: x['name'].lower())
 
         # Fallback: queue members only
         members = self.db.get_all_queue_members()
