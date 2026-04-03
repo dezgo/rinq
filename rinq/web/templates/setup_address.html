@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title_suffix %} - Business Address{% endblock %}
+
+{% block content %}
+<h2>Business Address</h2>
+<p>A verified address is required to purchase phone numbers. This is a regulatory requirement from the phone network.</p>
+
+{% if address %}
+<div style="background: #d4edda; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+    <strong>Current Address:</strong><br>
+    {{ address.customer_name }}<br>
+    {{ address.street }}<br>
+    {{ address.city }}, {{ address.region }} {{ address.postal_code }}<br>
+    {{ address.iso_country }}
+</div>
+{% endif %}
+
+<div style="background: #f8f9fa; padding: 20px; border-radius: 5px; max-width: 500px;">
+    <form method="post" action="{{ url_for('web.save_address') }}">
+        <div style="margin-bottom: 12px;">
+            <label style="display: block; font-size: 0.85em; color: #666; margin-bottom: 4px;">Business or Contact Name</label>
+            <input type="text" name="customer_name" value="{{ address.customer_name if address else '' }}" required
+                   style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ddd; box-sizing: border-box;">
+        </div>
+        <div style="margin-bottom: 12px;">
+            <label style="display: block; font-size: 0.85em; color: #666; margin-bottom: 4px;">Street Address</label>
+            <input type="text" name="street" value="{{ address.street if address else '' }}" required
+                   style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ddd; box-sizing: border-box;">
+        </div>
+        <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+            <div style="flex: 2;">
+                <label style="display: block; font-size: 0.85em; color: #666; margin-bottom: 4px;">City</label>
+                <input type="text" name="city" value="{{ address.city if address else '' }}" required
+                       style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ddd; box-sizing: border-box;">
+            </div>
+            <div style="flex: 1;">
+                <label style="display: block; font-size: 0.85em; color: #666; margin-bottom: 4px;">State</label>
+                <input type="text" name="region" value="{{ address.region if address else '' }}" required
+                       style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ddd; box-sizing: border-box;">
+            </div>
+            <div style="flex: 1;">
+                <label style="display: block; font-size: 0.85em; color: #666; margin-bottom: 4px;">Postcode</label>
+                <input type="text" name="postal_code" value="{{ address.postal_code if address else '' }}" required
+                       style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ddd; box-sizing: border-box;">
+            </div>
+        </div>
+        <div style="margin-bottom: 16px;">
+            <label style="display: block; font-size: 0.85em; color: #666; margin-bottom: 4px;">Country</label>
+            <select name="iso_country" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ddd; box-sizing: border-box;">
+                <option value="AU" {{ 'selected' if not address or address.iso_country == 'AU' }}>Australia</option>
+                <option value="US" {{ 'selected' if address and address.iso_country == 'US' }}>United States</option>
+                <option value="GB" {{ 'selected' if address and address.iso_country == 'GB' }}>United Kingdom</option>
+                <option value="NZ" {{ 'selected' if address and address.iso_country == 'NZ' }}>New Zealand</option>
+            </select>
+        </div>
+        <button type="submit" class="btn">{{ 'Update Address' if address else 'Save Address' }}</button>
+    </form>
+</div>
+{% endblock %}

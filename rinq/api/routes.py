@@ -7155,9 +7155,18 @@ def buy_number():
         return jsonify({'error': 'Twilio not configured'}), 500
 
     try:
+        # Get address SID from tenant
+        from flask import g as flask_g
+        tenant = getattr(flask_g, 'tenant', None)
+        address_sid = tenant.get('twilio_address_sid') if tenant else None
+
+        if not address_sid:
+            return jsonify({'error': 'Business address required. Please set up your address first.'}), 400
+
         # Purchase the number
         incoming = service.client.incoming_phone_numbers.create(
             phone_number=phone_number,
+            address_sid=address_sid,
             voice_url=f"{config.webhook_base_url}/api/voice/incoming",
             voice_method='POST',
             status_callback=f"{config.webhook_base_url}/api/voice/status",

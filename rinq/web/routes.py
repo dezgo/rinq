@@ -520,6 +520,72 @@ def update_staff_extension(email):
     return redirect(url_for('web.admin_staff'))
 
 
+@web_bp.route('/admin/address')
+@admin_required
+def setup_address():
+    """Set up business address for phone number purchases."""
+    from flask import g
+    address = None
+    tenant = getattr(g, 'tenant', None)
+    if tenant and tenant.get('twilio_address_sid'):
+        try:
+            service = get_twilio_service()
+            addr = service.client.addresses(tenant['twilio_address_sid']).fetch()
+            address = {
+                'customer_name': addr.customer_name,
+                'street': addr.street,
+                'city': addr.city,
+                'region': addr.region,
+                'postal_code': addr.postal_code,
+                'iso_country': addr.iso_country,
+            }
+        except Exception:
+            pass
+    return render_template('setup_address.html', address=address, current_user=get_current_user())
+
+
+@web_bp.route('/admin/address', methods=['POST'])
+@admin_required
+def save_address():
+    """Save business address to Twilio."""
+    from flask import g
+    from rinq.database.master import get_master_db
+
+    tenant = getattr(g, 'tenant', None)
+    if not tenant:
+        flash('No tenant context', 'error')
+        return redirect(url_for('web.setup_address'))
+
+    service = get_twilio_service()
+    try:
+        # Create or update address in Twilio
+        kwargs = {
+            'friendly_name': request.form.get('customer_name', ''),
+            'customer_name': request.form.get('customer_name', ''),
+            'street': request.form.get('street', ''),
+            'city': request.form.get('city', ''),
+            'region': request.form.get('region', ''),
+            'postal_code': request.form.get('postal_code', ''),
+            'iso_country': request.form.get('iso_country', 'AU'),
+        }
+
+        if tenant.get('twilio_address_sid'):
+            # Update existing
+            service.client.addresses(tenant['twilio_address_sid']).update(**kwargs)
+            flash('Address updated.', 'success')
+        else:
+            # Create new
+            addr = service.client.addresses.create(**kwargs)
+            master_db = get_master_db()
+            master_db.update_tenant(tenant['id'], twilio_address_sid=addr.sid)
+            flash('Address saved.', 'success')
+
+    except Exception as e:
+        flash(f'Failed to save address: {e}', 'error')
+
+    return redirect(url_for('web.setup_address'))
+
+
 @web_bp.route('/admin/get-number')
 @admin_required
 def get_number():
