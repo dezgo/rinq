@@ -75,11 +75,10 @@ def init_integrations(provider: str = 'none', **kwargs):
         from rinq.integrations.resend import ResendEmailService
         _email_service = ResendEmailService()
         logger.info("Email service: resend (native API)")
-    elif not _email_service:
-        if os.environ.get('RESEND_API_KEY'):
-            from rinq.integrations.resend import ResendEmailService
-            _email_service = ResendEmailService()
-            logger.info("Email service: resend (auto-detected from env)")
+    elif os.environ.get('RESEND_API_KEY'):
+        from rinq.integrations.resend import ResendEmailService
+        _email_service = ResendEmailService()
+        logger.info("Email service: resend (auto-detected from env)")
 
 
 def get_staff_directory():
