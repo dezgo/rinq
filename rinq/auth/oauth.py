@@ -176,6 +176,15 @@ def callback():
 
         # Auto-select first tenant
         tenants = master_db.get_user_tenants(user['id'])
+        if not tenants:
+            # Auto-provision: check if email domain matches any tenant's allowed_domains
+            email_domain = email.split('@')[-1]
+            matching_tenants = master_db.get_tenants_for_email_domain(email_domain)
+            for tenant in matching_tenants:
+                master_db.add_user_to_tenant(tenant['id'], user['id'], role='user')
+                logger.info(f"Auto-provisioned {email} into tenant {tenant['id']} (domain match: {email_domain})")
+            tenants = master_db.get_user_tenants(user['id'])
+
         if tenants:
             session['tenant_id'] = tenants[0]['id']
         else:

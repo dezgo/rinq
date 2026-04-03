@@ -59,6 +59,21 @@ class MasterDatabase:
         finally:
             conn.close()
 
+    def get_tenants_for_email_domain(self, email_domain: str):
+        """Find all active tenants that allow this email domain."""
+        conn = self._get_conn()
+        try:
+            rows = conn.execute("SELECT * FROM tenants WHERE is_active = 1 AND allowed_domains IS NOT NULL").fetchall()
+            results = []
+            for row in rows:
+                tenant = dict(row)
+                domains = [d.strip().lower() for d in (tenant.get('allowed_domains') or '').split(',') if d.strip()]
+                if email_domain.lower() in domains:
+                    results.append(tenant)
+            return results
+        finally:
+            conn.close()
+
     def create_tenant(self, tenant_id: str, name: str, **kwargs):
         conn = self._get_conn()
         try:
