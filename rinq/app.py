@@ -71,8 +71,7 @@ else:
 
 # Initialize integrations (none by default, watson for bot-team)
 integration_provider = os.environ.get('RINQ_INTEGRATIONS', 'none')
-if integration_provider != 'none':
-    init_integrations(integration_provider)
+init_integrations(integration_provider)
 
 # Multi-tenant middleware (optional)
 if config.multi_tenant:
