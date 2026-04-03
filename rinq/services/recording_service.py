@@ -224,9 +224,16 @@ Recording SID: {recording_sid}"""
             google_message_id = None
             from rinq.integrations import get_email_service
             email_svc = get_email_service()
-            if email_svc:
+            # Use tenant's recordings email if set, fall back to config
+            try:
+                from flask import g
+                tenant = getattr(g, 'tenant', None)
+                recordings_email = (tenant.get('recordings_group_email') if tenant else None) or config.recordings_group_email
+            except RuntimeError:
+                recordings_email = config.recordings_group_email
+            if email_svc and recordings_email:
                 google_message_id = email_svc.send_email(
-                    to=config.recordings_group_email,
+                    to=recordings_email,
                     subject=subject,
                     text_body=body,
                     attachments=[{
@@ -250,7 +257,7 @@ Recording SID: {recording_sid}"""
                 'to_number': to_number,
                 'duration_seconds': duration,
                 'recording_url': recording_url,
-                'emailed_to': config.recordings_group_email if google_message_id else None,
+                'emailed_to': recordings_email if google_message_id else None,
                 'emailed_at': now if google_message_id else None,
                 'deleted_from_twilio': 0,
                 'created_at': now,
