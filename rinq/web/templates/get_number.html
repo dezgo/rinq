@@ -71,7 +71,7 @@ async function searchNumbers() {
                         <strong style="font-size: 1.1em;">${n.phone_number}</strong>
                         <span style="color: #666; margin-left: 10px;">${n.locality}${n.region ? ', ' + n.region : ''}</span>
                     </div>
-                    <button onclick="buyNumber('${n.phone_number}')" class="btn btn-small">Get This Number</button>
+                    <button onclick="showConfirm(this, '${n.phone_number}')" class="btn btn-small">Get This Number</button>
                 </div>
             `).join('');
             document.getElementById('results').style.display = 'block';
@@ -86,8 +86,32 @@ async function searchNumbers() {
     }
 }
 
-async function buyNumber(phoneNumber) {
-    if (!confirm(`Purchase ${phoneNumber}? This will be charged to your Twilio account.`)) return;
+function showConfirm(btn, phoneNumber) {
+    // Remove any existing confirmations
+    document.querySelectorAll('.buy-confirm').forEach(el => el.remove());
+
+    const row = btn.closest('div');
+    btn.style.display = 'none';
+
+    const confirmDiv = document.createElement('div');
+    confirmDiv.className = 'buy-confirm';
+    confirmDiv.style.cssText = 'display: flex; gap: 8px; align-items: center;';
+    confirmDiv.innerHTML = `
+        <button onclick="buyNumber('${phoneNumber}', this)" class="btn btn-small" style="background: #27ae60;">Confirm Purchase</button>
+        <button onclick="cancelConfirm(this)" class="btn btn-small" style="background: #95a5a6;">Cancel</button>
+    `;
+    row.appendChild(confirmDiv);
+}
+
+function cancelConfirm(btn) {
+    const row = btn.closest('div').parentElement;
+    row.querySelector('.buy-confirm').remove();
+    row.querySelector('button[style*="display: none"]').style.display = '';
+}
+
+async function buyNumber(phoneNumber, btn) {
+    btn.disabled = true;
+    btn.textContent = 'Purchasing...';
 
     try {
         const resp = await fetch('/api/numbers/buy', {
