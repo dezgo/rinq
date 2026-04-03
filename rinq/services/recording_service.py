@@ -28,8 +28,11 @@ class RecordingService:
     RECORDINGS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'recordings')
 
     def __init__(self):
-        self.db = get_db()
         self._drive_service = None
+
+    @property
+    def db(self):
+        return get_db()
         # Ensure recordings directory exists
         os.makedirs(self.RECORDINGS_DIR, exist_ok=True)
 

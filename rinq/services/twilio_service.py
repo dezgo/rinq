@@ -25,8 +25,12 @@ class TwilioService:
     """Service for Twilio PBX operations."""
 
     def __init__(self):
-        self.db = get_db()
         self._client = None
+
+    @property
+    def db(self):
+        """Get database for current tenant context (not cached)."""
+        return get_db()
 
     @property
     def client(self) -> Client:

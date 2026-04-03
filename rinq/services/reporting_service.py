@@ -21,8 +21,9 @@ LOCAL_TZ = pytz.timezone('Australia/Sydney')
 class ReportingService:
     """Service for generating call reports and statistics."""
 
-    def __init__(self):
-        self.db = get_db()
+    @property
+    def db(self):
+        return get_db()
 
     def get_report_data(self, period: str = 'today', queue_name: str = None, queue_names: list = None,
                         agent_emails: list = None, team_emails: list = None) -> dict:

@@ -34,8 +34,11 @@ class TransferService:
     """Service for call transfer operations."""
 
     def __init__(self):
-        self.db = get_db()
         self.twilio = get_twilio_service()
+
+    @property
+    def db(self):
+        return get_db()
 
     def _build_extension_dial_twiml(self, extension: str, caller_id: str) -> str | None:
         """Build TwiML to dial a staff member by extension.
