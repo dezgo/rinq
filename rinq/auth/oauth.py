@@ -66,9 +66,13 @@ def _get_config():
 
 
 def _get_flow(state=None):
-    """Create Google OAuth flow."""
+    """Create Google OAuth flow using the current request's domain."""
     config = _get_config()
-    callback_url = config.webhook_base_url
+    try:
+        from flask import request as flask_request
+        callback_url = flask_request.host_url.rstrip('/')
+    except RuntimeError:
+        callback_url = config.webhook_base_url
     if not callback_url:
         callback_url = 'http://localhost:' + str(config.server_port)
     callback_url = callback_url.rstrip('/') + '/auth/callback'
