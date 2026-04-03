@@ -559,7 +559,7 @@ def _get_sip_uri_for_user(user_email: str, sip_domain: str) -> str | None:
     return None
 
 
-def _ring_agents_for_queue(queue_id: int, queue_name: str, customer_caller_id: str, our_caller_id: str, customer_call_sid: str):
+def _ring_agents_for_queue(queue_id: int, queue_name: str, customer_caller_id: str, our_caller_id: str, customer_call_sid: str, base_url: str = None):
     """Initiate outbound calls to all agents when a caller enters the queue.
 
     This implements "queue with auto-ring" - callers wait in queue with hold music
@@ -591,10 +591,10 @@ def _ring_agents_for_queue(queue_id: int, queue_name: str, customer_caller_id: s
             sip_domain = _get_sip_domain()
 
             # URL that agent calls will hit when answered
-            answer_url = f"{config.webhook_base_url}/api/voice/queue/{queue_id}/agent-answer?customer_call_sid={customer_call_sid}"
+            answer_url = f"{base_url}/api/voice/queue/{queue_id}/agent-answer?customer_call_sid={customer_call_sid}"
 
             # Status callback URL for rejection/no-answer handling
-            status_callback_url = f"{config.webhook_base_url}/api/voice/queue/{queue_id}/agent-ring-status?customer_call_sid={customer_call_sid}"
+            status_callback_url = f"{base_url}/api/voice/queue/{queue_id}/agent-ring-status?customer_call_sid={customer_call_sid}"
 
             calls_initiated = 0
             agent_call_sids = []  # Track for cancellation
@@ -661,7 +661,8 @@ _conference_ring_calls = {}  # conference_name -> [call_sids]
 
 
 def _ring_targets_into_conference(dial_targets: list, conference_name: str,
-                                   caller_id: str, caller_call_sid: str):
+                                   caller_id: str, caller_call_sid: str,
+                                   base_url: str = None):
     """Ring multiple devices and have the first to answer join a conference.
 
     Similar to _ring_agents_for_queue but for conference-first direct
@@ -672,6 +673,7 @@ def _ring_targets_into_conference(dial_targets: list, conference_name: str,
         conference_name: Conference room name to join
         caller_id: Caller ID to show on ringing phones
         caller_call_sid: The caller's call SID (for status callbacks)
+        base_url: Webhook base URL (must be passed from request context)
     """
     import threading
 
@@ -679,9 +681,9 @@ def _ring_targets_into_conference(dial_targets: list, conference_name: str,
         try:
             service = get_twilio_service()
 
-            answer_url = f"{config.webhook_base_url}/api/voice/conference/join?room={conference_name}&role=agent"
+            answer_url = f"{base_url}/api/voice/conference/join?room={conference_name}&role=agent"
             status_url = (
-                f"{config.webhook_base_url}/api/voice/inbound/ring-status"
+                f"{base_url}/api/voice/inbound/ring-status"
                 f"?conference={conference_name}&caller_call_sid={caller_call_sid}"
             )
 
@@ -1119,7 +1121,7 @@ def voice_incoming():
                 response_parts.append('    </Dial>')
                 response_parts.append(f'    <Redirect>{xml_escape(no_answer_url)}</Redirect>')
 
-                _ring_targets_into_conference(dial_targets, conference_name, called_number, call_sid)
+                _ring_targets_into_conference(dial_targets, conference_name, called_number, call_sid, base_url=config.webhook_base_url)
 
                 db.log_activity(
                     action="call_direct_assignment",
@@ -1198,7 +1200,7 @@ def voice_incoming():
                 response_parts.append('    </Dial>')
                 response_parts.append(f'    <Redirect>{xml_escape(no_answer_url)}</Redirect>')
 
-                _ring_targets_into_conference(dial_targets, conference_name, called_number, call_sid)
+                _ring_targets_into_conference(dial_targets, conference_name, called_number, call_sid, base_url=config.webhook_base_url)
 
                 db.log_activity(
                     action="call_dialing_agents",
@@ -3270,7 +3272,7 @@ def queue_wait(queue_id):
             # Auto-ring agents when caller enters queue
             # - SIP calls use customer's number so agents see who's calling on desk phone
             # - Mobile calls use our Twilio number (required - can only use numbers we own)
-            _ring_agents_for_queue(queue_id, queue.get('name'), from_number, called_number, call_sid)
+            _ring_agents_for_queue(queue_id, queue.get('name'), from_number, called_number, call_sid, base_url=config.webhook_base_url)
 
     if not queue:
         # Queue not found - play default hold music from static/ (safe from admin deletion)
@@ -3719,7 +3721,7 @@ def voice_extension_dial():
     conference_name = f"call_{call_sid}"
     db.set_call_conference(call_sid, conference_name)
 
-    _ring_targets_into_conference(dial_targets, conference_name, from_number, call_sid)
+    _ring_targets_into_conference(dial_targets, conference_name, from_number, call_sid, base_url=config.webhook_base_url)
 
     no_answer_url = f"{config.webhook_base_url}/api/voice/extension-no-answer?called={quote(called_number, safe='')}&from={quote(from_number, safe='')}&flow_id={flow_id}"
     ringback_url = f"{config.webhook_base_url}/api/voice/ringback"
@@ -4454,7 +4456,7 @@ def _handle_internal_extension_call(extension: str, from_identity: str, staff_em
     db.set_call_conference(call_sid, conference_name)
 
     # Ring recipient's devices via REST API into the conference
-    _ring_targets_into_conference(dial_targets, conference_name, dial_caller_id, call_sid)
+    _ring_targets_into_conference(dial_targets, conference_name, dial_caller_id, call_sid, base_url=config.webhook_base_url)
 
     # Caller joins conference — hears ringback until recipient answers
     ringback_url = f"{config.webhook_base_url}/api/voice/ringback"
