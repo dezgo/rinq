@@ -6,7 +6,7 @@
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#e74c3c">
     <title>{{ config.name }}{% block title_suffix %}{% endblock %}</title>
-    <link rel="stylesheet" href="{{ shared_css_url }}">
+    {% if shared_css_url %}<link rel="stylesheet" href="{{ shared_css_url }}">{% endif %}
     <style>
         :root {
             --bot-primary: #e74c3c;
@@ -255,7 +255,7 @@
             <p>{{ config.description }}</p>
             {% if current_user and current_user.is_authenticated %}
             <div class="user-info">
-                {{ current_user.name }} | <a href="{{ url_for('gateway_auth.logout') }}">Logout</a>
+                {{ current_user.name }} | <a href="/logout">Logout</a>
             </div>
             {% endif %}
         </header>
