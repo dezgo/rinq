@@ -22,6 +22,7 @@
         <h2 style="margin: 0;">Phone Numbers</h2>
         <div style="display: flex; gap: 10px;">
             <a href="{{ url_for('web.admin') }}" class="btn" style="background: #6c757d;">Back to Admin</a>
+            <a href="{{ url_for('web.get_number') }}" class="btn" style="background: #27ae60;">Get a Number</a>
             <form method="post" action="{{ url_for('web.sync') }}" style="margin: 0;">
                 <button type="submit" class="btn">Sync from Twilio</button>
             </form>
