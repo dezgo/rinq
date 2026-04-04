@@ -67,18 +67,20 @@ _CONFIG_ATTR_MAP = {
 
 
 def get_twilio_config(key: str, default=None):
-    """Get a Twilio config value, checking tenant first then global config.
+    """Get a Twilio config value from the current tenant.
+
+    When a tenant is in context, returns the tenant's value (which may be
+    None if the tenant hasn't configured it). Only falls back to global
+    config when there is NO tenant context (e.g. background threads).
 
     Args:
         key: The tenant column name, e.g. 'twilio_default_caller_id'
-        default: Fallback if neither tenant nor global config has it
+        default: Fallback if the value is not set
     """
     tenant = get_current_tenant()
     if tenant:
-        val = tenant.get(key)
-        if val:
-            return val
-    # Fall back to global config (attribute names may differ)
+        return tenant.get(key) or default
+    # No tenant context — fall back to global config
     from rinq.config import config
     config_attr = _CONFIG_ATTR_MAP.get(key, key)
     return getattr(config, config_attr, default)
