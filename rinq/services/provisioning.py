@@ -69,7 +69,29 @@ def provision_tenant(tenant_id: str, tenant_name: str, admin_email: str,
         api_key = sub_client.new_keys.create(friendly_name=f"{tenant_name} Browser Key")
         logger.info(f"Created API key: {api_key.sid}")
 
-        # 4. Create tenant record
+        # 4. Create SIP credential list and domain
+        cred_list = sub_client.sip.credential_lists.create(
+            friendly_name=f"{tenant_name} Users"
+        )
+        logger.info(f"Created SIP credential list: {cred_list.sid}")
+
+        sip_slug = tenant_id.replace('_', '-')
+        sip_domain = sub_client.sip.domains.create(
+            domain_name=f"{sip_slug}.sip.twilio.com",
+            friendly_name=f"{tenant_name} SIP",
+            voice_url=f"{base_url}/api/sip/incoming",
+            voice_method='POST',
+        )
+        logger.info(f"Created SIP domain: {sip_domain.domain_name}")
+
+        # Link credential list for both calls and registrations
+        sub_client.sip.domains(sip_domain.sid) \
+            .auth.calls.credential_list_mappings.create(credential_list_sid=cred_list.sid)
+        sub_client.sip.domains(sip_domain.sid) \
+            .auth.registrations.credential_list_mappings.create(credential_list_sid=cred_list.sid)
+        logger.info(f"Linked credential list to SIP domain for calls and registrations")
+
+        # 5. Create tenant record
         master_db.create_tenant(
             tenant_id=tenant_id,
             name=tenant_name,
@@ -78,6 +100,7 @@ def provision_tenant(tenant_id: str, tenant_name: str, admin_email: str,
             twilio_api_key=api_key.sid,
             twilio_api_secret=api_key.secret,
             twilio_twiml_app_sid=twiml_app.sid,
+            twilio_sip_credential_list_sid=cred_list.sid,
             webhook_base_url=base_url,
         )
 
