@@ -82,7 +82,8 @@ class TwilioService:
     def get_account_info(self) -> dict:
         """Get Twilio account information."""
         try:
-            account = self.client.api.accounts(config.twilio_account_sid).fetch()
+            account_sid = self._get_tenant_twilio_creds()[0]
+            account = self.client.api.accounts(account_sid).fetch()
             return {
                 "sid": account.sid,
                 "friendly_name": account.friendly_name,

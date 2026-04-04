@@ -463,8 +463,8 @@ def _normalize_staff_identifier(identifier: str) -> tuple[str | None, str | None
     return None, None
 
 
-# Cache for SIP domain to avoid repeated API calls
-_sip_domain_cache = {'domain': None, 'fetched_at': None}
+# Cache for SIP domain to avoid repeated API calls (per-tenant)
+_sip_domain_cache = {}  # {tenant_id: {'domain': str, 'fetched_at': datetime}}
 
 # Track agent calls initiated for each customer call (for cancellation)
 # Format: {customer_call_sid: [agent_call_sid, agent_call_sid, ...]}
@@ -515,17 +515,20 @@ def _cancel_agent_calls(customer_call_sid: str, except_call_sid: str = None):
 
 
 def _get_sip_domain() -> str | None:
-    """Get the SIP domain from Twilio (cached for 5 minutes).
+    """Get the SIP domain from Twilio (cached for 5 minutes, per-tenant).
 
     Returns the domain name like 'watson.sip.twilio.com' or None if not configured.
     """
     from datetime import timedelta
+    from flask import g
+    tenant_id = getattr(g, 'tenant', {}).get('id', '_none') if hasattr(g, 'tenant') and g.tenant else '_none'
 
-    # Check cache (5 minute TTL)
-    if _sip_domain_cache['domain'] and _sip_domain_cache['fetched_at']:
-        age = datetime.utcnow() - _sip_domain_cache['fetched_at']
+    # Check cache (5 minute TTL, per-tenant)
+    cached = _sip_domain_cache.get(tenant_id)
+    if cached and cached['fetched_at']:
+        age = datetime.utcnow() - cached['fetched_at']
         if age < timedelta(minutes=5):
-            return _sip_domain_cache['domain']
+            return cached['domain']
 
     # Fetch from Twilio
     try:
@@ -533,8 +536,7 @@ def _get_sip_domain() -> str | None:
         domains = service.get_sip_domains()
         if domains:
             domain_name = domains[0]['domain_name']
-            _sip_domain_cache['domain'] = domain_name
-            _sip_domain_cache['fetched_at'] = datetime.utcnow()
+            _sip_domain_cache[tenant_id] = {'domain': domain_name, 'fetched_at': datetime.utcnow()}
             return domain_name
     except Exception as e:
         logger.warning(f"Failed to get SIP domain: {e}")
@@ -4000,7 +4002,8 @@ def voicemail_handler():
 
                 # Twilio requires auth to download recordings
                 # Recording might not be immediately available - retry with backoff
-                auth = (config.twilio_account_sid, config.twilio_auth_token)
+                twilio_creds = get_twilio_service()._get_tenant_twilio_creds()
+                auth = (twilio_creds[0], twilio_creds[1] or config.twilio_auth_token)
                 audio_content = None
                 max_retries = 5
                 for attempt in range(max_retries):
@@ -5624,7 +5627,8 @@ def get_contacts():
 # =============================================================================
 
 # In-memory cache for Twilio active calls (avoids hammering the API)
-_active_calls_cache = {'calls': [], 'fetched_at': 0}
+# Keyed by tenant ID to prevent cross-tenant data leakage
+_active_calls_cache = {}  # {tenant_id: {'calls': [], 'fetched_at': 0}}
 _ACTIVE_CALLS_TTL = 5  # seconds
 
 
@@ -5634,11 +5638,14 @@ def _get_active_calls_from_twilio() -> list[dict]:
     Uses a 5-second cache to avoid redundant Twilio API calls when
     multiple phone clients are polling simultaneously.
     """
+    from flask import g
+    tenant_id = getattr(g, 'tenant', {}).get('id', '_none') if hasattr(g, 'tenant') and g.tenant else '_none'
     now = time.time()
 
-    # Return cached result if fresh
-    if now - _active_calls_cache['fetched_at'] < _ACTIVE_CALLS_TTL:
-        return _active_calls_cache['calls']
+    # Return cached result if fresh (per-tenant)
+    tenant_cache = _active_calls_cache.get(tenant_id, {'calls': [], 'fetched_at': 0})
+    if now - tenant_cache['fetched_at'] < _ACTIVE_CALLS_TTL:
+        return tenant_cache['calls']
 
     twilio = get_twilio_service()
     db = get_db()
@@ -5678,8 +5685,7 @@ def _get_active_calls_from_twilio() -> list[dict]:
                 'queue_name': log.get('queue_name'),
             })
 
-    _active_calls_cache['calls'] = result
-    _active_calls_cache['fetched_at'] = now
+    _active_calls_cache[tenant_id] = {'calls': result, 'fetched_at': now}
     return result
 
 
@@ -6823,6 +6829,11 @@ def get_recording_audio(recording_sid: str):
 
     db = get_db()
 
+    # Verify this recording belongs to the current tenant (prevents cross-tenant access)
+    recording = db.get_recording_by_sid(recording_sid)
+    if not recording:
+        return jsonify({"error": "Recording not found"}), 404
+
     # 1. Check if we have a local cached file
     file_path = recording_service.get_recording_file_path(recording_sid)
 
@@ -6835,11 +6846,6 @@ def get_recording_audio(recording_sid: str):
             as_attachment=False,
             download_name=f'{recording_sid}.mp3'
         )
-
-    # Cache miss - look up the recording in the database
-    recording = db.get_recording_by_sid(recording_sid)
-    if not recording:
-        return jsonify({"error": "Recording not found"}), 404
 
     # 2. Try Google Drive (12-month warm storage)
     drive_file_id = recording.get('drive_file_id')
