@@ -60,27 +60,14 @@ def get_tenant_twilio_config():
     }
 
 
-# Map from tenant DB column names to config attribute names (where they differ)
-_CONFIG_ATTR_MAP = {
-    'twilio_sip_credential_list_sid': 'sip_credential_list_sid',
-}
-
-
 def get_twilio_config(key: str, default=None):
     """Get a Twilio config value from the current tenant.
 
-    When a tenant is in context, returns the tenant's value (which may be
-    None if the tenant hasn't configured it). Only falls back to global
-    config when there is NO tenant context (e.g. background threads).
-
     Args:
         key: The tenant column name, e.g. 'twilio_default_caller_id'
-        default: Fallback if the value is not set
+        default: Fallback if the tenant hasn't configured this value
     """
     tenant = get_current_tenant()
-    if tenant:
-        return tenant.get(key) or default
-    # No tenant context — fall back to global config
-    from rinq.config import config
-    config_attr = _CONFIG_ATTR_MAP.get(key, key)
-    return getattr(config, config_attr, default)
+    if not tenant:
+        raise RuntimeError(f"No tenant in context when reading {key}")
+    return tenant.get(key) or default
