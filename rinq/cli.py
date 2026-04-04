@@ -147,13 +147,18 @@ def setup_sip(args):
             print(f"Created SIP domain: {domain.domain_name}")
         except (TwilioRestException, TwilioException) as e:
             if 'already exists' in str(e):
-                # Domain exists but list() failed — fetch via API directly
+                # Domain exists but list() failed — fetch via raw REST
                 import requests as req
                 resp = req.get(
                     f"https://api.twilio.com/2010-04-01/Accounts/{sid}/SIP/Domains.json",
                     auth=(sid, token)
                 ).json()
-                domain_data = resp.get('sip_domains', [{}])[0]
+                # Response has 'domains' key (not 'sip_domains')
+                domain_list = resp.get('domains', resp.get('sip_domains', []))
+                if not domain_list:
+                    print(f"ERROR: Domain exists but could not fetch it. Raw response: {resp}")
+                    sys.exit(1)
+                domain_data = domain_list[0]
                 domain = client.sip.domains(domain_data['sid'])
                 print(f"Using existing SIP domain: {domain_data['domain_name']}")
             else:
