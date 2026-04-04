@@ -109,14 +109,20 @@ def setup_sip(args):
         sys.exit(1)
 
     from twilio.rest import Client
+    from twilio.base.exceptions import TwilioRestException
     client = Client(sid, token)
     base_url = tenant.get('webhook_base_url') or config.webhook_base_url
 
-    # Create credential list
-    cred_list = client.sip.credential_lists.create(
-        friendly_name=f"{tenant['name']} Users"
-    )
-    print(f"Created credential list: {cred_list.sid}")
+    # Create credential list (or reuse existing)
+    existing_lists = client.sip.credential_lists.list()
+    if existing_lists:
+        cred_list = existing_lists[0]
+        print(f"Using existing credential list: {cred_list.sid}")
+    else:
+        cred_list = client.sip.credential_lists.create(
+            friendly_name=f"{tenant['name']} Users"
+        )
+        print(f"Created credential list: {cred_list.sid}")
 
     # Create or reuse SIP domain
     domains = client.sip.domains.list()
@@ -134,9 +140,16 @@ def setup_sip(args):
         print(f"Created SIP domain: {domain.domain_name}")
 
     # Link credential list for calls and registrations
-    domain.auth.calls.credential_list_mappings.create(credential_list_sid=cred_list.sid)
-    domain.auth.registrations.credential_list_mappings.create(credential_list_sid=cred_list.sid)
-    print(f"Linked credential list to domain")
+    try:
+        domain.auth.calls.credential_list_mappings.create(credential_list_sid=cred_list.sid)
+        print(f"Linked credential list for calls")
+    except TwilioRestException:
+        print(f"Credential list already linked for calls")
+    try:
+        domain.auth.registrations.credential_list_mappings.create(credential_list_sid=cred_list.sid)
+        print(f"Linked credential list for registrations")
+    except TwilioRestException:
+        print(f"Credential list already linked for registrations")
 
     # Update tenant record
     master_db.update_tenant(args.tenant, twilio_sip_credential_list_sid=cred_list.sid)
