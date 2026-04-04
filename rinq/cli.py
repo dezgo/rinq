@@ -89,6 +89,60 @@ def list_tenants(args):
         print(f"  {t['id']}: {t['name']} ({user_count} users, integrations: {t.get('integration_provider', 'none')})")
 
 
+def setup_sip(args):
+    """Set up SIP for a tenant that was provisioned before SIP auto-setup."""
+    master_db = get_master_db()
+    tenant = master_db.get_tenant(args.tenant)
+    if not tenant:
+        print(f"Tenant '{args.tenant}' not found")
+        sys.exit(1)
+
+    if tenant.get('twilio_sip_credential_list_sid'):
+        print(f"Tenant '{args.tenant}' already has SIP configured: {tenant['twilio_sip_credential_list_sid']}")
+        if not args.force:
+            sys.exit(0)
+
+    sid = tenant.get('twilio_account_sid')
+    token = tenant.get('twilio_auth_token')
+    if not sid or not token:
+        print(f"Tenant '{args.tenant}' has no Twilio credentials")
+        sys.exit(1)
+
+    from twilio.rest import Client
+    client = Client(sid, token)
+    base_url = tenant.get('webhook_base_url') or config.webhook_base_url
+
+    # Create credential list
+    cred_list = client.sip.credential_lists.create(
+        friendly_name=f"{tenant['name']} Users"
+    )
+    print(f"Created credential list: {cred_list.sid}")
+
+    # Create or reuse SIP domain
+    domains = client.sip.domains.list()
+    if domains:
+        domain = domains[0]
+        print(f"Using existing SIP domain: {domain.domain_name}")
+    else:
+        sip_slug = args.tenant.replace('_', '-')
+        domain = client.sip.domains.create(
+            domain_name=f"{sip_slug}.sip.twilio.com",
+            friendly_name=f"{tenant['name']} SIP",
+            voice_url=f"{base_url}/api/sip/incoming",
+            voice_method='POST',
+        )
+        print(f"Created SIP domain: {domain.domain_name}")
+
+    # Link credential list for calls and registrations
+    domain.auth.calls.credential_list_mappings.create(credential_list_sid=cred_list.sid)
+    domain.auth.registrations.credential_list_mappings.create(credential_list_sid=cred_list.sid)
+    print(f"Linked credential list to domain")
+
+    # Update tenant record
+    master_db.update_tenant(args.tenant, twilio_sip_credential_list_sid=cred_list.sid)
+    print(f"Done — SIP configured for tenant '{args.tenant}'")
+
+
 def register_number(args):
     """Register a phone number to a tenant."""
     master_db = get_master_db()
@@ -132,6 +186,12 @@ def main():
     # list-tenants
     sp = subparsers.add_parser('list-tenants', help='List all tenants')
     sp.set_defaults(func=list_tenants)
+
+    # setup-sip
+    sp = subparsers.add_parser('setup-sip', help='Set up SIP for an existing tenant')
+    sp.add_argument('--tenant', required=True, help='Tenant ID')
+    sp.add_argument('--force', action='store_true', help='Recreate even if already configured')
+    sp.set_defaults(func=setup_sip)
 
     # register-number
     sp = subparsers.add_parser('register-number', help='Register phone number to tenant')
