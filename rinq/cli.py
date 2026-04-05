@@ -191,6 +191,14 @@ def setup_sip(args):
     print(f"Done — SIP configured for tenant '{args.tenant}'")
 
 
+def _find_list(resp):
+    """Find the list payload in a Twilio REST response (key varies by endpoint)."""
+    for key, val in resp.items():
+        if isinstance(val, list):
+            return val
+    return []
+
+
 def check_sip(args):
     """Diagnose SIP registration issues for a tenant."""
     master_db = get_master_db()
@@ -236,7 +244,7 @@ def check_sip(args):
             f"https://api.twilio.com/2010-04-01/Accounts/{sid}/SIP/Domains/{d['sid']}/Auth/Calls/CredentialListMappings.json",
             auth=(sid, token)
         ).json()
-        call_mappings = calls_resp.get('contents', [])
+        call_mappings = _find_list(calls_resp)
         print(f"    Calls auth: {len(call_mappings)} credential list(s)")
         for m in call_mappings:
             match = ' ← MATCH' if m.get('sid') == cred_list_sid else ''
@@ -247,7 +255,7 @@ def check_sip(args):
             f"https://api.twilio.com/2010-04-01/Accounts/{sid}/SIP/Domains/{d['sid']}/Auth/Registrations/CredentialListMappings.json",
             auth=(sid, token)
         ).json()
-        reg_mappings = reg_resp.get('contents', [])
+        reg_mappings = _find_list(reg_resp)
         print(f"    Registration auth: {len(reg_mappings)} credential list(s)")
         for m in reg_mappings:
             match = ' ← MATCH' if m.get('sid') == cred_list_sid else ''
@@ -261,11 +269,12 @@ def check_sip(args):
                 f"https://api.twilio.com/2010-04-01/Accounts/{sid}/SIP/CredentialLists/{cred_list_sid}/Credentials.json",
                 auth=(sid, token)
             ).json()
-            creds = creds_resp.get('credentials', [])
+            creds = _find_list(creds_resp)
             if not creds:
                 print("  NONE — no credentials found")
-            for c in creds:
-                print(f"  {c.get('username')} (SID: {c.get('sid')})")
+            else:
+                for c in creds:
+                    print(f"  {c.get('username')} (SID: {c.get('sid')})")
         except Exception as e:
             print(f"  ERROR fetching credentials: {e}")
 
