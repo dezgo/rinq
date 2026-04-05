@@ -268,7 +268,7 @@
         </div>
         <div id="qrSection" style="display: none; text-align: center; padding: 10px 0; border-top: 1px solid #eee;">
             <canvas id="qrCanvas"></canvas>
-            <div class="text-muted" style="font-size: 0.85em; margin-top: 5px;">Scan with your phone camera to copy</div>
+            <div class="text-muted" style="font-size: 0.85em; margin-top: 5px;"><span id="qrLabel"></span> — scan with your phone camera to copy</div>
         </div>
     </div>
 
@@ -374,6 +374,8 @@ var _qrValues = {
 };
 var _qrActive = null;
 
+var _qrLabels = {domain: 'Server / Domain', password: 'Password'};
+
 function toggleQR(field) {
     var section = document.getElementById('qrSection');
     if (_qrActive === field) {
@@ -382,6 +384,7 @@ function toggleQR(field) {
         return;
     }
     generateQR(document.getElementById('qrCanvas'), _qrValues[field] || '');
+    document.getElementById('qrLabel').textContent = _qrLabels[field] || field;
     section.style.display = 'block';
     _qrActive = field;
 }
