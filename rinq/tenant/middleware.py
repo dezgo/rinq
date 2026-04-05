@@ -67,7 +67,7 @@ def resolve_tenant():
             value = value.strip()
             # SIP URI (e.g. sip:derekgg@derek-c1012a.sip.twilio.com) — resolve by SIP domain
             if '@' in value:
-                sip_domain = value.split('@', 1)[1]
+                sip_domain = value.split('@', 1)[1].split(';')[0]  # strip ;transport=UDP etc
                 tenant = master_db.get_tenant_by_sip_domain(sip_domain)
                 if tenant:
                     g.tenant = tenant
