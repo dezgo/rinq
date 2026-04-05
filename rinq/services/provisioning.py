@@ -83,6 +83,7 @@ def provision_tenant(tenant_id: str, tenant_name: str, admin_email: str,
             friendly_name=f"{tenant_name} SIP",
             voice_url=f"{base_url}/api/sip/incoming",
             voice_method='POST',
+            sip_registration=True,
         )
         logger.info(f"Created SIP domain: {sip_domain.domain_name}")
 

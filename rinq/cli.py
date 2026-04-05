@@ -149,6 +149,7 @@ def setup_sip(args):
                 friendly_name=f"{tenant['name']} SIP",
                 voice_url=f"{base_url}/api/sip/incoming",
                 voice_method='POST',
+                sip_registration=True,
             )
             domain_name = domain.domain_name
             print(f"Created SIP domain: {domain_name}")
