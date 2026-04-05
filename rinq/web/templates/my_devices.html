@@ -221,6 +221,7 @@
                 <span class="value-text">{{ sip_domain or 'Not configured' }}</span>
                 {% if sip_domain %}
                 <span class="copy-icon" onclick="copyText('{{ sip_domain }}', this)" title="Copy"></span>
+                <button type="button" class="action-icon" onclick="toggleQR('domain')" title="Show QR Code">QR</button>
                 {% endif %}
             </span>
         </div>
@@ -251,6 +252,7 @@
                 </span>
                 <span class="action-icon" onclick="togglePassword(this)" title="Show/Hide">👁️</span>
                 <span class="copy-icon" onclick="copyText('{{ stored_password }}', this)" title="Copy"></span>
+                <button type="button" class="action-icon" onclick="toggleQR('password')" title="Show QR Code">QR</button>
                 <form method="POST" action="{{ url_for('web.regenerate_desk_phone_password') }}" style="display: inline;">
                     <button type="submit" class="action-icon" title="Generate new password">🔄</button>
                 </form>
@@ -264,18 +266,10 @@
                 {% endif %}
             </div>
         </div>
-        {% if credential and sip_domain and (stored_password or new_password) %}
-        <div class="credential-row" style="border-bottom: none;">
-            <span class="credential-label"></span>
-            <div class="credential-value">
-                <button type="button" class="btn btn-small" onclick="toggleQR()" id="qrToggle">Show QR Code</button>
-                <span class="text-muted" style="margin-left: 8px; font-size: 0.9em;">Scan to copy password to your phone</span>
-            </div>
-        </div>
-        <div id="qrSection" style="display: none; text-align: center; padding-bottom: 10px;">
+        <div id="qrSection" style="display: none; text-align: center; padding: 10px 0; border-top: 1px solid #eee;">
             <canvas id="qrCanvas"></canvas>
+            <div class="text-muted" style="font-size: 0.85em; margin-top: 5px;">Scan with your phone camera to copy</div>
         </div>
-        {% endif %}
     </div>
 
     {% if callable_numbers %}
@@ -373,21 +367,23 @@ function copyText(text, element) {
     });
 }
 
-function toggleQR() {
-    const section = document.getElementById('qrSection');
-    const btn = document.getElementById('qrToggle');
-    if (section.style.display === 'none') {
-        section.style.display = 'block';
-        btn.textContent = 'Hide QR Code';
-        // Generate QR on first show — password only, easy to scan and paste
-        if (!section.dataset.generated) {
-            generateQR(document.getElementById('qrCanvas'), '{{ stored_password or new_password or "" }}');
-            section.dataset.generated = '1';
-        }
-    } else {
+var _qrValues = {
+    domain: '{{ sip_domain or "" }}',
+    username: '{{ credential.username if credential else "" }}',
+    password: '{{ stored_password or new_password or "" }}'
+};
+var _qrActive = null;
+
+function toggleQR(field) {
+    var section = document.getElementById('qrSection');
+    if (_qrActive === field) {
         section.style.display = 'none';
-        btn.textContent = 'Show QR Code';
+        _qrActive = null;
+        return;
     }
+    generateQR(document.getElementById('qrCanvas'), _qrValues[field] || '');
+    section.style.display = 'block';
+    _qrActive = field;
 }
 
 function generateQR(canvas, text) {
