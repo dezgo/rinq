@@ -221,7 +221,6 @@
                 <span class="value-text">{{ sip_domain or 'Not configured' }}</span>
                 {% if sip_domain %}
                 <span class="copy-icon" onclick="copyText('{{ sip_domain }}', this)" title="Copy"></span>
-                <button type="button" class="action-icon" onclick="toggleQR('domain')" title="Show QR Code">QR</button>
                 {% endif %}
             </span>
         </div>
@@ -252,7 +251,7 @@
                 </span>
                 <span class="action-icon" onclick="togglePassword(this)" title="Show/Hide">👁️</span>
                 <span class="copy-icon" onclick="copyText('{{ stored_password }}', this)" title="Copy"></span>
-                <button type="button" class="action-icon" onclick="toggleQR('password')" title="Show QR Code">QR</button>
+                <button type="button" class="action-icon" onclick="toggleQR()" title="Show QR Code">QR</button>
                 <form method="POST" action="{{ url_for('web.regenerate_desk_phone_password') }}" style="display: inline;">
                     <button type="submit" class="action-icon" title="Generate new password">🔄</button>
                 </form>
@@ -268,7 +267,7 @@
         </div>
         <div id="qrSection" style="display: none; text-align: center; padding: 10px 0; border-top: 1px solid #eee;">
             <canvas id="qrCanvas"></canvas>
-            <div class="text-muted" style="font-size: 0.85em; margin-top: 5px;"><span id="qrLabel"></span> — scan with your phone camera to copy</div>
+            <div class="text-muted" style="font-size: 0.85em; margin-top: 5px;">Scan with your phone camera to copy password</div>
         </div>
     </div>
 
@@ -367,26 +366,21 @@ function copyText(text, element) {
     });
 }
 
-var _qrValues = {
-    domain: '{{ sip_domain or "" }}',
-    username: '{{ credential.username if credential else "" }}',
-    password: '{{ stored_password or new_password or "" }}'
-};
-var _qrActive = null;
+var _qrVisible = false;
 
-var _qrLabels = {domain: 'Server / Domain', password: 'Password'};
-
-function toggleQR(field) {
+function toggleQR() {
     var section = document.getElementById('qrSection');
-    if (_qrActive === field) {
+    if (_qrVisible) {
         section.style.display = 'none';
-        _qrActive = null;
+        _qrVisible = false;
         return;
     }
-    generateQR(document.getElementById('qrCanvas'), _qrValues[field] || '');
-    document.getElementById('qrLabel').textContent = _qrLabels[field] || field;
+    if (!section.dataset.generated) {
+        generateQR(document.getElementById('qrCanvas'), '{{ stored_password or new_password or "" }}');
+        section.dataset.generated = '1';
+    }
     section.style.display = 'block';
-    _qrActive = field;
+    _qrVisible = true;
 }
 
 function generateQR(canvas, text) {
