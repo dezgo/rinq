@@ -266,7 +266,7 @@
         </div>
     </div>
 
-    {% if credential and sip_domain and stored_password %}
+    {% if credential and sip_domain and (stored_password or new_password) %}
     <div style="margin-top: 15px;">
         <button type="button" class="btn btn-small" onclick="toggleQR()" id="qrToggle">Show QR Code</button>
         <span class="text-muted" style="margin-left: 8px; font-size: 0.9em;">Scan with your phone to copy credentials</span>
@@ -382,7 +382,7 @@ function toggleQR() {
             const text = [
                 'Server: {{ sip_domain }}',
                 'Username: {{ credential.username if credential else "" }}',
-                'Password: {{ stored_password or "" }}',
+                'Password: {{ stored_password or new_password or "" }}',
             ].join('\n');
             generateQR(document.getElementById('qrCanvas'), text);
             section.dataset.generated = '1';
