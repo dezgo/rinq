@@ -2169,8 +2169,10 @@ def my_devices():
     new_password = request.args.get('new_password')  # From regeneration redirect
 
     if sip_configured:
-        # Get SIP domain for display
-        if service.is_configured:
+        # Get SIP domain from tenant record (avoids flaky Twilio .list() API)
+        sip_domain = get_twilio_config('twilio_sip_domain')
+        if not sip_domain and service.is_configured:
+            # Fallback: fetch from Twilio API
             domains = service.get_sip_domains()
             if domains:
                 sip_domain = domains[0]['domain_name']

@@ -79,8 +79,8 @@ class MasterDatabase:
                 INSERT INTO tenants (id, name, twilio_account_sid, twilio_auth_token,
                     twilio_api_key, twilio_api_secret, twilio_twiml_app_sid,
                     twilio_default_caller_id, twilio_sip_credential_list_sid,
-                    webhook_base_url, integration_provider)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    twilio_sip_domain, webhook_base_url, integration_provider)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (tenant_id, name,
                   kwargs.get('twilio_account_sid'),
                   kwargs.get('twilio_auth_token'),
@@ -89,6 +89,7 @@ class MasterDatabase:
                   kwargs.get('twilio_twiml_app_sid'),
                   kwargs.get('twilio_default_caller_id'),
                   kwargs.get('twilio_sip_credential_list_sid'),
+                  kwargs.get('twilio_sip_domain'),
                   kwargs.get('webhook_base_url'),
                   kwargs.get('integration_provider', 'none')))
             conn.commit()

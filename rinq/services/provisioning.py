@@ -103,6 +103,7 @@ def provision_tenant(tenant_id: str, tenant_name: str, admin_email: str,
             twilio_api_secret=api_key.secret,
             twilio_twiml_app_sid=twiml_app.sid,
             twilio_sip_credential_list_sid=cred_list.sid,
+            twilio_sip_domain=sip_domain.domain_name,
             webhook_base_url=base_url,
         )
 

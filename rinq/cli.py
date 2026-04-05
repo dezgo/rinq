@@ -128,13 +128,16 @@ def setup_sip(args):
         print(f"Created credential list: {cred_list.sid}")
 
     # Create or reuse SIP domain
+    domain = None
+    domain_name = None
     try:
         domains = client.sip.domains.list()
     except (TwilioRestException, TwilioException):
         domains = []
     if domains:
         domain = domains[0]
-        print(f"Using existing SIP domain: {domain.domain_name}")
+        domain_name = domain.domain_name
+        print(f"Using existing SIP domain: {domain_name}")
     else:
         sip_slug = args.tenant.replace('_', '-')
         # SIP domain names are globally unique across all Twilio accounts,
@@ -147,7 +150,8 @@ def setup_sip(args):
                 voice_url=f"{base_url}/api/sip/incoming",
                 voice_method='POST',
             )
-            print(f"Created SIP domain: {domain.domain_name}")
+            domain_name = domain.domain_name
+            print(f"Created SIP domain: {domain_name}")
         except (TwilioRestException, TwilioException) as e:
             if 'already exists' in str(e):
                 # Domain exists but list() failed — fetch via raw REST
@@ -156,14 +160,14 @@ def setup_sip(args):
                     f"https://api.twilio.com/2010-04-01/Accounts/{sid}/SIP/Domains.json",
                     auth=(sid, token)
                 ).json()
-                # Response has 'domains' key (not 'sip_domains')
                 domain_list = resp.get('domains', resp.get('sip_domains', []))
                 if not domain_list:
                     print(f"ERROR: Domain exists but could not fetch it. Raw response: {resp}")
                     sys.exit(1)
                 domain_data = domain_list[0]
                 domain = client.sip.domains(domain_data['sid'])
-                print(f"Using existing SIP domain: {domain_data['domain_name']}")
+                domain_name = domain_data['domain_name']
+                print(f"Using existing SIP domain: {domain_name}")
             else:
                 raise
 
@@ -180,7 +184,10 @@ def setup_sip(args):
         print(f"Credential list already linked for registrations")
 
     # Update tenant record
-    master_db.update_tenant(args.tenant, twilio_sip_credential_list_sid=cred_list.sid)
+    updates = {'twilio_sip_credential_list_sid': cred_list.sid}
+    if domain_name:
+        updates['twilio_sip_domain'] = domain_name
+    master_db.update_tenant(args.tenant, **updates)
     print(f"Done — SIP configured for tenant '{args.tenant}'")
 
 
