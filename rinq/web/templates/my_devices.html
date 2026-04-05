@@ -225,6 +225,12 @@
             </span>
         </div>
         <div class="credential-row">
+            <span class="credential-label">Protocol</span>
+            <span class="credential-value">
+                <span class="value-text">SIP (UDP 5060 or TLS 5061)</span>
+            </span>
+        </div>
+        <div class="credential-row">
             <span class="credential-label">Username</span>
             <span class="credential-value">
                 {% if credential %}
@@ -258,23 +264,19 @@
                 {% endif %}
             </div>
         </div>
-        <div class="credential-row">
-            <span class="credential-label">Protocol</span>
-            <span class="credential-value">
-                <span class="value-text">SIP (UDP 5060 or TLS 5061)</span>
-            </span>
+        {% if credential and sip_domain and (stored_password or new_password) %}
+        <div class="credential-row" style="border-bottom: none;">
+            <span class="credential-label"></span>
+            <div class="credential-value">
+                <button type="button" class="btn btn-small" onclick="toggleQR()" id="qrToggle">Show QR Code</button>
+                <span class="text-muted" style="margin-left: 8px; font-size: 0.9em;">Scan to copy password to your phone</span>
+            </div>
         </div>
-    </div>
-
-    {% if credential and sip_domain and (stored_password or new_password) %}
-    <div style="margin-top: 15px;">
-        <button type="button" class="btn btn-small" onclick="toggleQR()" id="qrToggle">Show QR Code</button>
-        <span class="text-muted" style="margin-left: 8px; font-size: 0.9em;">Scan to copy password to your phone</span>
-        <div id="qrSection" style="display: none; margin-top: 12px; text-align: center;">
+        <div id="qrSection" style="display: none; text-align: center; padding-bottom: 10px;">
             <canvas id="qrCanvas"></canvas>
         </div>
+        {% endif %}
     </div>
-    {% endif %}
 
     {% if callable_numbers %}
     <div style="margin-top: 15px;">
