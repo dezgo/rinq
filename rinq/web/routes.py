@@ -97,11 +97,13 @@ def utility_processor():
             return str(dt_str)[:16] if dt_str else 'Never'
 
     ctx['time_ago'] = time_ago
-    try:
+    from rinq.tenant.context import get_current_tenant
+    tenant = get_current_tenant()
+    if tenant:
         ctx['softphone_enabled'] = bool(
             get_twilio_config('twilio_api_key') and get_twilio_config('twilio_api_secret') and get_twilio_config('twilio_twiml_app_sid')
         )
-    except Exception:
+    else:
         ctx['softphone_enabled'] = False
 
     return ctx
