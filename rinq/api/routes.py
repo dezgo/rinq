@@ -5344,24 +5344,45 @@ def get_queued_callers():
         callers = db.get_queued_calls(queue_id=queue_id, status='waiting')
         stats = db.get_queue_stats(queue_id=queue_id)
 
-    # Deduplicate by caller number — if a caller hung up and called back,
-    # the old 'waiting' record may still exist (missed Twilio webhook).
-    # Keep only the most recent entry per caller number.
-    seen_numbers = {}
-    for caller in callers:
-        num = caller.get('caller_number', '')
-        existing = seen_numbers.get(num)
-        if existing is None:
-            seen_numbers[num] = caller
-        else:
-            # Keep the one with the later enqueued_at
-            if (caller.get('enqueued_at') or '') > (existing.get('enqueued_at') or ''):
-                seen_numbers[num] = caller
-    callers = list(seen_numbers.values())
-
-    # Calculate wait time for each caller
+    # Verify callers against Twilio queues — the DB may have stale 'waiting'
+    # records from missed queue_leave webhooks. Fetch actual Twilio queue
+    # members (one API call per queue) and remove any DB records not in Twilio.
     from datetime import datetime
     now = datetime.utcnow()
+
+    if callers:
+        # Collect unique queue IDs we need to check
+        queue_ids_to_check = {c.get('queue_id') for c in callers if c.get('queue_id')}
+        twilio_waiting_sids = set()
+
+        twilio_service = get_twilio_service()
+        for qid in queue_ids_to_check:
+            twilio_queue_name = f"queue_{qid}"
+            try:
+                twilio_queue = twilio_service.get_queue_by_name(twilio_queue_name)
+                if twilio_queue:
+                    members = twilio_list(twilio_queue.members)
+                    for member in members:
+                        twilio_waiting_sids.add(member.call_sid)
+            except Exception as e:
+                logger.warning(f"Could not check Twilio queue {twilio_queue_name}: {e}")
+                # On error, keep all callers for this queue (don't clean what we can't verify)
+                for c in callers:
+                    if c.get('queue_id') == qid:
+                        twilio_waiting_sids.add(c.get('call_sid'))
+
+        # Filter to only callers actually in Twilio, auto-clean the rest
+        live_callers = []
+        for caller in callers:
+            call_sid = caller.get('call_sid')
+            if call_sid in twilio_waiting_sids:
+                live_callers.append(caller)
+            else:
+                logger.info(f"Auto-cleaning stale queued call {call_sid} (not in Twilio queue)")
+                db.update_queued_call_status(call_sid, 'abandoned')
+        callers = live_callers
+
+    # Calculate wait time for each caller
     for caller in callers:
         if caller.get('enqueued_at'):
             try:
