@@ -5344,6 +5344,21 @@ def get_queued_callers():
         callers = db.get_queued_calls(queue_id=queue_id, status='waiting')
         stats = db.get_queue_stats(queue_id=queue_id)
 
+    # Deduplicate by caller number — if a caller hung up and called back,
+    # the old 'waiting' record may still exist (missed Twilio webhook).
+    # Keep only the most recent entry per caller number.
+    seen_numbers = {}
+    for caller in callers:
+        num = caller.get('caller_number', '')
+        existing = seen_numbers.get(num)
+        if existing is None:
+            seen_numbers[num] = caller
+        else:
+            # Keep the one with the later enqueued_at
+            if (caller.get('enqueued_at') or '') > (existing.get('enqueued_at') or ''):
+                seen_numbers[num] = caller
+    callers = list(seen_numbers.values())
+
     # Calculate wait time for each caller
     from datetime import datetime
     now = datetime.utcnow()
