@@ -5860,9 +5860,10 @@ def _get_call_state_inner(agent_call_sid, caller_email=None):
             for num in [call.to, call.from_]:
                 if num and num.startswith('+') and num not in user_map:
                     return {'call_sid': call_sid, 'name': num, 'role': 'customer'}
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"resolve_participant: Twilio fetch failed for {call_sid}: {e}")
 
+        logger.warning(f"resolve_participant: Could not resolve {call_sid}")
         return {'call_sid': call_sid, 'name': 'Unknown', 'role': 'unknown'}
 
     def get_conference_state(conference_name):
@@ -6010,7 +6011,8 @@ def _get_call_state_inner(agent_call_sid, caller_email=None):
                         transfer_info['consult_participants'].append(info)
                     result['transfer'] = transfer_info
                     break
-            except Exception:
+            except Exception as e:
+                logger.warning(f"Error checking consult conference {consult_conf}: {e}")
                 continue
 
     # Fallback: check if the agent's own call SID has a conference stored in
