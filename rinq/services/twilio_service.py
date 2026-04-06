@@ -574,6 +574,7 @@ class TwilioService:
         This will:
         - Add new credentials from Twilio
         - Update existing credentials
+        - Auto-link staff_email by matching SIP usernames to staff extensions
         - Mark credentials that no longer exist in Twilio as inactive
         """
         if not config.sip_credential_list_sid:
@@ -586,6 +587,18 @@ class TwilioService:
             added = 0
             updated = 0
 
+            # Build lookup of SIP username → staff email from staff_extensions
+            # SIP usernames are derived from emails: john.smith@ → john_smith
+            extensions = self.db.get_all_staff_extensions()
+            username_to_email = {}
+            for ext in extensions:
+                email = ext.get('email', '').lower()
+                if email:
+                    local_part = email.split('@')[0]
+                    sip_username = local_part.replace('.', '_').replace('+', '_')
+                    sip_username = ''.join(c for c in sip_username if c.isalnum() or c == '_')
+                    username_to_email[sip_username] = email
+
             # Track which SIDs we see from Twilio
             twilio_sids = set()
 
@@ -595,11 +608,14 @@ class TwilioService:
                 # Check if exists locally
                 existing = self.db.get_user(cred["sid"])
 
+                # Resolve staff_email: keep existing link, or auto-match from username
+                staff_email = (existing["staff_email"] if existing else None) or username_to_email.get(cred["username"])
+
                 self.db.upsert_user({
                     "sid": cred["sid"],
                     "username": cred["username"],
                     "friendly_name": existing["friendly_name"] if existing else cred["username"],
-                    "staff_email": existing["staff_email"] if existing else None,
+                    "staff_email": staff_email,
                     "is_active": 1,
                     "synced_at": synced_at,
                 })
