@@ -4062,24 +4062,26 @@ async function startTransfer() {
                 playRingback();
                 consultTargetAnswered = false;
 
-                const subtitle = document.getElementById('consultingSubtitle');
-                const completeBtn = document.getElementById('btnCompleteTransfer');
-
                 if (transferType === 'three_way') {
-                    subtitle.textContent = 'Connecting all parties. Click "Leave Call" when ready to drop out.';
-                    completeBtn.textContent = 'Leave Call';
+                    // 3-way: close modal immediately — agent stays on the
+                    // call with the customer. Conference panel shows when
+                    // target joins. Ringback stops via call state polling.
+                    transferModal.classList.remove('active');
+                    startTransferStatusPolling();
                 } else {
+                    const subtitle = document.getElementById('consultingSubtitle');
+                    const completeBtn = document.getElementById('btnCompleteTransfer');
                     subtitle.textContent = `Customer is on hold while we call ${targetName}. Speak to them first, then complete or cancel.`;
                     completeBtn.textContent = 'Complete Transfer';
+
+                    transferTargetSelection.style.display = 'none';
+                    transferConsulting.style.display = 'block';
+                    transferActions.style.display = 'none';
+                    consultingActions.style.display = 'flex';
+
+                    // Poll transfer status to detect when consult call fails
+                    startTransferStatusPolling();
                 }
-
-                transferTargetSelection.style.display = 'none';
-                transferConsulting.style.display = 'block';
-                transferActions.style.display = 'none';
-                consultingActions.style.display = 'flex';
-
-                // Poll transfer status to detect when consult call fails
-                startTransferStatusPolling();
             } else {
                 showTransferError(data.error || 'Transfer failed');
                 btnStartTransfer.disabled = false;
@@ -4911,14 +4913,13 @@ async function pollCallState() {
             }
         }
 
-        // 3-way: close modal when target joins (3+ participants in conference)
+        // 3-way: stop ringback when target joins (3+ participants)
         if (isConsulting && transferType === 'three_way'
             && state.participants && state.participants.length >= 3) {
-            console.log('3-way: target joined conference — closing modal');
             stopTransferStatusPolling();
+            stopRingback();
             isConsulting = false;
             consultCallSid = null;
-            closeTransferModal();
         }
     } catch (e) {
         console.warn('Call state poll error:', e);
