@@ -4539,16 +4539,19 @@ def _handle_internal_extension_call(extension: str, from_identity: str, staff_em
 def extension_dial_status():
     """Handle the end of an internal extension call's <Dial>.
 
-    Only plays "not answered" if the call was never connected.
-    If it was answered and then hung up, just hangs up cleanly.
+    Checks whether the call was actually connected by looking for a
+    stored child_sid (set when an agent answers in ring-status callback).
     """
-    dial_status = request.form.get('DialCallStatus', '')
+    call_sid = request.form.get('CallSid', '')
+    db = get_db()
 
-    if dial_status in ('completed', 'answered'):
+    # If we stored a child_sid, the call was answered at some point
+    child_sid = db.get_call_child_sid(call_sid)
+    if child_sid:
         # Call was connected and ended normally
         return Response('<?xml version="1.0" encoding="UTF-8"?><Response/>', mimetype='application/xml')
 
-    # Not answered (busy, no-answer, failed, canceled)
+    # Not answered — the conference ended without anyone joining
     twiml = '''<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Say voice="Polly.Nicole">The call was not answered.</Say>
