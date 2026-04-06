@@ -6559,6 +6559,47 @@ def transfer_target_join():
     return Response(twiml, mimetype='application/xml')
 
 
+@api_bp.route('/voice/transfer/direct-dial-status', methods=['POST'])
+def transfer_direct_dial_status():
+    """Handle the result of a blind-direct transfer's <Dial>.
+
+    If the target didn't answer, call agent 1 back. If they don't answer
+    either, route to voicemail.
+    """
+    dial_status = request.form.get('DialCallStatus', '')
+    transferred_by = request.args.get('transferred_by', '')
+    customer_call_sid = request.args.get('customer_call_sid', '')
+
+    logger.info(f"Direct dial status: {dial_status}, transferred_by={transferred_by}, customer={customer_call_sid}")
+
+    if dial_status in ('completed', 'answered'):
+        # Target answered and call ended normally
+        return Response('<?xml version="1.0" encoding="UTF-8"?><Response/>', mimetype='application/xml')
+
+    # Target didn't answer — call agent 1 back
+    if transferred_by:
+        from rinq.api.routes import _email_to_browser_identity
+        agent_identity = _email_to_browser_identity(transferred_by)
+        caller_id = get_twilio_config('twilio_default_caller_id') or ''
+
+        twiml = f'''<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Say voice="Polly.Nicole">The transfer was not successful. Reconnecting you.</Say>
+    <Dial callerId="{xml_escape(caller_id)}" timeout="15">
+        <Client>{xml_escape(agent_identity)}</Client>
+    </Dial>
+    <Say voice="Polly.Nicole">Sorry, we were unable to reconnect your call. Goodbye.</Say>
+</Response>'''
+        return Response(twiml, mimetype='application/xml')
+
+    # No agent to call back
+    twiml = '''<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Say voice="Polly.Nicole">Sorry, we were unable to connect your call. Please try again later. Goodbye.</Say>
+</Response>'''
+    return Response(twiml, mimetype='application/xml')
+
+
 @api_bp.route('/voice/transfer/callback-status', methods=['POST'])
 def transfer_callback_status():
     """Status callback for agent callback after failed blind transfer.

@@ -18,6 +18,9 @@ from datetime import datetime
 
 from twilio.base.exceptions import TwilioRestException
 
+from urllib.parse import quote
+from xml.sax.saxutils import escape as xml_escape
+
 from rinq.config import config
 from rinq.database.db import get_db
 from rinq.services.twilio_service import get_twilio_service, twilio_list
@@ -215,18 +218,25 @@ class TransferService:
                     agent_call_sid = None
 
             # Build TwiML to dial the transfer target
+            # Use dial action to handle rejection — calls back agent 1 or routes to voicemail
+            dial_action = (
+                f"{self.base_url}/api/voice/transfer/direct-dial-status"
+                f"?transferred_by={quote(transferred_by or '', safe='')}"
+                f"&customer_call_sid={quote(customer_call_sid, safe='')}"
+            )
             if is_ext:
                 twiml = self._build_extension_dial_twiml(target, from_number, transferred_by)
                 if not twiml:
                     return {'success': False, 'error': f'Extension {target} not found'}
+                # Inject dial action into the TwiML
+                twiml = twiml.replace('<Dial ', f'<Dial action="{xml_escape(dial_action)}" ')
             else:
                 twiml = f'''<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Say>Please hold while we transfer your call.</Say>
-    <Dial callerId="{from_number}" timeout="30">
+    <Dial callerId="{from_number}" timeout="30" action="{xml_escape(dial_action)}">
         <Number>{target_e164}</Number>
     </Dial>
-    <Hangup/>
 </Response>'''
 
             # Redirect the customer's call to the transfer TwiML
