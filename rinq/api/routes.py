@@ -6658,22 +6658,47 @@ def transfer_consult_status():
 
             if is_blind:
                 # Blind transfer failed — agent 1 is gone.
-                # Redirect customer to voicemail or play a message.
+                # Call agent 1 back into the conference with the customer.
                 xfer_conf = f"call_{original_call}_xfer"
+                transferred_by = transfer_state.get('transferred_by', '')
                 try:
                     twilio_service = get_twilio_service()
-                    confs = twilio_list(twilio_service.client.conferences,
-                        friendly_name=xfer_conf, status='in-progress', limit=1
-                    )
-                    if confs:
-                        participants = twilio_list(twilio_service.client.conferences(confs[0].sid).participants)
-                        for p in participants:
-                            # Redirect customer to a "transfer failed" message
-                            fail_url = f"{config.webhook_base_url}/api/voice/transfer/failed-message"
-                            twilio_service.client.calls(p.call_sid).update(url=fail_url, method='POST')
-                            logger.info(f"Redirected customer {p.call_sid} to transfer-failed message")
+
+                    # Call agent 1 back
+                    if transferred_by:
+                        from rinq.api.routes import _email_to_browser_identity
+                        agent_identity = f"client:{_email_to_browser_identity(transferred_by)}"
+                        rejoin_url = f"{config.webhook_base_url}/api/voice/conference/join?room={xfer_conf}&role=agent"
+                        caller_id = get_twilio_config('twilio_default_caller_id')
+                        try:
+                            callback_call = twilio_service.client.calls.create(
+                                to=agent_identity,
+                                from_=caller_id,
+                                url=rejoin_url,
+                                timeout=30,
+                            )
+                            logger.info(f"Calling agent {transferred_by} back after failed blind transfer: {callback_call.sid}")
+                        except Exception as e:
+                            logger.warning(f"Could not call agent back: {e}")
+                            # Fall through to redirect customer to voicemail
+                            confs = twilio_list(twilio_service.client.conferences,
+                                friendly_name=xfer_conf, status='in-progress', limit=1
+                            )
+                            if confs:
+                                for p in twilio_list(twilio_service.client.conferences(confs[0].sid).participants):
+                                    fail_url = f"{config.webhook_base_url}/api/voice/transfer/failed-message"
+                                    twilio_service.client.calls(p.call_sid).update(url=fail_url, method='POST')
+                    else:
+                        # No agent to call back — send customer to voicemail
+                        confs = twilio_list(twilio_service.client.conferences,
+                            friendly_name=xfer_conf, status='in-progress', limit=1
+                        )
+                        if confs:
+                            for p in twilio_list(twilio_service.client.conferences(confs[0].sid).participants):
+                                fail_url = f"{config.webhook_base_url}/api/voice/transfer/failed-message"
+                                twilio_service.client.calls(p.call_sid).update(url=fail_url, method='POST')
                 except Exception as e:
-                    logger.warning(f"Could not redirect customer after failed blind transfer: {e}")
+                    logger.warning(f"Could not handle failed blind transfer: {e}")
 
             # For warm transfers: take caller off hold and redirect agent
             # back to original conference. For 3-way: agent and customer are
