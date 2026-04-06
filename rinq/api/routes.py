@@ -5784,6 +5784,10 @@ def _get_call_state_inner(agent_call_sid, caller_email=None):
                     email, friendly = _normalize_staff_identifier(identifier)
                     if friendly:
                         return {'call_sid': call_sid, 'name': friendly, 'role': 'agent'}
+            # Not a known staff member — show the phone number (likely customer)
+            phone = call.from_formatted or call.from_ or call.to_formatted or call.to
+            if phone:
+                return {'call_sid': call_sid, 'name': phone, 'role': 'customer'}
         except Exception:
             pass
 
@@ -5853,17 +5857,11 @@ def _get_call_state_inner(agent_call_sid, caller_email=None):
             if agent_in_conf:
                 result['conference'] = conf_name
                 result['customer_call_sid'] = qc.get('call_sid')
-                result['participants'] = []
-                for p in participants:
-                    info = resolve_participant(p.call_sid)
-                    info['hold'] = p.hold
-                    info['muted'] = p.muted
-                    result['participants'].append(info)
 
-                # Check transfer state
+                # Check transfer state BEFORE resolving participants
+                # so _transfer_call_names is populated for name resolution
                 transfer_state = db.get_transfer_state(qc['call_sid'])
                 if transfer_state and transfer_state.get('transfer_status') in ('pending', 'consulting'):
-                    # Register consult call SID for name resolution
                     consult_sid = transfer_state.get('transfer_consult_call_sid')
                     target_name = transfer_state.get('transfer_target_name')
                     if consult_sid and target_name:
@@ -5880,6 +5878,13 @@ def _get_call_state_inner(agent_call_sid, caller_email=None):
                         if consult_parts:
                             transfer_info['consult_participants'] = consult_parts
                     result['transfer'] = transfer_info
+
+                result['participants'] = []
+                for p in participants:
+                    info = resolve_participant(p.call_sid)
+                    info['hold'] = p.hold
+                    info['muted'] = p.muted
+                    result['participants'].append(info)
 
                 break
         except Exception:
