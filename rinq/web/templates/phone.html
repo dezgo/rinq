@@ -4067,6 +4067,7 @@ async function startTransfer() {
                     // call with the customer. Conference panel shows when
                     // target joins. Ringback stops via call state polling.
                     transferModal.classList.remove('active');
+                    startCallStatePolling(1000);  // Poll faster to catch target joining
                     startTransferStatusPolling();
                 } else {
                     const subtitle = document.getElementById('consultingSubtitle');
@@ -4855,10 +4856,10 @@ setInterval(fetchPresence, 15000);
 let callStateInterval = null;
 let lastCallState = null;
 
-function startCallStatePolling() {
+function startCallStatePolling(intervalMs) {
     stopCallStatePolling();
     pollCallState();
-    callStateInterval = setInterval(pollCallState, 3000);
+    callStateInterval = setInterval(pollCallState, intervalMs || 3000);
 }
 
 function stopCallStatePolling() {
@@ -4920,6 +4921,7 @@ async function pollCallState() {
             stopRingback();
             isConsulting = false;
             consultCallSid = null;
+            startCallStatePolling();  // Revert to normal 3s interval
         }
     } catch (e) {
         console.warn('Call state poll error:', e);
