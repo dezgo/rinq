@@ -6681,11 +6681,15 @@ def transfer_context():
     transfer = db.get_transfer_by_consult_sid(call_sid)
     if transfer:
         transferred_by = transfer['transferred_by'] or ''
-        friendly_name = transferred_by.split('@')[0].replace('.', ' ').replace('_', ' ').title()
+        # Strip session:/api: prefix
+        clean_email = transferred_by.replace('session:', '').replace('api:', '')
+        friendly_name = clean_email.split('@')[0].replace('.', ' ').replace('_', ' ').title()
+        is_callback = transfer.get('transfer_status') == 'callback'
         result = {
             "is_transfer": True,
             "transferred_by": friendly_name,
             "transfer_type": transfer.get('transfer_type', 'warm'),
+            "is_callback": is_callback,
         }
         # Include customer info so the receiving agent knows who's on the line
         customer_name = transfer.get('customer_name')
@@ -6759,7 +6763,11 @@ def transfer_consult_status():
                         agent_identity = f"client:{_email_to_browser_identity(agent_email)}"
                         rejoin_url = f"{config.webhook_base_url}/api/voice/conference/join?room={xfer_conf}&role=agent"
                         # Use customer's number as caller ID so agent sees who they're reconnecting with
-                        customer_number = db.get_call_log_field(original_call, 'from_number')
+                        direction = db.get_call_log_field(original_call, 'direction')
+                        if direction == 'outbound':
+                            customer_number = db.get_call_log_field(original_call, 'to_number')
+                        else:
+                            customer_number = db.get_call_log_field(original_call, 'from_number')
                         caller_id = customer_number or get_twilio_config('twilio_default_caller_id')
                         callback_status_url = (
                             f"{config.webhook_base_url}/api/voice/transfer/callback-status"
@@ -6775,6 +6783,13 @@ def transfer_consult_status():
                                 status_callback_event=['completed', 'busy', 'no-answer', 'failed', 'canceled'],
                             )
                             logger.info(f"Calling agent {transferred_by} back after failed blind transfer: {callback_call.sid}")
+                            # Update consult SID so transfer context shows this as a callback
+                            db.update_queued_call_transfer_status(original_call, 'callback')
+                            db.update_call_log_transfer_status(original_call, 'callback')
+                            try:
+                                db.update_transfer_consultation(original_call, callback_call.sid, xfer_conf)
+                            except Exception:
+                                pass
                         except Exception as e:
                             logger.warning(f"Could not call agent back: {e}")
                             # Fall through to redirect customer to voicemail

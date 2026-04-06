@@ -3232,17 +3232,17 @@ class Database:
         with self._get_conn() as conn:
             row = conn.execute("""
                 SELECT transferred_by, transfer_target_name, transfer_type,
-                       from_number, customer_name
+                       transfer_status, from_number, customer_name
                 FROM call_log WHERE transfer_consult_call_sid = ?
-                AND transfer_status IN ('pending', 'consulting')
+                AND transfer_status IN ('pending', 'consulting', 'callback')
             """, (consult_call_sid,)).fetchone()
             if not row:
                 # Also check queued_calls for queue-originated transfers
                 row = conn.execute("""
                     SELECT transferred_by, transfer_target_name, transfer_type,
-                           caller_number as from_number, customer_name
+                           transfer_status, caller_number as from_number, customer_name
                     FROM queued_calls WHERE transfer_consult_call_sid = ?
-                    AND transfer_status IN ('pending', 'consulting')
+                    AND transfer_status IN ('pending', 'consulting', 'callback')
                 """, (consult_call_sid,)).fetchone()
             return dict(row) if row else None
 
