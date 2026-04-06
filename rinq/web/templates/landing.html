@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rinq — Business phone system that just works</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --primary: #e74c3c;
+            --primary-hover: #c0392b;
+            --dark: #1a1a2e;
+            --dark-soft: #2c3e50;
+            --text: #333;
+            --text-muted: #6c757d;
+            --bg: #ffffff;
+            --bg-soft: #f8f9fa;
+            --border: #e9ecef;
+            --radius: 8px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+            color: var(--text);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ---- Layout ---- */
+        .container {
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        section {
+            padding: 80px 0;
+        }
+
+        /* ---- Nav ---- */
+        .site-nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(8px);
+            border-bottom: 1px solid var(--border);
+            padding: 16px 0;
+        }
+
+        .site-nav .container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .site-nav .logo {
+            font-size: 1.4em;
+            font-weight: 700;
+            color: var(--dark);
+            text-decoration: none;
+            letter-spacing: -0.5px;
+        }
+
+        .site-nav .logo span {
+            color: var(--primary);
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 32px;
+        }
+
+        .nav-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.95em;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: var(--text);
+        }
+
+        /* ---- Buttons ---- */
+        .btn {
+            display: inline-block;
+            padding: 12px 28px;
+            border-radius: var(--radius);
+            font-size: 1em;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            border: none;
+            transition: background 0.2s, transform 0.1s;
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+        }
+
+        .btn-secondary {
+            background: var(--bg);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            border-color: #ccc;
+        }
+
+        .btn-nav {
+            padding: 8px 20px;
+            font-size: 0.9em;
+        }
+
+        /* ---- Hero ---- */
+        .hero {
+            padding: 160px 0 100px;
+            text-align: center;
+            background: linear-gradient(180deg, #fff 0%, var(--bg-soft) 100%);
+        }
+
+        .hero h1 {
+            font-size: 3.2em;
+            font-weight: 800;
+            color: var(--dark);
+            line-height: 1.15;
+            letter-spacing: -1px;
+            max-width: 700px;
+            margin: 0 auto 24px;
+        }
+
+        .hero p {
+            font-size: 1.25em;
+            color: var(--text-muted);
+            max-width: 560px;
+            margin: 0 auto 40px;
+            line-height: 1.6;
+        }
+
+        .hero-actions {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        /* ---- Problem ---- */
+        .problem {
+            background: var(--bg);
+        }
+
+        .problem-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 32px;
+        }
+
+        .problem-card {
+            padding: 32px;
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            background: var(--bg-soft);
+        }
+
+        .problem-card .icon {
+            font-size: 1.8em;
+            margin-bottom: 16px;
+        }
+
+        .problem-card h3 {
+            font-size: 1.1em;
+            margin-bottom: 8px;
+            color: var(--dark);
+        }
+
+        .problem-card p {
+            color: var(--text-muted);
+            font-size: 0.95em;
+        }
+
+        /* ---- Solution ---- */
+        .solution {
+            background: var(--dark);
+            color: #fff;
+        }
+
+        .solution .section-label {
+            color: var(--primary);
+        }
+
+        .solution h2 {
+            color: #fff;
+        }
+
+        .solution p.section-sub {
+            color: #bbb;
+        }
+
+        .benefits-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+            margin-top: 48px;
+        }
+
+        .benefit-item {
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+        }
+
+        .benefit-icon {
+            flex-shrink: 0;
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            background: rgba(231, 76, 60, 0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2em;
+        }
+
+        .benefit-text h4 {
+            font-size: 1em;
+            margin-bottom: 4px;
+        }
+
+        .benefit-text p {
+            color: #999;
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+
+        /* ---- How it works ---- */
+        .how-it-works {
+            background: var(--bg-soft);
+        }
+
+        .steps {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 40px;
+            margin-top: 48px;
+        }
+
+        .step {
+            text-align: center;
+        }
+
+        .step-number {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: #fff;
+            font-weight: 700;
+            font-size: 1.2em;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .step h3 {
+            font-size: 1.15em;
+            margin-bottom: 8px;
+            color: var(--dark);
+        }
+
+        .step p {
+            color: var(--text-muted);
+            font-size: 0.95em;
+        }
+
+        /* ---- Features ---- */
+        .features {
+            background: var(--bg);
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            margin-top: 48px;
+        }
+
+        .feature-card {
+            padding: 28px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            transition: box-shadow 0.2s;
+        }
+
+        .feature-card:hover {
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+        }
+
+        .feature-card .icon {
+            font-size: 1.5em;
+            margin-bottom: 12px;
+        }
+
+        .feature-card h4 {
+            font-size: 1em;
+            margin-bottom: 6px;
+            color: var(--dark);
+        }
+
+        .feature-card p {
+            color: var(--text-muted);
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+
+        /* ---- Section headings ---- */
+        .section-label {
+            font-size: 0.85em;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--primary);
+            margin-bottom: 12px;
+        }
+
+        .section-heading {
+            text-align: center;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .section-heading h2 {
+            font-size: 2.2em;
+            font-weight: 700;
+            color: var(--dark);
+            margin-bottom: 16px;
+            letter-spacing: -0.5px;
+        }
+
+        .section-heading p.section-sub {
+            color: var(--text-muted);
+            font-size: 1.1em;
+        }
+
+        /* ---- CTA ---- */
+        .cta {
+            background: var(--bg-soft);
+            text-align: center;
+        }
+
+        .cta h2 {
+            font-size: 2.2em;
+            font-weight: 700;
+            color: var(--dark);
+            margin-bottom: 16px;
+        }
+
+        .cta p {
+            color: var(--text-muted);
+            font-size: 1.1em;
+            margin-bottom: 32px;
+            max-width: 480px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* ---- Footer ---- */
+        .site-footer {
+            padding: 32px 0;
+            text-align: center;
+            border-top: 1px solid var(--border);
+            color: var(--text-muted);
+            font-size: 0.85em;
+        }
+
+        /* ---- Responsive ---- */
+        @media (max-width: 768px) {
+            .hero { padding: 120px 0 64px; }
+            .hero h1 { font-size: 2.2em; }
+            .hero p { font-size: 1.1em; }
+
+            section { padding: 56px 0; }
+
+            .problem-grid,
+            .steps,
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .benefits-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .section-heading h2,
+            .cta h2 { font-size: 1.7em; }
+
+            .nav-links .nav-text { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Nav -->
+    <nav class="site-nav">
+        <div class="container">
+            <a href="/" class="logo">Rin<span>q</span></a>
+            <div class="nav-links">
+                <a href="#features" class="nav-text">Features</a>
+                <a href="#how-it-works" class="nav-text">How it works</a>
+                <a href="{{ url_for('standalone_auth.login') }}" class="nav-text">Log in</a>
+                <a href="{{ url_for('standalone_auth.login') }}" class="btn btn-primary btn-nav">Get Started</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero -->
+    <section class="hero">
+        <div class="container">
+            <h1>A business phone system that just works</h1>
+            <p>Call queues, transfers, recordings, and a browser-based softphone. Set up in minutes, not days.</p>
+            <div class="hero-actions">
+                <a href="{{ url_for('standalone_auth.login') }}" class="btn btn-primary">Get Started Free</a>
+                <a href="#how-it-works" class="btn btn-secondary">See how it works</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Problem -->
+    <section class="problem">
+        <div class="container">
+            <div class="section-heading">
+                <p class="section-label">The problem</p>
+                <h2>Business phones shouldn't be this hard</h2>
+            </div>
+            <div class="problem-grid" style="margin-top: 48px;">
+                <div class="problem-card">
+                    <div class="icon">$$$</div>
+                    <h3>Expensive and complex</h3>
+                    <p>Enterprise phone systems cost thousands and take weeks to configure. You shouldn't need a consultant to answer a phone.</p>
+                </div>
+                <div class="problem-card">
+                    <div class="icon">///</div>
+                    <h3>Doesn't scale</h3>
+                    <p>Basic call forwarding breaks the moment you add a second person. You need queues, routing, and transfers — without the overhead.</p>
+                </div>
+                <div class="problem-card">
+                    <div class="icon">!!!</div>
+                    <h3>Needs IT support</h3>
+                    <p>Your team shouldn't need to call IT to update a phone number, add a colleague, or change who's on call.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Solution -->
+    <section class="solution">
+        <div class="container">
+            <div class="section-heading">
+                <p class="section-label">The solution</p>
+                <h2>Everything your team needs, nothing it doesn't</h2>
+                <p class="section-sub">A phone system built for small teams that need real features without the enterprise price tag.</p>
+            </div>
+            <div class="benefits-grid">
+                <div class="benefit-item">
+                    <div class="benefit-icon">Q</div>
+                    <div class="benefit-text">
+                        <h4>Smart call queues</h4>
+                        <p>Route incoming calls to the right team. Priority queues, overflow handling, and wait music included.</p>
+                    </div>
+                </div>
+                <div class="benefit-item">
+                    <div class="benefit-icon">B</div>
+                    <div class="benefit-text">
+                        <h4>Browser-based softphone</h4>
+                        <p>Make and receive calls from your browser. No hardware, no app install, no VoIP desk phone required.</p>
+                    </div>
+                </div>
+                <div class="benefit-item">
+                    <div class="benefit-icon">R</div>
+                    <div class="benefit-text">
+                        <h4>Call recordings</h4>
+                        <p>Record calls on demand or automatically. Review, download, and manage recordings from your dashboard.</p>
+                    </div>
+                </div>
+                <div class="benefit-item">
+                    <div class="benefit-icon">T</div>
+                    <div class="benefit-text">
+                        <h4>Transfers and extensions</h4>
+                        <p>Transfer calls to colleagues, forward to mobiles, or dial internal extensions. Just like the big systems.</p>
+                    </div>
+                </div>
+                <div class="benefit-item">
+                    <div class="benefit-icon">V</div>
+                    <div class="benefit-text">
+                        <h4>Voicemail</h4>
+                        <p>Missed calls go to voicemail with instant notifications. Never lose a customer because nobody picked up.</p>
+                    </div>
+                </div>
+                <div class="benefit-item">
+                    <div class="benefit-icon">M</div>
+                    <div class="benefit-text">
+                        <h4>Mobile forwarding</h4>
+                        <p>Forward calls to your mobile when you're away from your desk. Set it per person, per schedule.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How it works -->
+    <section class="how-it-works" id="how-it-works">
+        <div class="container">
+            <div class="section-heading">
+                <p class="section-label">How it works</p>
+                <h2>Up and running in three steps</h2>
+            </div>
+            <div class="steps">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <h3>Sign up</h3>
+                    <p>Create your account with Google. Your phone system is ready in seconds.</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <h3>Get a number</h3>
+                    <p>Pick a local or toll-free number. Port your existing number if you prefer.</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <h3>Start taking calls</h3>
+                    <p>Open the softphone in your browser and you're live. Add your team whenever you're ready.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features -->
+    <section class="features" id="features">
+        <div class="container">
+            <div class="section-heading">
+                <p class="section-label">Features</p>
+                <h2>Built for teams that move fast</h2>
+            </div>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="icon">&#9742;</div>
+                    <h4>Call queues</h4>
+                    <p>Multiple queues with priority levels, wait times, and automatic distribution.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">&#8644;</div>
+                    <h4>Warm & cold transfers</h4>
+                    <p>Transfer calls to teammates with or without introduction. Seamless handoffs.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">&#9210;</div>
+                    <h4>Do not disturb</h4>
+                    <p>One toggle to go off-duty. Calls route to the next available person or voicemail.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">&#127897;</div>
+                    <h4>Recordings</h4>
+                    <p>Record calls on demand. Browse, play back, and download from your dashboard.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">&#128202;</div>
+                    <h4>Reports & leaderboard</h4>
+                    <p>Track call volume, answer rates, and talk time. See who's carrying the load.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">&#128241;</div>
+                    <h4>Mobile forwarding</h4>
+                    <p>Forward to your mobile when you step out. Per-person settings, automatic fallback.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">&#128101;</div>
+                    <h4>Team management</h4>
+                    <p>Add staff, assign extensions, manage queue membership. Self-service for your team.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">&#128222;</div>
+                    <h4>Desk phone support</h4>
+                    <p>Use SIP desk phones alongside the browser softphone. Mix and match per person.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">&#128477;</div>
+                    <h4>Caller ID</h4>
+                    <p>Choose which number shows when your team calls out. Per-number or per-person.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="cta">
+        <div class="container">
+            <h2>Ready to simplify your phones?</h2>
+            <p>Get your business phone system running in under five minutes. No credit card required.</p>
+            <a href="{{ url_for('standalone_auth.login') }}" class="btn btn-primary">Get Started Free</a>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="site-footer">
+        <div class="container">
+            <p>&copy; {{ now.year }} Rinq</p>
+        </div>
+    </footer>
+
+    <!-- Smooth scroll for anchor links -->
+    <script>
+    document.querySelectorAll('a[href^="#"]').forEach(a => {
+        a.addEventListener('click', e => {
+            e.preventDefault();
+            const target = document.querySelector(a.getAttribute('href'));
+            if (target) {
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        });
+    });
+    </script>
+
+</body>
+</html>

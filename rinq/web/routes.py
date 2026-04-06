@@ -132,9 +132,19 @@ def manifest():
 
 
 @web_bp.route('/')
-@login_required
 def index():
-    """User dashboard - extension settings and queue membership."""
+    """Landing page (rinq.cc, unauthenticated) or user dashboard."""
+    from flask import session as flask_session
+
+    # Not logged in?
+    if not flask_session.get('user_id'):
+        # Show landing page only on the SaaS domain
+        host = request.host.split(':')[0].lower()
+        if host in ('rinq.cc', 'localhost', '127.0.0.1'):
+            return render_template('landing.html', now=datetime.now())
+        # Other domains (e.g. tina.watsonblinds.com.au) go straight to login
+        return redirect(url_for('standalone_auth.login'))
+
     service = get_twilio_service()
     user = get_current_user()
 

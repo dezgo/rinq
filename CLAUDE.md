@@ -1,5 +1,39 @@
 # Claude Reference Guide for Rinq
 
+You are working on a modern SaaS-style web application.
+
+Design standards:
+- Clean, minimal, professional UI
+- Generous whitespace
+- Clear visual hierarchy
+- Consistent spacing scale (8px system)
+- Subtle shadows, soft borders, restrained colors
+- Avoid clutter and unnecessary elements
+
+Frontend expectations:
+- Production-ready code only
+- Prefer reusable components
+- Mobile-first responsive design
+- Clean layout structure (no messy nesting)
+- Use consistent spacing and typography
+
+UX expectations:
+- Clear primary CTA on every page
+- Reduce cognitive load
+- Obvious navigation and flow
+- Good empty states and loading states
+
+Copywriting style:
+- Direct, simple, benefits-first
+- No hype, no fluff
+- Short sentences
+- Clear value
+
+When improving UI:
+- Do not just tweak — restructure if needed
+- Prioritise clarity over cleverness
+- Make it feel like a polished SaaS product
+
 ## Project Overview
 
 Rinq is a multi-tenant cloud phone system built on Twilio. Extracted from the Watson Blinds bot-team (Tina) and running as a standalone product.
