@@ -6559,6 +6559,33 @@ def transfer_target_join():
     return Response(twiml, mimetype='application/xml')
 
 
+@api_bp.route('/voice/transfer/callback-status', methods=['POST'])
+def transfer_callback_status():
+    """Status callback for agent callback after failed blind transfer.
+
+    If agent 1 doesn't answer the callback, redirect the customer to voicemail.
+    """
+    call_status = request.form.get('CallStatus', '')
+    conference = request.args.get('conference', '')
+    customer_call = request.args.get('customer_call', '')
+
+    if call_status in ('busy', 'no-answer', 'failed', 'canceled'):
+        logger.info(f"Agent callback failed ({call_status}) — redirecting customer to voicemail")
+        try:
+            twilio_service = get_twilio_service()
+            confs = twilio_list(twilio_service.client.conferences,
+                friendly_name=conference, status='in-progress', limit=1
+            )
+            if confs:
+                for p in twilio_list(twilio_service.client.conferences(confs[0].sid).participants):
+                    fail_url = f"{config.webhook_base_url}/api/voice/transfer/failed-message"
+                    twilio_service.client.calls(p.call_sid).update(url=fail_url, method='POST')
+        except Exception as e:
+            logger.warning(f"Could not redirect customer after agent callback failed: {e}")
+
+    return '', 204
+
+
 @api_bp.route('/voice/transfer/failed-message', methods=['POST'])
 def transfer_failed_message():
     """TwiML played to the customer when a blind transfer target doesn't answer.
@@ -6670,12 +6697,18 @@ def transfer_consult_status():
                         agent_identity = f"client:{_email_to_browser_identity(transferred_by)}"
                         rejoin_url = f"{config.webhook_base_url}/api/voice/conference/join?room={xfer_conf}&role=agent"
                         caller_id = get_twilio_config('twilio_default_caller_id')
+                        callback_status_url = (
+                            f"{config.webhook_base_url}/api/voice/transfer/callback-status"
+                            f"?conference={xfer_conf}&customer_call={original_call}"
+                        )
                         try:
                             callback_call = twilio_service.client.calls.create(
                                 to=agent_identity,
                                 from_=caller_id,
                                 url=rejoin_url,
                                 timeout=30,
+                                status_callback=callback_status_url,
+                                status_callback_event=['completed', 'busy', 'no-answer', 'failed', 'canceled'],
                             )
                             logger.info(f"Calling agent {transferred_by} back after failed blind transfer: {callback_call.sid}")
                         except Exception as e:
