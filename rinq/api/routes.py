@@ -6672,10 +6672,18 @@ def transfer_consult_status():
     if not original_call:
         return '', 200
 
-    # If the consultation call failed, cancel the transfer
-    # Include 'completed' — browser clients report rejection as 'completed'
-    # with zero duration. Safe because completed transfers have their
-    # transfer_status changed, so get_transfer_state won't find them.
+    # 'completed' with duration > 0 means the call was answered and ended normally
+    # For blind transfers, mark the transfer as done
+    call_duration = int(request.form.get('CallDuration', '0') or '0')
+    if call_status == 'completed' and call_duration > 0:
+        logger.info(f"Transfer target call ended normally for {original_call} (duration={call_duration}s)")
+        if source == 'call_log':
+            db.complete_transfer_log(original_call)
+        else:
+            db.complete_transfer(original_call)
+        return '', 200
+
+    # If the consultation call failed (rejected, no-answer, or completed with 0 duration)
     if call_status in ('completed', 'busy', 'no-answer', 'failed', 'canceled'):
         logger.info(f"Consultation call failed ({call_status}) for transfer {original_call} (source={source})")
 

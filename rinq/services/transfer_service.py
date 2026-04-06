@@ -380,6 +380,8 @@ class TransferService:
             self.db.set_call_conference(call_sid, new_conference)
             self.db.set_call_conference(target_call.sid, new_conference)
             self.db.set_call_child_sid(target_call.sid, call_sid)
+            # Store consult call SID so transfer context lookup works
+            self.db.update_transfer_consultation(call_sid, target_call.sid, new_conference)
             logger.info(f"Stored conference {new_conference} for customer={call_sid}, target={target_call.sid}")
 
             # Redirect the customer into the new conference
@@ -393,7 +395,9 @@ class TransferService:
                 except Exception as e:
                     logger.warning(f"Could not end agent call: {e}")
 
-            self.db.complete_transfer(call_sid)
+            # Don't mark transfer as completed yet — wait for the target to
+            # actually answer (handled by consult-status callback). If they
+            # reject, the callback will call agent 1 back.
 
             # Update agent_email so presence shows the new agent, not the old one
             new_agent_email = ext_record.get('email') if is_ext else None
