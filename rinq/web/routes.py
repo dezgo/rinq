@@ -2744,6 +2744,7 @@ def update_call_flow(flow_id):
     closed_forward_number = request.form.get('closed_forward_number', '').strip()
     open_forward_number = request.form.get('open_forward_number', '').strip()
     voicemail_destination_id = request.form.get('voicemail_destination_id', '').strip()
+    no_answer_audio_id = request.form.get('no_answer_audio_id')
     extension_prompt_audio_id = request.form.get('extension_prompt_audio_id')
     extension_invalid_audio_id = request.form.get('extension_invalid_audio_id')
     closed_message_parts = request.form.get('closed_message_parts', '').strip() or None
@@ -2760,6 +2761,7 @@ def update_call_flow(flow_id):
                 'open_queue_id': int(open_queue_id) if open_queue_id else None,
                 'open_forward_number': open_forward_number or None,
                 'open_no_answer_action': open_no_answer_action,
+                'no_answer_audio_id': int(no_answer_audio_id) if no_answer_audio_id else None,
                 'closed_action': closed_action,
                 'closed_audio_id': int(closed_audio_id) if closed_audio_id else None,
                 'closed_message_parts': closed_message_parts,
