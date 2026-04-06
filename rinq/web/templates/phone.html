@@ -3703,7 +3703,8 @@ function renderHistoryCard(call) {
     const icon = dir === 'inbound' ? '&#8599;' : '&#8600;';
 
     // Display name or number
-    const otherNumber = dir === 'inbound' ? (call.from_number || '') : (call.to_number || '');
+    let otherNumber = dir === 'inbound' ? (call.from_number || '') : (call.to_number || '');
+    if (otherNumber.startsWith('ext:')) otherNumber = otherNumber.slice(4);
     const displayName = call.customer_name || formatPhoneDisplay(otherNumber);
 
     // Detail line
@@ -3726,8 +3727,7 @@ function renderHistoryCard(call) {
     const duration = formatDuration(call.talk_seconds || call.total_seconds);
 
     // Sanitize number for onclick - phone numbers and extensions are dialable
-    const cleanNumber = otherNumber.startsWith('ext:') ? otherNumber.slice(4) : otherNumber;
-    const dialNumber = cleanNumber.match(/^[+\d]/) ? cleanNumber.replace(/'/g, '') : '';
+    const dialNumber = otherNumber.match(/^[+\d]/) ? otherNumber.replace(/'/g, '') : '';
 
     return `
         <div class="history-card"${dialNumber ? ` onclick="historyCardClick('${dialNumber}')"` : ''}>
