@@ -922,17 +922,19 @@ class TransferService:
                 # Agent and customer stay where they are — no redirects needed.
                 existing_conf = parties.get('conference_name') or conference_name
 
-                # Set ALL participants to endConferenceOnExit=false so anyone
-                # can leave without killing the conference for the others
+                # Set agent participants to endConferenceOnExit=false so they
+                # can leave without killing the conference. Keep customer at
+                # true so hanging up ends the call for everyone.
                 try:
-                    confs = twilio_list(self.twilio.client.conferences, 
+                    confs = twilio_list(self.twilio.client.conferences,
                         friendly_name=existing_conf, status='in-progress', limit=1
                     )
                     if confs:
                         for p in twilio_list(self.twilio.client.conferences(confs[0].sid).participants):
-                            self.twilio.client.conferences(confs[0].sid).participants(p.call_sid).update(
-                                end_conference_on_exit=False
-                            )
+                            if p.call_sid != customer_call_sid:
+                                self.twilio.client.conferences(confs[0].sid).participants(p.call_sid).update(
+                                    end_conference_on_exit=False
+                                )
                 except Exception as e:
                     logger.warning(f"Could not update endConferenceOnExit: {e}")
 

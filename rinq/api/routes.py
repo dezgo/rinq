@@ -6517,8 +6517,14 @@ def transfer_consult_status():
     if not original_call:
         return '', 200
 
-    # Ignore intermediate statuses (initiated, ringing, in-progress)
-    # We detect agent 2 answering via conference participant count instead
+    # Target answered — mark transfer as consulting so frontend can update UI
+    if call_status == 'answered':
+        logger.info(f"Transfer target answered for {original_call} (source={source})")
+        if source == 'call_log':
+            db.update_call_log_transfer_status(original_call, 'consulting')
+        else:
+            db.update_queued_call_transfer_status(original_call, 'consulting')
+        return '', 200
 
     # If the consultation call failed, cancel the transfer
     if call_status in ('busy', 'no-answer', 'failed', 'canceled'):

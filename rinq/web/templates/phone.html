@@ -4124,7 +4124,14 @@ function startTransferStatusPolling() {
             if (res.ok) {
                 const data = await res.json();
                 const status = data.transfer && data.transfer.transfer_status;
-                if (status === 'failed') {
+                if (status === 'consulting' && transferType === 'three_way') {
+                    // 3-way: target answered, all parties connected — close modal
+                    console.log('3-way target answered — closing modal');
+                    stopTransferStatusPolling();
+                    isConsulting = false;
+                    consultCallSid = null;
+                    closeTransferModal();
+                } else if (status === 'failed') {
                     console.log('Transfer failed — resetting consulting UI');
                     stopTransferStatusPolling();
                     isConsulting = false;
