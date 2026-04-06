@@ -4365,8 +4365,14 @@ def voice_hangup():
                 friendly_name=conference_name, status='in-progress', limit=1
             )
             if confs:
-                service.client.conferences(confs[0].sid).update(status='completed')
-                logger.info(f"Ended hold conference {conference_name} on hangup")
+                participants = twilio_list(service.client.conferences(confs[0].sid).participants)
+                if len(participants) > 2:
+                    # Multi-party (3-way) — just remove this agent, keep conference alive
+                    logger.info(f"Leaving multi-party conference {conference_name} on hangup")
+                else:
+                    # 2-party — end the conference
+                    service.client.conferences(confs[0].sid).update(status='completed')
+                    logger.info(f"Ended conference {conference_name} on hangup")
         except Exception as e:
             logger.warning(f"Could not end conference {conference_name}: {e}")
 
@@ -5774,6 +5780,20 @@ def _get_call_state_inner(agent_call_sid, caller_email=None):
             if friendly:
                 return {'call_sid': call_sid, 'name': friendly, 'role': 'agent'}
 
+        # Check call_log for caller/customer info
+        call_log = db.get_call_log_by_sid(call_sid) if hasattr(db, 'get_call_log_by_sid') else None
+        if not call_log:
+            try:
+                from_num = db.get_call_log_field(call_sid, 'from_number')
+                to_num = db.get_call_log_field(call_sid, 'to_number')
+                direction = db.get_call_log_field(call_sid, 'direction')
+                # For inbound calls, customer is from_number; for outbound, customer is to_number
+                customer_num = from_num if direction == 'inbound' else to_num
+                if customer_num and customer_num.startswith('+'):
+                    return {'call_sid': call_sid, 'name': customer_num, 'role': 'customer'}
+            except Exception:
+                pass
+
         # Resolve from Twilio call details
         try:
             call = twilio_service.client.calls(call_sid).fetch()
@@ -5784,10 +5804,10 @@ def _get_call_state_inner(agent_call_sid, caller_email=None):
                     email, friendly = _normalize_staff_identifier(identifier)
                     if friendly:
                         return {'call_sid': call_sid, 'name': friendly, 'role': 'agent'}
-            # Not a known staff member — show the phone number (likely customer)
-            phone = call.from_formatted or call.from_ or call.to_formatted or call.to
-            if phone:
-                return {'call_sid': call_sid, 'name': phone, 'role': 'customer'}
+            # Not a known staff member — show the non-internal phone number
+            for num in [call.to, call.from_]:
+                if num and num.startswith('+') and num not in user_map:
+                    return {'call_sid': call_sid, 'name': num, 'role': 'customer'}
         except Exception:
             pass
 
