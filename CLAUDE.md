@@ -150,11 +150,7 @@ Several functions spawn background threads for Twilio API calls (ringing agents,
 No automated tests yet (inherited from Tina, tests are in bot-team repo).
 Manual test runsheet at `/admin/test-runsheet`.
 
-## Known Issues (Pre-existing)
+## Known Issues
 
-1. DND + empty queue doesn't fall through to voicemail
-2. Internal extension calls show Twilio number instead of caller's name
-3. Transfer modal doesn't auto-close when target answers
-4. Conference hangup wrongly triggers "not answered" message
-5. Stale "on call" status after transfer completes
-6. Voicemail offered even when no voicemail destination configured
+1. Call panel ("IN THIS CALL") shows wrong names/duplicates during transfers and extension calls — needs refactor of `_get_call_state_inner` into a proper `call_state.py` module
+2. `phone.html` and `routes.py` are too large with deeply coupled logic — see refactor notes in memory
