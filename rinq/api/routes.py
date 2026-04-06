@@ -6664,10 +6664,12 @@ def transfer_consult_status():
 
     No auth required - Twilio calls this directly.
     """
-    db = get_db()
     original_call = request.args.get('original_call')
-    source = request.args.get('source', 'queued_calls')  # 'queued_calls' or 'call_log'
+    source = request.args.get('source', 'queued_calls')
     call_status = request.form.get('CallStatus', '')
+    logger.info(f"Transfer consult-status callback: original={original_call}, status={call_status}, source={source}")
+
+    db = get_db()
 
     if not original_call:
         return '', 200
