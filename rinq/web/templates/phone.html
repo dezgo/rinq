@@ -4081,7 +4081,8 @@ async function startTransfer() {
                     transferActions.style.display = 'none';
                     consultingActions.style.display = 'flex';
 
-                    // Poll transfer status to detect when consult call fails
+                    // Poll faster to catch target answering, and detect failures
+                    startCallStatePolling(1000);
                     startTransferStatusPolling();
                 }
             } else {
@@ -4929,6 +4930,7 @@ async function pollCallState() {
             && state.transfer && state.transfer.consult_participants
             && state.transfer.consult_participants.length >= 2) {
             stopRingback();
+            startCallStatePolling();  // Revert to normal 3s interval
         }
 
         // Last one in conference — everyone else left, auto-hangup
