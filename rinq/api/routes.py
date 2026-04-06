@@ -2746,12 +2746,24 @@ def hold_music():
 
     No auth required - Twilio calls this directly.
     """
-
-    # Use request host to build URL — avoids needing tenant context
     base = request.host_url.rstrip('/')
+    music_url = f'{base}/static/clockwork_waltz_60s.mp3'
+
+    # Try to find tenant-configured hold music
+    try:
+        db = get_db()
+        # Use the first queue's hold music as the default for the tenant
+        queues = db.get_queues()
+        for q in queues:
+            if q.get('hold_music_url'):
+                music_url = _get_full_audio_url(q['hold_music_url'])
+                break
+    except Exception:
+        pass  # No tenant context — use static default
+
     twiml = f'''<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Play>{base}/static/clockwork_waltz_60s.mp3</Play>
+    <Play>{xml_escape(music_url)}</Play>
 </Response>'''
 
     return Response(twiml, mimetype='application/xml')
