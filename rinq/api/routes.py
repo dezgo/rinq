@@ -5960,6 +5960,16 @@ def _get_call_state_inner(agent_call_sid, caller_email=None):
                         child_sid = db.get_call_child_sid(agent_call_sid)
                         if child_sid:
                             result['customer_call_sid'] = child_sid
+
+                        # Check transfer state before resolving participants
+                        transfer_key = child_sid or agent_call_sid
+                        transfer_state = db.get_transfer_state_log(transfer_key)
+                        if transfer_state and transfer_state.get('transfer_status') in ('pending', 'consulting'):
+                            consult_sid = transfer_state.get('transfer_consult_call_sid')
+                            t_name = transfer_state.get('transfer_target_name')
+                            if consult_sid and t_name:
+                                _transfer_call_names[consult_sid] = t_name
+
                         result['participants'] = []
                         for p in participants:
                             info = resolve_participant(p.call_sid)
