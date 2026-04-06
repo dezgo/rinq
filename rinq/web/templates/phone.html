@@ -3725,8 +3725,9 @@ function renderHistoryCard(call) {
     const time = call.started_at ? formatHistoryTime(call.started_at) : '';
     const duration = formatDuration(call.talk_seconds || call.total_seconds);
 
-    // Sanitize number for onclick - only use dialable numbers
-    const dialNumber = otherNumber.match(/^[+\d]/) ? otherNumber.replace(/'/g, '') : '';
+    // Sanitize number for onclick - phone numbers and extensions are dialable
+    const cleanNumber = otherNumber.startsWith('ext:') ? otherNumber.slice(4) : otherNumber;
+    const dialNumber = cleanNumber.match(/^[+\d]/) ? cleanNumber.replace(/'/g, '') : '';
 
     return `
         <div class="history-card"${dialNumber ? ` onclick="historyCardClick('${dialNumber}')"` : ''}>
