@@ -80,6 +80,14 @@ def resolve_tenant():
                 g.tenant = tenant
                 return
 
+        # Fallback: resolve from Twilio AccountSid (present on all webhooks)
+        account_sid = request.form.get('AccountSid') or request.args.get('AccountSid')
+        if account_sid:
+            tenant = master_db.get_tenant_by_account_sid(account_sid)
+            if tenant:
+                g.tenant = tenant
+                return
+
         # Fallback: tenant_id in URL args
         tid = request.args.get('tenant_id')
         if tid:
