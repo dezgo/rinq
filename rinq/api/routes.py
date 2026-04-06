@@ -2747,10 +2747,11 @@ def hold_music():
     No auth required - Twilio calls this directly.
     """
 
-    # Fallback hold music from static/ (safe from admin deletion)
+    # Use request host to build URL — avoids needing tenant context
+    base = request.host_url.rstrip('/')
     twiml = f'''<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Play>{config.webhook_base_url}/static/clockwork_waltz_60s.mp3</Play>
+    <Play>{base}/static/clockwork_waltz_60s.mp3</Play>
 </Response>'''
 
     return Response(twiml, mimetype='application/xml')
@@ -2765,9 +2766,10 @@ def ringback():
 
     No auth required - Twilio calls this directly.
     """
+    base = request.host_url.rstrip('/')
     twiml = f'''<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Play loop="0">{config.webhook_base_url}/static/au-ringback.mp3</Play>
+    <Play loop="0">{base}/static/au-ringback.mp3</Play>
 </Response>'''
     return Response(twiml, mimetype='application/xml')
 
