@@ -11,7 +11,7 @@ Provides dashboard for:
 import json
 import logging
 from datetime import datetime, timezone
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, make_response
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, make_response, session
 
 logger = logging.getLogger(__name__)
 
@@ -139,10 +139,7 @@ def manifest():
 @web_bp.route('/')
 def index():
     """Landing page (rinq.cc, unauthenticated) or user dashboard."""
-    from flask import session as flask_session
-
-    # Not logged in?
-    if not flask_session.get('user_id'):
+    if not session.get('user_id'):
         # Show landing page only on the SaaS domain
         host = request.host.split(':')[0].lower()
         if host in ('rinq.cc', 'localhost', '127.0.0.1'):
