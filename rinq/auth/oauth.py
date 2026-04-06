@@ -5,7 +5,7 @@ Direct OAuth flow — no Chester gateway needed.
 """
 
 import logging
-from flask import Blueprint, redirect, url_for, session, request, flash, render_template_string
+from flask import Blueprint, redirect, url_for, session, request, flash, render_template
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from google_auth_oauthlib.flow import Flow
@@ -20,44 +20,7 @@ SCOPES = [
     'https://www.googleapis.com/auth/userinfo.profile',
 ]
 
-LOGIN_TEMPLATE = """
-<!DOCTYPE html>
-<html>
-<head>
-    <title>{{ product_name }} - Sign In</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <style>
-        body { font-family: -apple-system, system-ui, sans-serif; display: flex;
-               justify-content: center; align-items: center; min-height: 100vh;
-               margin: 0; background: #f5f5f5; }
-        .login-box { background: white; padding: 2rem 3rem; border-radius: 8px;
-                     box-shadow: 0 2px 10px rgba(0,0,0,0.1); text-align: center;
-                     max-width: 400px; }
-        h1 { margin: 0 0 0.5rem; font-size: 1.5rem; }
-        p { color: #666; margin: 0 0 1.5rem; }
-        .btn { display: inline-flex; align-items: center; gap: 0.5rem;
-               padding: 0.75rem 1.5rem; border-radius: 4px; text-decoration: none;
-               font-size: 1rem; background: #4285f4; color: white; border: none;
-               cursor: pointer; }
-        .btn:hover { background: #3367d6; }
-        .flash { padding: 0.5rem 1rem; border-radius: 4px; margin-bottom: 1rem;
-                 background: #fef3cd; color: #856404; }
-    </style>
-</head>
-<body>
-    <div class="login-box">
-        <h1>{{ product_name }}</h1>
-        <p>Sign in to continue</p>
-        {% for msg in get_flashed_messages() %}
-        <div class="flash">{{ msg }}</div>
-        {% endfor %}
-        <a href="{{ url_for('standalone_auth.do_login') }}" class="btn">
-            Sign in with Google
-        </a>
-    </div>
-</body>
-</html>
-"""
+SAAS_DOMAINS = ('rinq.cc', 'localhost', '127.0.0.1')
 
 
 def _get_config():
@@ -100,7 +63,25 @@ def login():
     config = _get_config()
     if session.get('user_id'):
         return redirect('/')
-    return render_template_string(LOGIN_TEMPLATE, product_name=config.product_name)
+
+    from datetime import datetime
+    from rinq.database.master import get_master_db
+
+    host = request.host.split(':')[0].lower()
+    is_saas = host in SAAS_DOMAINS
+    product_name = config.product_name
+
+    # Resolve tenant product name from domain for non-SaaS domains
+    if not is_saas:
+        master_db = get_master_db()
+        tenant = master_db.get_tenant_by_domain(host)
+        if tenant and tenant.get('product_name'):
+            product_name = tenant['product_name']
+
+    return render_template('login.html',
+                          product_name=product_name,
+                          is_saas=is_saas,
+                          now=datetime.now())
 
 
 @auth_bp.route('/login/go')
