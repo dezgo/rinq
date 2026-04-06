@@ -1722,11 +1722,14 @@ def _handle_incoming_call_internal(called_number: str, from_number: str, call_si
 
 def _go_to_voicemail(response_parts, call_flow, called_number, from_number, call_sid, db, routing):
     """Helper to route a call to voicemail."""
-    voicemail_dest = call_flow.get('voicemail_destination_id') if call_flow else None
+    vm_dest = None
+    if call_flow:
+        if call_flow.get('voicemail_destination_id'):
+            vm_dest = db.get_voicemail_destination(call_flow['voicemail_destination_id'])
+        elif call_flow.get('voicemail_email'):
+            vm_dest = db.get_voicemail_destination_by_email(call_flow['voicemail_email'])
 
-    if voicemail_dest:
-        vm_dest = db.get_voicemail_destination(voicemail_dest)
-        if vm_dest:
+    if vm_dest:
             # Play voicemail prompt if configured
             if call_flow and call_flow.get('closed_audio_id'):
                 audio = db.get_audio_file(call_flow['closed_audio_id'])
