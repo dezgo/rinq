@@ -6517,15 +6517,6 @@ def transfer_consult_status():
     if not original_call:
         return '', 200
 
-    # Target answered — mark transfer as consulting so frontend can update UI
-    if call_status == 'answered':
-        logger.info(f"Transfer target answered for {original_call} (source={source})")
-        if source == 'call_log':
-            db.update_call_log_transfer_status(original_call, 'consulting')
-        else:
-            db.update_queued_call_transfer_status(original_call, 'consulting')
-        return '', 200
-
     # If the consultation call failed, cancel the transfer
     if call_status in ('busy', 'no-answer', 'failed', 'canceled'):
         logger.info(f"Consultation call failed ({call_status}) for transfer {original_call} (source={source})")
@@ -6537,9 +6528,14 @@ def transfer_consult_status():
             transfer_state = db.get_transfer_state(original_call)
 
         if transfer_state:
+            is_three_way = transfer_state.get('transfer_type') == 'three_way'
             conference_name = transfer_state.get('conference_name')
             consult_conference = transfer_state.get('transfer_consult_conference')
-            if conference_name:
+
+            # For warm transfers: take caller off hold and redirect agent
+            # back to original conference. For 3-way: agent and customer are
+            # already in the original conference, so skip both.
+            if not is_three_way and conference_name:
                 try:
                     twilio_service = get_twilio_service()
                     conferences = twilio_list(twilio_service.client.conferences,
@@ -6558,30 +6554,26 @@ def transfer_consult_status():
                 except Exception as e:
                     logger.warning(f"Could not take caller off hold: {e}")
 
-            # Redirect agent back to the original conference
-            # The agent was moved to the consult conference, which has now ended.
-            # We need to put them back in the original conference with the caller.
-            if consult_conference and conference_name:
-                try:
-                    twilio_service = get_twilio_service()
-                    # Find the agent in the consult conference
-                    consult_confs = twilio_list(twilio_service.client.conferences,
-                        friendly_name=consult_conference,
-                        status='in-progress',
-                        limit=1
-                    )
-                    if consult_confs:
-                        consult_participants = twilio_list(twilio_service.client.conferences(consult_confs[0].sid).participants)
-                        for p in consult_participants:
-                            # Redirect agent back to original conference
-                            rejoin_url = (
-                                f"{config.webhook_base_url}/api/voice/conference/join"
-                                f"?room={conference_name}&role=agent"
-                            )
-                            twilio_service.client.calls(p.call_sid).update(url=rejoin_url, method='POST')
-                            logger.info(f"Redirected agent {p.call_sid} back to conference {conference_name}")
-                except Exception as e:
-                    logger.warning(f"Could not redirect agent back to conference: {e}")
+                # Redirect agent back to the original conference
+                if consult_conference:
+                    try:
+                        twilio_service = get_twilio_service()
+                        consult_confs = twilio_list(twilio_service.client.conferences,
+                            friendly_name=consult_conference,
+                            status='in-progress',
+                            limit=1
+                        )
+                        if consult_confs:
+                            consult_participants = twilio_list(twilio_service.client.conferences(consult_confs[0].sid).participants)
+                            for p in consult_participants:
+                                rejoin_url = (
+                                    f"{config.webhook_base_url}/api/voice/conference/join"
+                                    f"?room={conference_name}&role=agent"
+                                )
+                                twilio_service.client.calls(p.call_sid).update(url=rejoin_url, method='POST')
+                                logger.info(f"Redirected agent {p.call_sid} back to conference {conference_name}")
+                    except Exception as e:
+                        logger.warning(f"Could not redirect agent back to conference: {e}")
 
         # Fail transfer in appropriate source
         if source == 'call_log':

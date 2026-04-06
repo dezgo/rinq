@@ -4124,14 +4124,7 @@ function startTransferStatusPolling() {
             if (res.ok) {
                 const data = await res.json();
                 const status = data.transfer && data.transfer.transfer_status;
-                if (status === 'consulting' && transferType === 'three_way') {
-                    // 3-way: target answered, all parties connected — close modal
-                    console.log('3-way target answered — closing modal');
-                    stopTransferStatusPolling();
-                    isConsulting = false;
-                    consultCallSid = null;
-                    closeTransferModal();
-                } else if (status === 'failed') {
+                if (status === 'failed') {
                     console.log('Transfer failed — resetting consulting UI');
                     stopTransferStatusPolling();
                     isConsulting = false;
@@ -4883,6 +4876,16 @@ async function pollCallState() {
 
                 showTransferError('Transfer target did not answer. You are reconnected with the caller.');
             }
+        }
+
+        // 3-way: close modal when target joins (3+ participants in conference)
+        if (isConsulting && transferType === 'three_way'
+            && state.participants && state.participants.length >= 3) {
+            console.log('3-way: target joined conference — closing modal');
+            stopTransferStatusPolling();
+            isConsulting = false;
+            consultCallSid = null;
+            closeTransferModal();
         }
     } catch (e) {
         // Ignore polling errors
