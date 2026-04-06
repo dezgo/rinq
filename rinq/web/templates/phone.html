@@ -2173,6 +2173,33 @@ function stopRingtone() {
     }
 }
 
+// Ringback tone — single long tone for outbound ringing (transfers, etc.)
+let ringbackInterval = null;
+
+function playRingback() {
+    stopRingback();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    function tone() {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.frequency.value = 440;
+        gain.gain.value = 0.15;
+        osc.start(audioCtx.currentTime);
+        osc.stop(audioCtx.currentTime + 1);
+    }
+    tone();
+    ringbackInterval = setInterval(tone, 4000);
+}
+
+function stopRingback() {
+    if (ringbackInterval) {
+        clearInterval(ringbackInterval);
+        ringbackInterval = null;
+    }
+}
+
 // Queue alert - three ascending beeps
 let queueAlertInterval = null;
 
@@ -3943,6 +3970,7 @@ function openTransferModal() {
 
 function closeTransferModal() {
     transferModal.classList.remove('active');
+    stopRingback();
     if (transferRefreshInterval) {
         clearInterval(transferRefreshInterval);
         transferRefreshInterval = null;
@@ -4031,6 +4059,7 @@ async function startTransfer() {
                 currentTransferKey = data.transfer_key || currentQueueCallerSid;
                 currentTransferAgentSid = data.agent_call_sid || null;
                 consultingTargetName.textContent = targetName;
+                playRingback();
                 consultTargetAnswered = false;
 
                 const subtitle = document.getElementById('consultingSubtitle');
@@ -4127,6 +4156,7 @@ function startTransferStatusPolling() {
                 if (status === 'failed') {
                     console.log('Transfer failed — resetting consulting UI');
                     stopTransferStatusPolling();
+                    stopRingback();
                     isConsulting = false;
                     consultCallSid = null;
                     currentTransferKey = null;
@@ -4863,6 +4893,7 @@ async function pollCallState() {
             if (state.transfer.status === 'failed') {
                 // Transfer failed — reset UI
                 stopTransferStatusPolling();
+                stopRingback();
                 isConsulting = false;
                 consultCallSid = null;
                 currentTransferKey = null;
