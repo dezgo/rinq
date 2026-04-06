@@ -2502,7 +2502,7 @@ async function initPhone() {
                             }
                         }
                     })
-                    .catch(() => {});
+                    .catch(err => console.warn('Transfer context check failed:', err));
             }
 
             // Fetch customer context for incoming call (skip for internal calls)
