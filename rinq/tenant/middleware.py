@@ -60,7 +60,7 @@ def resolve_tenant():
     # Twilio webhooks (no session): resolve from phone numbers in the request
     if path.startswith('/api/voice/') or path.startswith('/api/sip/'):
         # Try all number fields — To, Called, From — any might be a registered number
-        for field in ('To', 'Called', 'From'):
+        for field in ('To', 'Called', 'From', 'CallerId'):
             value = request.form.get(field) or request.args.get(field.lower(), '')
             if not value:
                 continue
