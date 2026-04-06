@@ -4094,6 +4094,7 @@ async function startTransfer() {
 }
 
 async function completeTransfer() {
+    stopRingback();
     try {
         const body = { call_type: currentTransferCallType };
         if (currentTransferCallType === 'queue') {
@@ -4184,6 +4185,7 @@ function stopTransferStatusPolling() {
 }
 
 async function cancelTransfer() {
+    stopRingback();
     try {
         const body = { call_type: currentTransferCallType };
         if (currentTransferCallType === 'queue') {
