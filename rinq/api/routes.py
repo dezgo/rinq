@@ -1289,7 +1289,8 @@ def voice_incoming():
                     )
                 else:
                     return _go_to_voicemail(
-                        response_parts, call_flow, called_number, from_number, call_sid, db, routing
+                        response_parts, call_flow, called_number, from_number, call_sid, db, routing,
+                        reason='no_answer'
                     )
 
         else:
