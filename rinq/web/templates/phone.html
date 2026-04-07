@@ -4124,7 +4124,7 @@ async function startTransfer() {
 
 async function completeTransfer() {
     stopRingback();
-    if (!isConsulting) {
+    if (!isConsulting || !currentTransferCallType) {
         closeTransferModal();
         return;
     }
@@ -4216,8 +4216,7 @@ function stopTransferStatusPolling() {
 
 async function cancelTransfer() {
     stopRingback();
-    if (!isConsulting) {
-        // Polling already resolved the transfer — just close the modal
+    if (!isConsulting || !currentTransferCallType) {
         closeTransferModal();
         return;
     }
