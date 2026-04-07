@@ -4252,7 +4252,18 @@ async function cancelTransfer() {
                 btnStartTransfer.textContent = 'Transfer';
             }
         } else {
-            showTransferError(data.error || 'Failed to cancel transfer');
+            // Transfer already resolved (target rejected/didn't answer) —
+            // treat as a successful cancel, the webhook already reconnected us
+            const alreadyDone = (data.error || '').includes('in state:');
+            if (alreadyDone) {
+                stopTransferStatusPolling();
+                isConsulting = false;
+                consultCallSid = null;
+                currentTransferKey = null;
+                closeTransferModal();
+            } else {
+                showTransferError(data.error || 'Failed to cancel transfer');
+            }
         }
     } catch (error) {
         showTransferError('Error: ' + error.message);
