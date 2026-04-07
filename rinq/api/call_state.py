@@ -338,6 +338,10 @@ def get_call_state(agent_call_sid: str, caller_email: str = None) -> dict:
                             if consult_sid and t_name:
                                 transfer_names[consult_sid] = t_name
 
+                            result['transfer'] = _build_transfer_info(
+                                transfer_state, transfer_names, resolve_kwargs
+                            )
+
                         # For completed blind transfers, look up customer from
                         # the original call so we don't show the wrong name
                         customer_info = None
