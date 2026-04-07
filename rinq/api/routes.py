@@ -4680,9 +4680,13 @@ def voice_outbound():
             performed_by=from_identity or "browser"
         )
 
-        # Return TwiML for agent to join the same conference
+        # Return TwiML for agent to join the same conference.
+        # Brief message gives the caller redirect time to complete —
+        # without it the agent joins the conference before the caller
+        # arrives and hears hold music until the redirect finishes.
         twiml = f'''<?xml version="1.0" encoding="UTF-8"?>
 <Response>
+    <Say>Connecting.</Say>
     <Dial>
         <Conference endConferenceOnExit="true" startConferenceOnEnter="true">{xml_escape(conference_name)}</Conference>
     </Dial>
