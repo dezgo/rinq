@@ -1306,12 +1306,17 @@ def _handle_incoming_call_internal(called_number: str, from_number: str, call_si
 
 
 def _go_to_voicemail(response_parts, call_flow, called_number, from_number, call_sid, db, routing,
-                     reason='closed'):
+                     reason='closed', audio_type=None):
     """Helper to route a call to voicemail.
+
+    This is the single path all voicemail recordings go through.
 
     Args:
         reason: 'closed' (after hours) or 'no_answer' (open hours, no one available)
+        audio_type: Override audio type for _say_or_play (e.g. 'queue_no_agents', 'voicemail_escape').
+                    If None, uses call_flow-configured audio.
     """
+    # Check if the call_flow has a voicemail destination configured
     vm_dest = None
     if call_flow:
         if call_flow.get('voicemail_destination_id'):
@@ -1319,37 +1324,39 @@ def _go_to_voicemail(response_parts, call_flow, called_number, from_number, call
         elif call_flow.get('voicemail_email'):
             vm_dest = db.get_voicemail_destination_by_email(call_flow['voicemail_email'])
 
-    if vm_dest:
-            # Play appropriate prompt based on reason
-            if reason == 'closed' and call_flow and call_flow.get('closed_audio_id'):
-                audio = db.get_audio_file(call_flow['closed_audio_id'])
-                if audio and audio.get('file_url'):
-                    audio_url = _get_full_audio_url(audio['file_url'])
-                    response_parts.append(f'    <Play>{xml_escape(audio_url)}</Play>')
-            elif reason == 'no_answer':
-                if call_flow and call_flow.get('no_answer_audio_id'):
-                    audio = db.get_audio_file(call_flow['no_answer_audio_id'])
-                    if audio and audio.get('file_url'):
-                        audio_url = _get_full_audio_url(audio['file_url'])
-                        response_parts.append(f'    <Play>{xml_escape(audio_url)}</Play>')
-                    else:
-                        response_parts.append(_say_or_play('voicemail_no_answer',
-                            'Sorry, no one is available to take your call right now. '
-                            'Please leave a message after the tone.'))
-                else:
-                    response_parts.append(_say_or_play('voicemail_no_answer',
-                        'Sorry, no one is available to take your call right now. '
-                        'Please leave a message after the tone.'))
+    if not vm_dest and not audio_type:
+        # No voicemail configured and no fallback audio — can't record
+        response_parts.append('    <Say voice="Polly.Nicole">Please try again later. Goodbye.</Say>')
+        response_parts.append('    <Hangup/>')
+        response_parts.append('</Response>')
+        return Response('\n'.join(response_parts), mimetype='application/xml')
 
-            record_url = f"{config.webhook_base_url}/api/voice/voicemail"
-            transcription_url = f"{config.webhook_base_url}/api/voice/transcription"
-            response_parts.append(f'    <Record maxLength="120" action="{xml_escape(record_url)}" recordingStatusCallback="{xml_escape(record_url)}" recordingStatusCallbackEvent="completed" transcribe="true" transcribeCallback="{xml_escape(transcription_url)}" />')
-            response_parts.append('</Response>')
-            return Response('\n'.join(response_parts), mimetype='application/xml')
+    # Play appropriate prompt
+    prompt_added = False
+    if reason == 'closed' and call_flow and call_flow.get('closed_audio_id'):
+        audio = db.get_audio_file(call_flow['closed_audio_id'])
+        if audio and audio.get('file_url'):
+            audio_url = _get_full_audio_url(audio['file_url'])
+            response_parts.append(f'    <Play>{xml_escape(audio_url)}</Play>')
+            prompt_added = True
+    elif reason == 'no_answer':
+        if call_flow and call_flow.get('no_answer_audio_id'):
+            audio = db.get_audio_file(call_flow['no_answer_audio_id'])
+            if audio and audio.get('file_url'):
+                audio_url = _get_full_audio_url(audio['file_url'])
+                response_parts.append(f'    <Play>{xml_escape(audio_url)}</Play>')
+                prompt_added = True
 
-    # No voicemail configured
-    response_parts.append('    <Say voice="Polly.Nicole">Please try again later. Goodbye.</Say>')
-    response_parts.append('    <Hangup/>')
+    if not prompt_added:
+        # Fall through to generic prompt
+        fallback_type = audio_type or 'voicemail_no_answer'
+        response_parts.append(_say_or_play(fallback_type,
+            'Sorry, no one is available to take your call right now. '
+            'Please leave a message after the tone.'))
+
+    record_url = f"{config.webhook_base_url}/api/voice/voicemail"
+    transcription_url = f"{config.webhook_base_url}/api/voice/transcription"
+    response_parts.append(f'    <Record maxLength="120" action="{xml_escape(record_url)}" recordingStatusCallback="{xml_escape(record_url)}" recordingStatusCallbackEvent="completed" transcribe="true" transcribeCallback="{xml_escape(transcription_url)}" />')
     response_parts.append('</Response>')
     return Response('\n'.join(response_parts), mimetype='application/xml')
 
@@ -1653,23 +1660,14 @@ def queue_no_answer(queue_id):
                 performed_by="twilio"
             )
 
-            voicemail_url = f"{config.webhook_base_url}/api/voice/voicemail"
-            transcription_url = f"{config.webhook_base_url}/api/voice/transcription"
-            prompt = _say_or_play('queue_no_agents', 'Sorry, no one is available to take your call. Please leave a message after the tone.')
-            twiml = f'''<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-{prompt}
-    <Record action="{xml_escape(voicemail_url)}" maxLength="120" transcribe="true" transcribeCallback="{xml_escape(transcription_url)}" />
-</Response>'''
+            return _build_voicemail_twiml(queue_id, call_sid, from_number=from_number)
     else:
         # Queue not found - apologize and hang up
-        twiml = '''<?xml version="1.0" encoding="UTF-8"?>
+        return Response('''<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Say>Sorry, we are unable to take your call at this time. Please try again later.</Say>
     <Hangup/>
-</Response>'''
-
-    return Response(twiml, mimetype='application/xml')
+</Response>''', mimetype='application/xml')
 
 
 @api_bp.route('/voice/queue/<int:queue_id>/leave', methods=['POST'])
@@ -2221,20 +2219,19 @@ def queue_agent_ring_status(queue_id):
 
 
 def _build_voicemail_twiml(queue_id, call_sid, from_number='', audio_type='queue_no_agents'):
-    """Build voicemail TwiML for queue timeout, rejection, or voicemail escape."""
-    voicemail_url = f"{config.webhook_base_url}/api/voice/voicemail"
-    transcription_url = f"{config.webhook_base_url}/api/voice/transcription"
+    """Build voicemail TwiML for queue timeout, rejection, or voicemail escape.
 
-    prompt = _say_or_play(audio_type, 'Sorry, our team is unable to take your call right now. Please leave a message after the tone and we will get back to you as soon as possible.')
-
-    twiml = f'''<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-{prompt}
-    <Record action="{xml_escape(voicemail_url)}" maxLength="120" transcribe="true" transcribeCallback="{xml_escape(transcription_url)}" />
-</Response>'''
-
+    Delegates to _go_to_voicemail with audio_type override.
+    """
     logger.info(f"Sending call {call_sid} to voicemail (queue {queue_id})")
-    return Response(twiml, mimetype='application/xml')
+    db = get_db()
+    response_parts = ['<?xml version="1.0" encoding="UTF-8"?>', '<Response>']
+    return _go_to_voicemail(
+        response_parts, call_flow=None,
+        called_number='', from_number=from_number,
+        call_sid=call_sid, db=db, routing=None,
+        reason='no_answer', audio_type=audio_type,
+    )
 
 
 @api_bp.route('/voice/queue/<int:queue_id>/rejected-voicemail', methods=['POST'])
@@ -2246,24 +2243,10 @@ def queue_rejected_voicemail(queue_id):
 
     No auth required - Twilio calls this directly.
     """
-    db = get_db()
-    queue = db.get_queue(queue_id)
-
-    voicemail_url = f"{config.webhook_base_url}/api/voice/voicemail"
-    transcription_url = f"{config.webhook_base_url}/api/voice/transcription"
-
-    queue_name = queue.get('name', 'Unknown') if queue else 'Unknown'
-
-    prompt = _say_or_play('queue_no_agents', 'Sorry, our team is unable to take your call right now. Please leave a message after the tone and we will get back to you as soon as possible.')
-    twiml = f'''<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-{prompt}
-    <Record action="{xml_escape(voicemail_url)}" maxLength="120" transcribe="true" transcribeCallback="{xml_escape(transcription_url)}" />
-</Response>'''
-
-    logger.info(f"Playing rejection voicemail TwiML for queue {queue_name}")
-
-    return Response(twiml, mimetype='application/xml')
+    call_sid = request.form.get('CallSid', '')
+    from_number = request.form.get('From', '')
+    logger.info(f"Playing rejection voicemail TwiML for queue {queue_id}")
+    return _build_voicemail_twiml(queue_id, call_sid, from_number=from_number)
 
 
 @api_bp.route('/voice/conference/join', methods=['POST'])
