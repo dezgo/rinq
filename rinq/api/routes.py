@@ -35,151 +35,27 @@ logger = logging.getLogger(__name__)
 api_bp = Blueprint('api', __name__)
 
 
-def _get_full_audio_url(file_url: str) -> str:
-    """Convert a file_url (path or full URL) to a full URL for Twilio.
-
-    Handles both:
-    - Old format: http://localhost:8031/audio/file.mp3 (returns as-is)
-    - New format: /audio/file.mp3 (prepends webhook_base_url)
-    """
-    if not file_url:
-        return None
-    if file_url.startswith('http://') or file_url.startswith('https://'):
-        return file_url
-    return f"{config.webhook_base_url}{file_url}"
-
-
-def _get_audio_url_by_type(file_type: str) -> str | None:
-    """Look up the first audio file of a given type and return its full URL.
-
-    Returns None if no audio of that type exists.
-    """
-    db = get_db()
-    files = db.get_audio_files(file_type=file_type)
-    if files and files[0].get('file_url'):
-        return _get_full_audio_url(files[0]['file_url'])
-    return None
+from rinq.api.twiml import (
+    get_full_audio_url as _get_full_audio_url,
+    get_audio_url_by_type as _get_audio_url_by_type,
+    say_or_play as _say_or_play_impl,
+    build_reopen_twiml as _build_reopen_twiml_impl,
+    build_closed_message_twiml as _build_closed_message_twiml_impl,
+)
+from rinq.api.identity import (
+    email_to_browser_identity as _email_to_browser_identity,
+    browser_identity_to_email as _browser_identity_to_email,
+    normalize_staff_identifier as _normalize_staff_identifier,
+)
+from rinq.api.schedule import (
+    get_next_open_time as _get_next_open_time,
+    check_business_status as _check_business_status,
+)
 
 
-def _build_reopen_twiml(next_open: dict, indent: str = '    ') -> list[str]:
-    """Build TwiML snippets announcing when the business reopens.
-
-    Uses recorded audio snippets if available (reopen_prefix, reopen_day_*,
-    reopen_time_*), falling back to Polly.Nicole TTS for any missing pieces.
-
-    Args:
-        next_open: Dict with 'day_label' (e.g. 'tomorrow', 'Monday'),
-                   'time' (spoken, e.g. '8 30 AY EM'), 'time_raw' (e.g. '8:30')
-    Returns:
-        List of TwiML strings (Play/Say tags)
-    """
-    if not next_open:
-        return []
-
-    day_label = next_open['day_label']       # 'tomorrow', 'Monday', 'later today', etc.
-    time_spoken = next_open['time']           # '8 30 AY EM'
-    time_raw = next_open.get('time_raw', '')  # '8:30'
-
-    # Map day_label to audio type: 'tomorrow' -> 'reopen_day_tomorrow', 'Monday' -> 'reopen_day_monday'
-    day_audio_type = f"reopen_day_{day_label.lower().replace(' ', '_')}"
-    # Map time to audio type: '8:30' -> 'reopen_time_0830', '9:00' -> 'reopen_time_0900'
-    time_audio_type = f"reopen_time_{time_raw.replace(':', '')}" if time_raw else None
-
-    parts = []
-
-    # Check if ALL audio snippets exist — if so, use them all. Otherwise fall back to full TTS.
-    prefix_url = _get_audio_url_by_type('reopen_prefix')
-    day_url = _get_audio_url_by_type(day_audio_type)
-    time_url = _get_audio_url_by_type(time_audio_type) if time_audio_type else None
-
-    if prefix_url and day_url and time_url:
-        # Full audio: "We reopen" + "Monday" + "at 8:30 AM"
-        parts.append(f'{indent}<Play>{xml_escape(prefix_url)}</Play>')
-        parts.append(f'{indent}<Play>{xml_escape(day_url)}</Play>')
-        parts.append(f'{indent}<Play>{xml_escape(time_url)}</Play>')
-    else:
-        # Fallback to TTS for the whole sentence
-        parts.append(f'{indent}<Say voice="Polly.Nicole">We reopen {day_label} at {time_spoken}.</Say>')
-
-    return parts
-
-
-def _build_closed_message_twiml(message_parts: list, next_open: dict | None,
-                                 db, indent: str = '    ') -> list[str]:
-    """Build TwiML from an ordered list of closed message segments.
-
-    Each segment is a dict with a 'type' key:
-      - {"type": "audio", "audio_id": 5}  -> <Play> the audio file
-      - {"type": "opentime"}              -> opening time (recorded audio or TTS)
-      - {"type": "openday"}               -> opening day (recorded audio or TTS, skipped if same day)
-
-    For opentime/openday, uses recorded audio snippets (reopen_time_*, reopen_day_*)
-    if available, falling back to Polly.Nicole TTS.
-
-    Returns:
-        List of TwiML strings
-    """
-    if not message_parts:
-        return []
-
-    # Pre-compute next_open values for dynamic tokens
-    day_label = None
-    time_spoken = None
-    day_audio_type = None
-    time_audio_type = None
-    if next_open:
-        day_label = next_open['day_label']
-        time_spoken = next_open['time']
-        time_raw = next_open.get('time_raw', '')
-        day_audio_type = f"reopen_day_{day_label.lower().replace(' ', '_')}"
-        time_audio_type = f"reopen_time_{time_raw.replace(':', '')}" if time_raw else None
-
-    twiml_parts = []
-    for part in message_parts:
-        part_type = part.get('type')
-
-        if part_type == 'audio':
-            audio_id = part.get('audio_id')
-            if audio_id:
-                audio = db.get_audio_file(audio_id)
-                if audio and audio.get('file_url'):
-                    audio_url = _get_full_audio_url(audio['file_url'])
-                    twiml_parts.append(f'{indent}<Play>{xml_escape(audio_url)}</Play>')
-
-        elif part_type == 'opentime' and next_open:
-            # Try recorded audio first, fall back to TTS
-            time_url = _get_audio_url_by_type(time_audio_type) if time_audio_type else None
-            if time_url:
-                twiml_parts.append(f'{indent}<Play>{xml_escape(time_url)}</Play>')
-            elif time_spoken:
-                twiml_parts.append(f'{indent}<Say voice="Polly.Nicole">{time_spoken}</Say>')
-
-        elif part_type == 'openday' and next_open:
-            # Skip if opening is later today (no need to say the day)
-            if day_label == 'later today':
-                continue
-            # Try recorded audio first, fall back to TTS
-            day_url = _get_audio_url_by_type(day_audio_type) if day_audio_type else None
-            if day_url:
-                twiml_parts.append(f'{indent}<Play>{xml_escape(day_url)}</Play>')
-            elif day_label:
-                twiml_parts.append(f'{indent}<Say voice="Polly.Nicole">{day_label}</Say>')
-
-    return twiml_parts
-
-
-def _say_or_play(audio_type: str, fallback_text: str, indent: str = '    ') -> str:
-    """Return a <Play> tag if custom audio exists for the type, else <Say>.
-
-    Args:
-        audio_type: The audio file_type to look up
-        fallback_text: Text for the Say voice if no custom audio
-        indent: Whitespace indentation for the TwiML tag
-    """
-    audio_url = _get_audio_url_by_type(audio_type)
-    if audio_url:
-        return f'{indent}<Play>{xml_escape(audio_url)}</Play>'
-    return f'{indent}<Say voice="Polly.Nicole">{fallback_text}</Say>'
+_build_reopen_twiml = _build_reopen_twiml_impl
+_build_closed_message_twiml = _build_closed_message_twiml_impl
+_say_or_play = _say_or_play_impl
 
 
 def _get_rosie_redirect_url() -> str:
@@ -385,83 +261,6 @@ def update_forwarding(sid):
 # Voice Webhooks (called by Twilio - no auth required)
 # =============================================================================
 
-def _email_to_browser_identity(email: str) -> str:
-    """Convert email to browser identity format."""
-    return email.replace('@', '_at_').replace('.', '_')
-
-
-def _browser_identity_to_email(identity: str) -> str:
-    """Convert browser identity format back to email.
-
-    Format: client:user_at_domain_com -> user@domain.com
-    """
-    # Remove 'client:' prefix if present
-    if identity.startswith('client:'):
-        identity = identity[7:]
-    # Convert back: user_at_domain_com -> user@domain.com
-    return identity.replace('_at_', '@').replace('_', '.')
-
-
-def _normalize_staff_identifier(identifier: str) -> tuple[str | None, str | None]:
-    """Normalize various staff identifier formats to (email, friendly_name).
-
-    Handles:
-    - client:user_at_domain_com -> user@domain.com
-    - session:user@domain.com -> user@domain.com
-    - user@domain.com -> user@domain.com
-    - SIP URIs like sip:user@domain.sip.twilio.com -> attempts to match
-    - Phone numbers -> attempts to look up staff
-
-    Returns:
-        Tuple of (email or None, friendly_name or None)
-    """
-    if not identifier:
-        return None, None
-
-    # Browser client identity: client:user_at_domain_com
-    if identifier.startswith('client:'):
-        email = _browser_identity_to_email(identifier)
-        name = email.split('@')[0].replace('_', ' ').replace('.', ' ').title() if '@' in email else None
-        return email, name
-
-    # Session format: session:user@domain.com
-    if identifier.startswith('session:'):
-        email = identifier[8:]
-        name = email.split('@')[0].replace('_', ' ').replace('.', ' ').title() if '@' in email else None
-        return email, name
-
-    # Already an email
-    if '@' in identifier and not identifier.startswith('sip:'):
-        name = identifier.split('@')[0].replace('_', ' ').replace('.', ' ').title()
-        return identifier, name
-
-    # SIP URI: sip:user@domain.sip.twilio.com - try to extract username
-    if identifier.startswith('sip:'):
-        # Extract username from SIP URI
-        sip_part = identifier[4:]  # Remove 'sip:'
-        if '@' in sip_part:
-            username = sip_part.split('@')[0]
-            # Try to look up the staff email from the username
-            # The username format is typically: chris_savage (matching browser identity base)
-            try:
-                db = get_db()
-                # Try to find user by matching the username pattern
-                users = db.get_users()
-                for user in users:
-                    staff_email = user.get('staff_email', '')
-                    if staff_email:
-                        # Convert email to SIP username format for comparison
-                        expected_username = staff_email.split('@')[0].replace('.', '_').lower()
-                        if username.lower() == expected_username:
-                            name = staff_email.split('@')[0].replace('_', ' ').replace('.', ' ').title()
-                            return staff_email, name
-            except Exception as e:
-                logger.debug(f"SIP identifier lookup failed for {identifier}: {e}")
-        return None, None
-
-    # Phone number or unknown format - could try device lookup
-    # For now, return None
-    return None, None
 
 
 # Cache for SIP domain to avoid repeated API calls (per-tenant)
@@ -765,221 +564,6 @@ def _ring_targets_into_conference(dial_targets: list, conference_name: str,
     thread.start()
 
 
-def _get_next_open_time(schedule: dict, now, tz) -> dict | None:
-    """Calculate when the business next opens based on the schedule.
-
-    Checks up to 14 days ahead, accounting for business hours and closures.
-
-    Returns:
-        Dict with 'day_label' (e.g. 'tomorrow', 'Monday') and 'time' (e.g. '8:30 AM'),
-        or None if no opening found.
-    """
-    business_hours_json = schedule.get('business_hours')
-    if not business_hours_json:
-        return None
-
-    try:
-        business_hours = json.loads(business_hours_json) if isinstance(business_hours_json, str) else business_hours_json
-    except (json.JSONDecodeError, TypeError):
-        return None
-
-    if not business_hours:
-        return None
-
-    holidays = schedule.get('holidays', [])
-    day_names = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
-
-    # Check today first (might reopen later today), then next 14 days
-    for days_ahead in range(0, 15):
-        check_date = now + timedelta(days=days_ahead)
-        check_day = day_names[check_date.weekday()]
-        check_date_str = check_date.strftime('%Y-%m-%d')
-        check_mmdd = check_date.strftime('%m-%d')
-        check_dow = check_date.weekday()
-
-        # Check if this day is blocked by a closure/holiday
-        is_closed_by_holiday = False
-        for holiday in holidays:
-            recurrence = holiday.get('recurrence', 'once')
-            if recurrence == 'weekly':
-                holiday_dow = holiday.get('day_of_week')
-                if holiday_dow is not None and int(holiday_dow) == check_dow:
-                    if not holiday.get('start_time') or not holiday.get('end_time'):
-                        # All-day weekly closure
-                        is_closed_by_holiday = True
-                        break
-            elif holiday.get('is_recurring'):
-                if holiday.get('date') == check_mmdd:
-                    is_closed_by_holiday = True
-                    break
-            else:
-                if holiday.get('date') == check_date_str:
-                    is_closed_by_holiday = True
-                    break
-
-        if is_closed_by_holiday:
-            continue
-
-        day_hours = business_hours.get(check_day)
-        if not day_hours:
-            continue
-
-        open_time_str = day_hours.get('open', '').strip()
-        if not open_time_str:
-            continue
-
-        # If today, only count if the opening time is still in the future
-        if days_ahead == 0:
-            current_time = now.strftime('%H:%M')
-            if open_time_str.zfill(5) <= current_time:
-                continue
-
-        # Format the time for speech (e.g., "8:30 AM")
-        try:
-            hour, minute = open_time_str.split(':')
-            hour_int = int(hour)
-            minute_int = int(minute)
-            if hour_int < 12:
-                period = 'AY EM'
-                display_hour = hour_int if hour_int != 0 else 12
-            elif hour_int == 12:
-                period = 'PEE EM'
-                display_hour = 12
-            else:
-                period = 'PEE EM'
-                display_hour = hour_int - 12
-            if minute_int == 0:
-                time_spoken = f'{display_hour} {period}'
-            else:
-                time_spoken = f'{display_hour} {minute_int:02d} {period}'
-        except (ValueError, AttributeError):
-            time_spoken = open_time_str
-
-        # Build the day label
-        if days_ahead == 0:
-            day_label = 'later today'
-        elif days_ahead == 1:
-            day_label = 'tomorrow'
-        else:
-            day_label = check_date.strftime('%A')
-
-        return {'day_label': day_label, 'time': time_spoken, 'time_raw': open_time_str}
-
-    return None
-
-
-def _check_business_status(schedule: dict) -> dict:
-    """Check if we're currently within business hours.
-
-    Args:
-        schedule: Schedule dict with 'business_hours' JSON and 'holidays' list
-
-    Returns:
-        Dict with:
-            - is_open: True if currently open, False if closed
-            - matched_holiday: The matched holiday dict if closed due to holiday, None otherwise
-            - reason: 'open', 'holiday', 'after_hours', or 'day_closed'
-            - next_open: Dict with 'day_label' and 'time' if closed, None otherwise
-    """
-    import pytz
-
-    if not schedule:
-        return {'is_open': True, 'matched_holiday': None, 'reason': 'open', 'next_open': None}
-
-    # Get current time in schedule's timezone
-    tz_name = schedule.get('timezone', 'Australia/Sydney')
-    try:
-        tz = pytz.timezone(tz_name)
-    except pytz.UnknownTimeZoneError:
-        tz = pytz.timezone('Australia/Sydney')
-
-    now = datetime.now(tz)
-    today_str = now.strftime('%Y-%m-%d')
-    today_mmdd = now.strftime('%m-%d')
-    day_name = now.strftime('%a').lower()  # mon, tue, wed, etc.
-    current_day_of_week = now.weekday()  # 0=Monday, 6=Sunday
-    current_time = now.strftime('%H:%M')
-
-    # Check closures/holidays first, in priority order:
-    # 1. Specific date closures (most specific - e.g. "Christmas Day 2026-12-25")
-    # 2. Recurring annual closures (e.g. "Christmas Day" every 12-25)
-    # 3. Weekly closures (least specific - e.g. "Saturday Showroom" every Saturday)
-    # This ensures a specific holiday always beats a weekly recurring closure
-    # when they fall on the same day.
-    holidays = schedule.get('holidays', [])
-
-    def closure_priority(h):
-        rec = h.get('recurrence', 'once')
-        if rec == 'weekly':
-            return 2
-        elif h.get('is_recurring'):
-            return 1
-        return 0
-
-    for holiday in sorted(holidays, key=closure_priority):
-        recurrence = holiday.get('recurrence', 'once')
-
-        if recurrence == 'weekly':
-            # Weekly closure - check day of week and optional time range
-            holiday_dow = holiday.get('day_of_week')
-            if holiday_dow is not None and int(holiday_dow) == current_day_of_week:
-                start_time = holiday.get('start_time')
-                end_time = holiday.get('end_time')
-
-                if start_time and end_time:
-                    # Time-based weekly closure (zfill ensures "9:00" -> "09:00")
-                    if start_time.zfill(5) <= current_time <= end_time.zfill(5):
-                        logger.info(f"Weekly closure match: {holiday.get('name')} ({start_time}-{end_time})")
-                        next_open = _get_next_open_time(schedule, now, tz)
-                        return {'is_open': False, 'matched_holiday': holiday, 'reason': 'holiday', 'next_open': next_open}
-                else:
-                    # All-day weekly closure
-                    logger.info(f"Weekly closure match (all day): {holiday.get('name')}")
-                    next_open = _get_next_open_time(schedule, now, tz)
-                    return {'is_open': False, 'matched_holiday': holiday, 'reason': 'holiday', 'next_open': next_open}
-
-        elif holiday.get('is_recurring'):
-            # Legacy recurring holiday - check MM-DD
-            if holiday.get('date') == today_mmdd:
-                logger.info(f"Holiday match (recurring): {holiday.get('name')}")
-                next_open = _get_next_open_time(schedule, now, tz)
-                return {'is_open': False, 'matched_holiday': holiday, 'reason': 'holiday', 'next_open': next_open}
-        else:
-            # Specific date holiday/closure
-            if holiday.get('date') == today_str:
-                logger.info(f"Holiday match (specific): {holiday.get('name')}")
-                next_open = _get_next_open_time(schedule, now, tz)
-                return {'is_open': False, 'matched_holiday': holiday, 'reason': 'holiday', 'next_open': next_open}
-
-    # Check business hours
-    business_hours_json = schedule.get('business_hours')
-    if not business_hours_json:
-        # No business hours defined = always closed (not 24/7 open)
-        next_open = _get_next_open_time(schedule, now, tz)
-        return {'is_open': False, 'matched_holiday': None, 'reason': 'day_closed', 'next_open': next_open}
-
-    try:
-        business_hours = json.loads(business_hours_json) if isinstance(business_hours_json, str) else business_hours_json
-    except (json.JSONDecodeError, TypeError):
-        return {'is_open': False, 'matched_holiday': None, 'reason': 'day_closed', 'next_open': None}
-
-    day_hours = business_hours.get(day_name)
-    if not day_hours:
-        next_open = _get_next_open_time(schedule, now, tz)
-        return {'is_open': False, 'matched_holiday': None, 'reason': 'day_closed', 'next_open': next_open}
-
-    # Parse open and close times (zfill ensures "9:00" -> "09:00")
-    open_time = day_hours.get('open', '00:00').zfill(5)
-    close_time = day_hours.get('close', '23:59').zfill(5)
-
-    is_open = open_time <= current_time <= close_time
-    logger.info(f"Business hours check: {day_name} {current_time}, open={open_time}-{close_time}, is_open={is_open}")
-
-    if is_open:
-        return {'is_open': True, 'matched_holiday': None, 'reason': 'open', 'next_open': None}
-    else:
-        next_open = _get_next_open_time(schedule, now, tz)
-        return {'is_open': False, 'matched_holiday': None, 'reason': 'after_hours', 'next_open': next_open}
 
 
 def _build_dial_targets(routing: dict) -> list[str]:
@@ -6744,7 +6328,7 @@ def transfer_direct_dial_status():
 
     # Target didn't answer — call agent 1 back
     if transferred_by:
-        from rinq.api.routes import _email_to_browser_identity
+        from rinq.api.identity import email_to_browser_identity as _email_to_browser_identity
         agent_identity = _email_to_browser_identity(transferred_by)
         caller_id = get_twilio_config('twilio_default_caller_id') or ''
 
@@ -6923,7 +6507,7 @@ def transfer_consult_status():
                     # Call agent 1 back
                     if transferred_by:
                         agent_email = transferred_by.replace('session:', '').replace('api:', '')  # legacy cleanup
-                        from rinq.api.routes import _email_to_browser_identity
+                        from rinq.api.identity import email_to_browser_identity as _email_to_browser_identity
                         agent_identity = f"client:{_email_to_browser_identity(agent_email)}"
                         rejoin_url = f"{config.webhook_base_url}/api/voice/conference/join?room={xfer_conf}&role=agent"
                         # Use customer's number as caller ID so agent sees who they're reconnecting with

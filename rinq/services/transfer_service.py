@@ -340,7 +340,7 @@ class TransferService:
                 if not ext_record:
                     self.db.fail_transfer(call_sid, f'Extension {target} not found')
                     return {'success': False, 'error': f'Extension {target} not found'}
-                from rinq.api.routes import _email_to_browser_identity
+                from rinq.api.identity import email_to_browser_identity as _email_to_browser_identity
                 target_to = f"client:{_email_to_browser_identity(ext_record['email'])}"
             else:
                 target_to = target_e164
@@ -471,7 +471,7 @@ class TransferService:
                     self.db.fail_transfer(call_sid, f'Extension {target} not found')
                     return {'success': False, 'error': f'Extension {target} not found'}
                 # Use browser client identity — this rings the softphone
-                from rinq.api.routes import _email_to_browser_identity
+                from rinq.api.identity import email_to_browser_identity as _email_to_browser_identity
                 browser_identity = _email_to_browser_identity(ext_record['email'])
                 target_to = f"client:{browser_identity}"
                 target_display = target
