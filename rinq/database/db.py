@@ -4239,12 +4239,53 @@ class Database:
             return " AND (" + " OR ".join(conditions) + ")", params
         return "", []
 
-    def get_call_log_stats(self, start_utc: str, end_utc: str, queue_name: str = None, queue_names: list = None, agent_emails: list = None) -> dict:
+    def _resolve_team_identities(self, team_emails: list) -> list:
+        """Expand team emails to include SIP identity variants.
+
+        call_log stores SIP identities (sip:username@domain) as agent_email
+        for desk phone calls, so we need to include those in team filters.
+        """
+        with self._get_conn() as conn:
+            users = conn.execute(
+                "SELECT username, staff_email FROM users WHERE username IS NOT NULL"
+            ).fetchall()
+            sip_map = {u['staff_email']: u['username'] for u in users if u['staff_email']}
+
+        all_identities = list(team_emails)
+        for email in team_emails:
+            username = sip_map.get(email)
+            if username:
+                all_identities.append(f"sip:{username}")
+                # Twilio may append the domain
+                domain = email.split('@')[1] if '@' in email else ''
+                if domain:
+                    all_identities.append(f"sip:{username}@{domain}")
+        return all_identities
+
+    def _build_team_filter(self, team_emails: list):
+        """Build WHERE clause to filter calls by team member emails.
+
+        Filters both inbound and outbound calls where agent_email matches
+        any team member (including SIP identity variants).
+
+        Returns (clause_str, params_list).
+        """
+        if not team_emails:
+            return "", []
+
+        all_identities = self._resolve_team_identities(team_emails)
+        placeholders = ','.join('?' * len(all_identities))
+        return f" AND agent_email IN ({placeholders})", list(all_identities)
+
+    def get_call_log_stats(self, start_utc: str, end_utc: str, queue_name: str = None, queue_names: list = None, agent_emails: list = None, team_emails: list = None) -> dict:
         """Get call statistics from call_log for a UTC timestamp range."""
         with self._get_conn() as conn:
             where = "started_at >= ? AND started_at <= ?"
             params = [start_utc, end_utc]
-            filter_clause, filter_params = self._build_queue_filter(queue_name, queue_names, agent_emails)
+            if team_emails:
+                filter_clause, filter_params = self._build_team_filter(team_emails)
+            else:
+                filter_clause, filter_params = self._build_queue_filter(queue_name, queue_names, agent_emails)
             where += filter_clause
             params.extend(filter_params)
 
@@ -4409,12 +4450,15 @@ class Database:
             result = sorted(merged.values(), key=lambda x: x['total_calls'], reverse=True)
             return result
 
-    def get_call_log_hourly(self, start_utc: str, end_utc: str, tz_offset_hours: int = 11, queue_name: str = None, queue_names: list = None, agent_emails: list = None) -> list[dict]:
+    def get_call_log_hourly(self, start_utc: str, end_utc: str, tz_offset_hours: int = 11, queue_name: str = None, queue_names: list = None, agent_emails: list = None, team_emails: list = None) -> list[dict]:
         """Get hourly call distribution in local time."""
         with self._get_conn() as conn:
             where = "started_at >= ? AND started_at <= ?"
             params = [start_utc, end_utc]
-            filter_clause, filter_params = self._build_queue_filter(queue_name, queue_names, agent_emails)
+            if team_emails:
+                filter_clause, filter_params = self._build_team_filter(team_emails)
+            else:
+                filter_clause, filter_params = self._build_queue_filter(queue_name, queue_names, agent_emails)
             where += filter_clause
             params.extend(filter_params)
 

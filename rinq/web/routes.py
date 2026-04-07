@@ -1472,75 +1472,56 @@ def activity():
 @web_bp.route('/reports')
 @login_required
 def reports():
-    """View call statistics and reporting dashboard."""
+    """View call statistics and reporting dashboard.
+
+    Team-centric: managers see their reportees, admins see all staff,
+    regular users see just their own stats.
+    """
     from rinq.services.reporting_service import get_reporting_service
-    from rinq.database.db import get_db
+    from rinq.integrations import get_staff_directory
 
     period = request.args.get('period', 'today')
-    queue_filter = request.args.get('queue', '')
-
-    db = get_db()
     user = get_current_user()
-
-    # Admins see all queues; regular users see only their queues
-    if user.is_admin:
-        queues = db.get_queues()
-    else:
-        queues = db.get_queues_for_user(user.email)
-
-    # If user has exactly one queue, default to it
-    if not queue_filter and len(queues) == 1:
-        queue_filter = str(queues[0]['id'])
-
-    # Resolve queue name(s) and member emails for filtering
-    queue_name = None
-    queue_names = None
-    agent_emails = None
-    if queue_filter:
-        # Specific queue selected
-        for q in queues:
-            if str(q['id']) == queue_filter:
-                queue_name = q['name']
-                members = db.get_queue_members(q['id'])
-                agent_emails = [m['user_email'] for m in members]
-                break
-    else:
-        # "All Queues" — filter to only queued calls + outbound by all queue members
-        queue_names = [q['name'] for q in queues] if queues else None
-        if queues:
-            all_emails = set()
-            for q in queues:
-                members = db.get_queue_members(q['id'])
-                all_emails.update(m['user_email'] for m in members)
-            agent_emails = list(all_emails) if all_emails else None
-
-    # For managers, get their team from staff directory for agent stats
-    team_emails = None
     user_role = getattr(user, '_role', 'user')
-    if user_role == 'manager' or user.is_admin:
-        from rinq.integrations import get_staff_directory
-        staff_dir = get_staff_directory()
+
+    # Build team_emails based on role
+    team_emails = None
+    team_label = None
+    staff_dir = get_staff_directory()
+
+    if user.is_admin:
+        # Admins see all staff
         if staff_dir:
             try:
-                if user.is_admin:
-                    staff_list = staff_dir.get_active_staff()
-                    team_emails = [s.get('work_email') or s.get('google_primary_email') or s.get('email') for s in staff_list if s.get('work_email') or s.get('google_primary_email') or s.get('email')]
-                else:
-                    reportees = staff_dir.get_reportees(user.email, recursive=True)
-                    team_emails = [r.get('work_email') or r.get('google_primary_email') or r.get('email') for r in reportees if r.get('work_email') or r.get('google_primary_email') or r.get('email')]
-                    if user.email not in team_emails:
-                        team_emails.append(user.email)
+                staff_list = staff_dir.get_active_staff()
+                team_emails = [s.get('email') for s in staff_list if s.get('email')]
             except Exception as e:
-                logger.warning(f"Failed to get team from staff directory: {e}")
+                logger.warning(f"Failed to get staff list: {e}")
+        team_label = 'All Staff'
+
+    elif user_role == 'manager':
+        # Managers see their reportees
+        if staff_dir:
+            try:
+                reportees = staff_dir.get_reportees(user.email, recursive=True)
+                team_emails = [r.get('email') for r in reportees if r.get('email')]
+                if user.email not in team_emails:
+                    team_emails.append(user.email)
+            except Exception as e:
+                logger.warning(f"Failed to get reportees: {e}")
+        team_label = 'My Team'
+
+    else:
+        # Regular users see just their own stats
+        team_emails = [user.email]
+        team_label = 'My Calls'
 
     service = get_reporting_service()
-    report_data = service.get_report_data(period, queue_name=queue_name, queue_names=queue_names,
-                                          agent_emails=agent_emails, team_emails=team_emails)
+    report_data = service.get_report_data(period, team_emails=team_emails)
 
     return render_template('reports.html',
                          report=report_data,
-                         queues=queues,
-                         current_queue=queue_filter,
+                         team_label=team_label,
                          format_duration=service.format_duration,
                          format_wait_time=service.format_wait_time,
                          current_user=get_current_user())

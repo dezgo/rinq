@@ -56,11 +56,12 @@ class ReportingService:
         tz_offset_hours = int(now_local.utcoffset().total_seconds() / 3600)
 
         # Get call statistics from call_log
-        summary = self.db.get_call_log_stats(start_utc, end_utc, queue_name=queue_name, queue_names=queue_names, agent_emails=agent_emails)
-        # Agent stats use team_emails (Peter reportees) when available, falling back to queue-based filtering
+        summary = self.db.get_call_log_stats(start_utc, end_utc, queue_name=queue_name, queue_names=queue_names,
+                                             agent_emails=agent_emails, team_emails=team_emails)
         agent_stats = self.db.get_call_log_by_agent(start_utc, end_utc, queue_name=queue_name, queue_names=queue_names,
                                                      agent_emails=agent_emails, team_emails=team_emails)
-        hourly = self.db.get_call_log_hourly(start_utc, end_utc, tz_offset_hours, queue_name=queue_name, queue_names=queue_names, agent_emails=agent_emails)
+        hourly = self.db.get_call_log_hourly(start_utc, end_utc, tz_offset_hours, queue_name=queue_name, queue_names=queue_names,
+                                             agent_emails=agent_emails, team_emails=team_emails)
 
         # Queue stats still come from queued_calls for queue-specific metrics
         if is_today:

@@ -508,20 +508,14 @@
 <!-- Filters -->
 <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap; margin-bottom: 20px;">
     <div class="period-selector" style="margin-bottom: 0;">
-        <a href="{{ url_for('web.reports', period='today', queue=current_queue) }}" {% if report.period == 'today' %}class="active"{% endif %}>Today</a>
-        <a href="{{ url_for('web.reports', period='yesterday', queue=current_queue) }}" {% if report.period == 'yesterday' %}class="active"{% endif %}>Yesterday</a>
-        <a href="{{ url_for('web.reports', period='this_week', queue=current_queue) }}" {% if report.period == 'this_week' %}class="active"{% endif %}>This Week</a>
-        <a href="{{ url_for('web.reports', period='last_week', queue=current_queue) }}" {% if report.period == 'last_week' %}class="active"{% endif %}>Last Week</a>
-        <a href="{{ url_for('web.reports', period='this_month', queue=current_queue) }}" {% if report.period == 'this_month' %}class="active"{% endif %}>This Month</a>
-        <a href="{{ url_for('web.reports', period='last_month', queue=current_queue) }}" {% if report.period == 'last_month' %}class="active"{% endif %}>Last Month</a>
+        <a href="{{ url_for('web.reports', period='today') }}" {% if report.period == 'today' %}class="active"{% endif %}>Today</a>
+        <a href="{{ url_for('web.reports', period='yesterday') }}" {% if report.period == 'yesterday' %}class="active"{% endif %}>Yesterday</a>
+        <a href="{{ url_for('web.reports', period='this_week') }}" {% if report.period == 'this_week' %}class="active"{% endif %}>This Week</a>
+        <a href="{{ url_for('web.reports', period='last_week') }}" {% if report.period == 'last_week' %}class="active"{% endif %}>Last Week</a>
+        <a href="{{ url_for('web.reports', period='this_month') }}" {% if report.period == 'this_month' %}class="active"{% endif %}>This Month</a>
+        <a href="{{ url_for('web.reports', period='last_month') }}" {% if report.period == 'last_month' %}class="active"{% endif %}>Last Month</a>
     </div>
-    <select onchange="window.location.href='{{ url_for('web.reports', period=report.period) }}&queue='+this.value"
-            style="padding: 6px 10px; border: 1px solid #dee2e6; border-radius: 4px; font-size: 0.9em;">
-        <option value="">All Queues</option>
-        {% for q in queues %}
-        <option value="{{ q.id }}" {% if current_queue == q.id|string %}selected{% endif %}>{{ q.name }}</option>
-        {% endfor %}
-    </select>
+    <span style="padding: 6px 12px; background: #e9ecef; border-radius: 4px; font-size: 0.85em; color: #495057; font-weight: 500;">{{ team_label }}</span>
 </div>
 
 {% if report.summary.total_calls == 0 %}
