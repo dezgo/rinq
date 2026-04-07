@@ -4183,23 +4183,20 @@ function startTransferStatusPolling() {
             if (res.ok) {
                 const data = await res.json();
                 const status = data.transfer && data.transfer.transfer_status;
-                if (status === 'failed') {
-                    console.log('Transfer failed — resetting consulting UI');
+                if (status === 'failed' || status === 'completed') {
+                    console.log(`Transfer ${status} — resetting consulting UI`);
                     stopTransferStatusPolling();
                     stopRingback();
                     isConsulting = false;
                     consultCallSid = null;
                     currentTransferKey = null;
 
-                    // Reset UI back to target selection
-                    transferTargetSelection.style.display = 'block';
-                    transferConsulting.style.display = 'none';
-                    transferActions.style.display = 'flex';
-                    consultingActions.style.display = 'none';
-                    btnStartTransfer.disabled = false;
-                    btnStartTransfer.textContent = 'Transfer';
+                    // Close the transfer modal entirely
+                    closeTransferModal();
 
-                    showTransferError('Transfer target did not answer. You are reconnected with the caller.');
+                    if (status === 'failed') {
+                        showTransferError('Transfer target did not answer. You are reconnected with the caller.');
+                    }
                 }
             }
         } catch (e) { console.warn('Transfer status poll error:', e); }
