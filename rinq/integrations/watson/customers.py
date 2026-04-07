@@ -31,10 +31,8 @@ class WatsonCustomerLookup(CustomerLookup):
 
     def find_by_phone(self, phone_number: str) -> Optional[dict]:
         try:
-            # Normalize phone for search
-            search_phone = phone_number.replace(' ', '').replace('-', '')
-            if search_phone.startswith('+61'):
-                search_phone = '0' + search_phone[3:]
+            from rinq.services.phone import to_local
+            search_phone = to_local(phone_number.replace(' ', '').replace('-', ''))
 
             response = self.client.get('/api/customers', params={'q': search_phone, 'limit': 1})
             if response.status_code == 200:

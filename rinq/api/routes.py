@@ -21,9 +21,9 @@ from xml.sax.saxutils import escape as xml_escape
 from flask import Blueprint, jsonify, request, Response, send_file
 
 try:
-    from shared.auth.bot_api import api_or_session_auth, get_api_caller
+    from shared.auth.bot_api import api_or_session_auth, get_api_caller, get_api_caller_email
 except ImportError:
-    from rinq.auth.decorators import api_or_session_auth, get_api_caller
+    from rinq.auth.decorators import api_or_session_auth, get_api_caller, get_api_caller_email
 from rinq.services.twilio_service import get_twilio_service, twilio_list
 from rinq.services.auth import login_required, get_current_user
 from rinq.database.db import get_db
@@ -455,8 +455,8 @@ def _normalize_staff_identifier(identifier: str) -> tuple[str | None, str | None
                         if username.lower() == expected_username:
                             name = staff_email.split('@')[0].replace('_', ' ').replace('.', ' ').title()
                             return staff_email, name
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"SIP identifier lookup failed for {identifier}: {e}")
         return None, None
 
     # Phone number or unknown format - could try device lookup
@@ -726,8 +726,8 @@ def _ring_targets_into_conference(dial_targets: list, conference_name: str,
                                 owned = twilio_list(service.client.incoming_phone_numbers, limit=1)
                                 if owned:
                                     call_from = owned[0].phone_number
-                            except Exception:
-                                pass
+                            except Exception as e:
+                                logger.warning(f"Failed to list owned numbers for caller ID fallback: {e}")
                         if not call_from:
                             call_from = caller_id  # Last resort
 
@@ -755,8 +755,8 @@ def _ring_targets_into_conference(dial_targets: list, conference_name: str,
                     )
                     if confs:
                         service.client.conferences(confs[0].sid).update(status='completed')
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Failed to clean up empty conference {conference_name}: {e}")
 
         except Exception as e:
             logger.exception(f"Error ringing targets for conference {conference_name}: {e}")
@@ -1422,15 +1422,9 @@ def voice_incoming():
 # =============================================================================
 
 def _format_phone_for_speech(phone_number: str) -> str:
-    """Format a phone number for TTS - reads each digit separately.
-
-    Converts +61412345678 to "6 1 4 1 2 3 4 5 6 7 8" so Twilio
-    reads it as individual digits instead of "61 billion".
-    """
-    # Strip + and any spaces/dashes
-    digits_only = ''.join(c for c in phone_number if c.isdigit())
-    # Add spaces between each digit
-    return ' '.join(digits_only)
+    """Format a phone number for TTS. Delegates to phone utility."""
+    from rinq.services.phone import format_for_speech
+    return format_for_speech(phone_number)
 
 
 @api_bp.route('/voice/test-menu', methods=['POST'])
@@ -2357,8 +2351,8 @@ def call_status_callback():
             for sid in ring_sids:
                 try:
                     service.client.calls(sid).update(status='completed')
-                except Exception:
-                    pass  # Already completed
+                except Exception as e:
+                    logger.debug(f"Could not cancel ring call {sid}: {e}")
             logger.info(f"Caller {call_sid} disconnected — cancelled {len(ring_sids)} ringing agent calls")
 
         # If this was an AI receptionist call, notify Rosie so it can
@@ -2777,8 +2771,8 @@ def hold_music():
             if q.get('hold_music_url'):
                 music_url = _get_full_audio_url(q['hold_music_url'])
                 break
-    except Exception:
-        pass  # No tenant context — use static default
+    except Exception as e:
+        logger.debug(f"No tenant hold music, using static default: {e}")
 
     twiml = f'''<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -2849,8 +2843,8 @@ def inbound_ring_status():
             if sid != agent_call_sid:
                 try:
                     service.client.calls(sid).update(status='completed')
-                except Exception:
-                    pass  # Already completed
+                except Exception as e:
+                    logger.debug(f"Could not cancel ring leg {sid}: {e}")
 
         _conference_ring_calls.pop(conference_name, None)
         logger.info(f"Agent {agent_call_sid} answered, cancelled {len(ring_sids) - 1} other legs")
@@ -2891,8 +2885,8 @@ def _resolve_agent_email(call_sid: str, service) -> str | None:
             user = db.get_user_by_username(sip_user)
             if user:
                 return user.get('staff_email')
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Could not resolve agent email from call {call_sid}: {e}")
     return None
 
 
@@ -3099,8 +3093,8 @@ def call_hold():
                     conference_name = pattern
                     logger.info(f"Found conference by pattern: {pattern}")
                     break
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Conference pattern {pattern} lookup failed: {e}")
         if not conference_name:
             logger.warning(f"Unhold failed: no conference for {call_sid}")
             return jsonify({"error": "No conference found for this call"}), 404
@@ -3696,10 +3690,9 @@ def voice_extension_dial():
     attempt = int(request.args.get('attempt', '1'))
 
     # Restore + prefix if lost during URL decoding (+ decoded as space)
-    if called_number and not called_number.startswith('+'):
-        called_number = '+' + called_number
-    if from_number and not from_number.startswith('+'):
-        from_number = '+' + from_number
+    from rinq.services.phone import ensure_plus
+    called_number = ensure_plus(called_number)
+    from_number = ensure_plus(from_number)
 
     logger.info(f"Extension dial: digits={digits}, from={from_number}, called={called_number}, attempt={attempt}")
 
@@ -3850,10 +3843,9 @@ def voice_extension_no_answer():
         from_number = request.args.get('from', '').strip()
         flow_id = request.args.get('flow_id', '')
 
-        if called_number and not called_number.startswith('+'):
-            called_number = '+' + called_number
-        if from_number and not from_number.startswith('+'):
-            from_number = '+' + from_number
+        from rinq.services.phone import ensure_plus
+        called_number = ensure_plus(called_number)
+        from_number = ensure_plus(from_number)
 
         logger.info(f"Extension no-answer: status={dial_status}, from={from_number}, flow_id={flow_id}")
 
@@ -4416,8 +4408,8 @@ def voice_hangup():
                 if confs:
                     conference_name = pattern
                     break
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Hold conference pattern {pattern} lookup failed: {e}")
 
     if conference_name:
         try:
@@ -4444,8 +4436,8 @@ def voice_hangup():
         try:
             service.client.calls(child_sid).update(status='completed')
             logger.info(f"Hung up other party {child_sid}")
-        except Exception:
-            pass  # Already completed
+        except Exception as e:
+            logger.debug(f"Could not hang up other party {child_sid}: {e}")
 
     try:
         service.client.calls(call_sid).update(status='completed')
@@ -4921,9 +4913,7 @@ def toggle_dnd():
     Returns:
         {"success": true, "dnd_enabled": true/false}
     """
-    caller = get_api_caller()
-    # caller is 'session:email' or 'bot' — extract email
-    email = caller.split(':', 1)[1] if caller and ':' in caller else caller
+    email = get_api_caller_email()
 
     data = request.get_json(silent=True) or {}
     enabled = data.get('enabled')
@@ -4937,7 +4927,7 @@ def toggle_dnd():
     if not ext:
         return jsonify({'error': 'No staff extension found'}), 404
 
-    db.set_dnd(email, bool(enabled), caller)
+    db.set_dnd(email, bool(enabled), get_api_caller())
     db.log_activity(
         action="dnd_toggled",
         target=email,
@@ -4958,8 +4948,7 @@ def get_dnd():
     Returns:
         {"dnd_enabled": true/false}
     """
-    caller = get_api_caller()
-    email = caller.split(':', 1)[1] if caller and ':' in caller else caller
+    email = get_api_caller_email()
 
     db = get_db()
     ext = db.get_staff_extension(email)
@@ -5081,13 +5070,10 @@ def get_pam_directory_overrides():
     call_flows = db.get_call_flows()
     ext_dir_flow_ids = {cf['id'] for cf in call_flows if cf.get('open_action') == 'extension_directory'}
 
+    from rinq.services.phone import to_local
     for pn in phone_numbers:
         if pn.get('call_flow_id') in ext_dir_flow_ids:
-            # Strip the +61 and convert to local format (0x...)
-            number = pn['phone_number']
-            if number.startswith('+61'):
-                number = '0' + number[3:]
-            ext_dir_number = number
+            ext_dir_number = to_local(pn['phone_number'])
             break
 
     # Get staff who are marked active in Tina (staff_extensions.is_active)
@@ -5360,6 +5346,7 @@ def get_resolved_staff_phones():
             }
         }
     """
+    from rinq.services.phone import to_local
     db = get_db()
 
     # Find extension directory phone number
@@ -5370,10 +5357,7 @@ def get_resolved_staff_phones():
 
     for pn in phone_numbers:
         if pn.get('call_flow_id') in ext_dir_flow_ids:
-            number = pn['phone_number']
-            if number.startswith('+61'):
-                number = '0' + number[3:]
-            ext_dir_number = number
+            ext_dir_number = to_local(pn['phone_number'])
             break
 
     # Resolve each staff extension — everyone gets the extension directory
@@ -5558,8 +5542,8 @@ def claim_callback_request(callback_id):
     db.log_activity(
         action="callback_claimed",
         target=str(callback_id),
-        details=f"Agent {caller} claimed callback {callback_id}",
-        performed_by=f"session:{caller}" if '@' in caller else caller
+        details=f"Agent claimed callback {callback_id}",
+        performed_by=caller
     )
 
     return jsonify({"success": True})
@@ -5582,8 +5566,8 @@ def complete_callback_request(callback_id):
     db.log_activity(
         action="callback_completed",
         target=str(callback_id),
-        details=f"Agent {caller} completed callback {callback_id}",
-        performed_by=f"session:{caller}" if '@' in caller else caller
+        details=f"Agent completed callback {callback_id}",
+        performed_by=caller
     )
 
     return jsonify({"success": True})
@@ -5606,8 +5590,8 @@ def fail_callback_request(callback_id):
     db.log_activity(
         action="callback_failed",
         target=str(callback_id),
-        details=f"Agent {caller} marked callback {callback_id} as failed: {data.get('notes', '')}",
-        performed_by=f"session:{caller}" if '@' in caller else caller
+        details=f"Agent marked callback {callback_id} as failed: {data.get('notes', '')}",
+        performed_by=caller
     )
 
     return jsonify({"success": True})
@@ -5640,7 +5624,7 @@ def answer_queued_caller(call_sid):
 
     # Get agent info
     current_user = get_current_user()
-    agent_email = current_user.email if current_user else get_api_caller()
+    agent_email = current_user.email if current_user else get_api_caller_email()
 
     # Get target to dial - either explicit number or agent's SIP URI
     data = request.get_json() or {}
@@ -5955,7 +5939,7 @@ def get_my_call_state():
 
     # We know who the current user is from the session
     current_user = get_current_user()
-    caller_email = current_user.email if current_user else get_api_caller()
+    caller_email = current_user.email if current_user else get_api_caller_email()
 
     import traceback
     try:
@@ -6022,8 +6006,8 @@ def _get_call_state_inner(agent_call_sid, caller_email=None):
                 customer_num = from_num if direction == 'inbound' else to_num
                 if customer_num and customer_num.startswith('+'):
                     return {'call_sid': call_sid, 'name': customer_num, 'role': 'customer'}
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Call log lookup failed for participant {call_sid}: {e}")
 
         # Resolve from Twilio call details
         try:
@@ -6139,7 +6123,8 @@ def _get_call_state_inner(agent_call_sid, caller_email=None):
                     result['participants'].append(info)
 
                 break
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Conference lookup for queued call failed: {e}")
             continue
 
     # If not found in queued calls, check consult conferences (agent might be in transfer)
@@ -6229,8 +6214,8 @@ def _get_call_state_inner(agent_call_sid, caller_email=None):
                             info['hold'] = p.hold
                             info['muted'] = p.muted
                             result['participants'].append(info)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to fetch conference state for {conf_name}: {e}")
 
     return jsonify(result)
 
@@ -6312,8 +6297,8 @@ def get_conference_participants():
                                     name = friendly
                                     role = 'agent'
                                     break
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"Could not resolve participant {call_sid}: {e}")
 
             result.append({
                 'call_sid': call_sid,
@@ -6346,7 +6331,7 @@ def get_my_call_history():
     """
     db = get_db()
     current_user = get_current_user()
-    agent_email = current_user.email if current_user else get_api_caller()
+    agent_email = current_user.email if current_user else get_api_caller_email()
     if not agent_email:
         return jsonify({"error": "Could not determine user"}), 401
 
@@ -6404,7 +6389,7 @@ def blind_transfer():
     if not call_sid or not target:
         return jsonify({"error": "call_sid and target required"}), 400
 
-    transferred_by = get_api_caller()
+    transferred_by = get_api_caller_email()
     transfer_service = get_transfer_service()
     transfer_service._capture_base_url()
 
@@ -6444,7 +6429,7 @@ def blind_transfer_direct():
     if not call_sid or not target:
         return jsonify({"error": "call_sid and target required"}), 400
 
-    transferred_by = get_api_caller()
+    transferred_by = get_api_caller_email()
     transfer_service = get_transfer_service()
     transfer_service._capture_base_url()
 
@@ -6498,7 +6483,7 @@ def warm_transfer_start():
     call_type = data.get('call_type', 'queue')
     three_way = data.get('three_way', False)
 
-    transferred_by = get_api_caller()
+    transferred_by = get_api_caller_email()
     transfer_service = get_transfer_service()
     transfer_service._capture_base_url()
 
@@ -6562,7 +6547,7 @@ def warm_transfer_complete():
 
     data = request.get_json() or {}
     call_type = data.get('call_type', 'queue')
-    transferred_by = get_api_caller()
+    transferred_by = get_api_caller_email()
     transfer_service = get_transfer_service()
     transfer_service._capture_base_url()
 
@@ -6599,7 +6584,7 @@ def transfer_cancel():
 
     data = request.get_json() or {}
     call_type = data.get('call_type', 'queue')
-    cancelled_by = get_api_caller()
+    cancelled_by = get_api_caller_email()
     transfer_service = get_transfer_service()
     transfer_service._capture_base_url()
 
@@ -6862,8 +6847,7 @@ def transfer_context():
     transfer = db.get_transfer_by_consult_sid(call_sid)
     if transfer:
         transferred_by = transfer['transferred_by'] or ''
-        # Strip session:/api: prefix
-        clean_email = transferred_by.replace('session:', '').replace('api:', '')
+        clean_email = transferred_by.replace('session:', '').replace('api:', '')  # legacy cleanup
         friendly_name = clean_email.split('@')[0].replace('.', ' ').replace('_', ' ').title()
         is_callback = transfer.get('transfer_status') == 'callback'
         result = {
@@ -6938,8 +6922,7 @@ def transfer_consult_status():
 
                     # Call agent 1 back
                     if transferred_by:
-                        # Strip session: prefix from get_api_caller()
-                        agent_email = transferred_by.replace('session:', '').replace('api:', '')
+                        agent_email = transferred_by.replace('session:', '').replace('api:', '')  # legacy cleanup
                         from rinq.api.routes import _email_to_browser_identity
                         agent_identity = f"client:{_email_to_browser_identity(agent_email)}"
                         rejoin_url = f"{config.webhook_base_url}/api/voice/conference/join?room={xfer_conf}&role=agent"
@@ -6969,8 +6952,8 @@ def transfer_consult_status():
                             db.update_call_log_transfer_status(original_call, 'callback')
                             try:
                                 db.update_transfer_consultation(original_call, callback_call.sid, xfer_conf)
-                            except Exception:
-                                pass
+                            except Exception as e:
+                                logger.warning(f"Failed to update transfer consultation for {original_call}: {e}")
                         except Exception as e:
                             logger.warning(f"Could not call agent back: {e}")
                             # Fall through to redirect customer to voicemail

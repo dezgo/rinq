@@ -248,49 +248,9 @@ class TwilioService:
             return {"success": False, "error": str(e)}
 
     def _format_phone_number(self, number: str) -> str:
-        """Format phone number to E.164 (Australian)."""
-        # Handle SIP URI format: sip:62804443@domain.com;transport=UDP
-        if number.startswith('sip:'):
-            # Extract the user part (before @)
-            number = number[4:]  # Remove 'sip:'
-            if '@' in number:
-                number = number.split('@')[0]
-
-        # Remove any non-digit characters
-        digits = "".join(c for c in number if c.isdigit())
-
-        # Already has country code
-        if number.startswith("+"):
-            return number
-
-        # Handle already E.164 formatted (without +)
-        if digits.startswith("61") and len(digits) == 11:
-            return f"+{digits}"
-
-        # Handle Australian mobile (04xx) - 10 digits
-        if digits.startswith("04") and len(digits) == 10:
-            return f"+61{digits[1:]}"
-
-        # Handle Australian landline with area code (0x) - 10 digits
-        if digits.startswith("0") and len(digits) == 10:
-            return f"+61{digits[1:]}"
-
-        # Handle 1300/1800 numbers (10 digits) and 13xx short numbers (6 digits)
-        if digits.startswith("1300") or digits.startswith("1800"):
-            return f"+61{digits}"
-        if digits.startswith("13") and len(digits) == 6:
-            return f"+61{digits}"
-
-        # Handle 9-digit (national format without leading 0)
-        if len(digits) == 9:
-            return f"+61{digits}"
-
-        # Handle 8-digit local number (no area code)
-        # Assume Canberra (02) area code for local numbers
-        if len(digits) == 8:
-            return f"+612{digits}"
-
-        return number
+        """Format phone number to E.164 (Australian). Delegates to phone utility."""
+        from rinq.services.phone import to_e164
+        return to_e164(number)
 
     # =========================================================================
     # Call Recording

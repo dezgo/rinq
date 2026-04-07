@@ -192,20 +192,10 @@ def update_settings():
     # Validate Australian mobile number if provided
     forward_to = request.form.get('forward_to', '').strip()
     if forward_to:
-        import re
-        # Normalise to +614 format
-        forward_to = forward_to.replace(' ', '').replace('-', '')
-        if forward_to.startswith('04'):
-            forward_to = '+61' + forward_to[1:]
-        elif forward_to.startswith('614'):
-            forward_to = '+' + forward_to
-        elif not forward_to.startswith('+614'):
+        from rinq.services.phone import normalize_au_mobile, is_valid_au_mobile
+        forward_to = normalize_au_mobile(forward_to)
+        if not forward_to or not is_valid_au_mobile(forward_to):
             flash('Invalid mobile number. Must be an Australian mobile (04XX XXX XXX).', 'error')
-            return redirect(url_for('web.index'))
-
-        # Validate format
-        if not re.match(r'^\+614\d{8}$', forward_to):
-            flash('Invalid mobile number format.', 'error')
             return redirect(url_for('web.index'))
     else:
         forward_to = None
@@ -303,20 +293,7 @@ def admin_staff():
         staff_dir = get_staff_directory()
         peter_staff = staff_dir.get_active_staff() if staff_dir else []
         if peter_staff:
-            import re
-
-            def _normalize_au_mobile(number):
-                """Normalize Australian mobile to +614 format, or return None."""
-                if not number:
-                    return None
-                cleaned = re.sub(r'[\s\-()]', '', number)
-                if cleaned.startswith('04') and len(cleaned) == 10:
-                    return '+61' + cleaned[1:]
-                if cleaned.startswith('+614') and len(cleaned) == 12:
-                    return cleaned
-                if cleaned.startswith('614') and len(cleaned) == 11:
-                    return '+' + cleaned
-                return None
+            from rinq.services.phone import normalize_au_mobile
 
             created = 0
             updated = 0
@@ -326,7 +303,7 @@ def admin_staff():
                 if not email:
                     continue
                 peter_ext = staff.get('extension', '').strip()
-                peter_mobile = _normalize_au_mobile(staff.get('phone_mobile', ''))
+                peter_mobile = normalize_au_mobile(staff.get('phone_mobile', ''))
                 existing = db.get_staff_extension(email)
                 if not existing:
                     db.create_staff_extension(email, 'system:sync', extension=peter_ext or None)
@@ -973,9 +950,8 @@ def add_verified_caller_id():
         flash("Phone number is required", "error")
         return redirect(url_for('web.admin_verified_caller_ids'))
 
-    # Normalize to E.164 format if needed
-    if not phone_number.startswith('+'):
-        phone_number = '+' + phone_number
+    from rinq.services.phone import ensure_plus
+    phone_number = ensure_plus(phone_number)
 
     user = get_current_user()
     db = get_db()

@@ -139,5 +139,21 @@ def api_or_session_auth(view_func):
 
 
 def get_api_caller():
-    """Get the caller identity string (matches shared.auth.bot_api interface)."""
+    """Get the caller identity string (matches shared.auth.bot_api interface).
+
+    Returns prefixed strings like 'session:user@example.com' or 'bot'.
+    Use this for audit/logging. For a clean email, use get_api_caller_email().
+    """
     return getattr(g, 'api_caller', None)
+
+
+def get_api_caller_email():
+    """Get the caller's email address (no prefix).
+
+    Returns the raw email for session callers, 'bot' for API callers,
+    or None if unauthenticated.
+    """
+    caller = getattr(g, 'api_caller', None)
+    if caller and caller.startswith('session:'):
+        return caller[8:]
+    return caller
