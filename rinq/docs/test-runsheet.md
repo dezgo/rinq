@@ -88,22 +88,53 @@ From the Tina phone page, dial a 4-digit extension.
 | 6.6 | 3-way — agent drops out | Other two continue |
 | 6.7 | Transfer a call that was already transferred | Works (second transfer) |
 
-## 7. Edge Cases
+## 7. SIP / Desk Phone
 
 | # | Test | Expected |
 |---|------|----------|
-| 7.1 | Hold → transfer while on hold | Transfer works from hold state |
-| 7.2 | Multiple hold/resume cycles | No degradation, works each time |
-| 7.3 | Two agents on calls simultaneously | Each call independent |
-| 7.4 | Call during DND | Rejected silently |
-| 7.5 | Refresh browser during call | Call state recovers (or ends cleanly) |
+| 7.1 | Queue call comes in, SIP device rings | Desk phone rings within a few seconds |
+| 7.2 | SIP device rings, caller hangs up before answer | Desk phone stops ringing |
+| 7.3 | Direct inbound, caller hangs up before answer | SIP and browser both stop ringing |
+| 7.4 | Answer on SIP, verify call connects | Can talk to caller |
+| 7.5 | Make outgoing call from SIP device | Call connects normally |
+
+## 8. Multi-Tenant / Contacts
+
+| # | Test | Expected |
+|---|------|----------|
+| 8.1 | Contacts tab shows staff list (no Peter) | Falls back to local staff extensions |
+| 8.2 | Transfer modal shows all staff with extensions | Not filtered by is_active |
+| 8.3 | Contacts/transfer targets on different tenant | Shows that tenant's staff, not watson's |
+
+## 9. Queue Display
+
+| # | Test | Expected |
+|---|------|----------|
+| 9.1 | Caller hangs up, queue panel updates | Caller removed within one poll cycle |
+| 9.2 | Same number calls twice (redial) | Only shown once (most recent) |
+| 9.3 | Stale caller in queue (webhook missed) | Auto-cleaned on next poll |
+| 9.4 | Agent in multiple queues sees callers from all | Callers shown, no duplicates |
+
+## 10. Edge Cases
+
+| # | Test | Expected |
+|---|------|----------|
+| 10.1 | Hold → transfer while on hold | Transfer works from hold state |
+| 10.2 | Multiple hold/resume cycles | No degradation, works each time |
+| 10.3 | Two agents on calls simultaneously | Each call independent |
+| 10.4 | Call during DND | Rejected silently |
+| 10.5 | Refresh browser during call | Call state recovers (or ends cleanly) |
+| 10.6 | Answer queue call — no hold music gap | Agent hears "Connecting" then caller, not hold music |
+| 10.7 | SIP credentials synced after fresh setup | Users table populated with staff_email links |
 
 ## Quick Smoke Test (minimum viable check)
 
-If short on time, test these 5 scenarios:
+If short on time, test these 7 scenarios:
 
 1. **Outbound**: Dial your mobile → talk → hold → resume → hang up
 2. **Queue**: Call in → answer from panel → hold → resume → hang up
 3. **Inbound dial**: Call a direct-dial number → answer → hold → resume → hang up
 4. **Transfer**: On any call → warm transfer → complete
 5. **No answer**: Call in when all agents DND → goes to voicemail
+6. **SIP ring**: Call in → verify desk phone rings → caller hangs up → phone stops ringing
+7. **Queue cleanup**: Stale callers in queue panel → verify they disappear
