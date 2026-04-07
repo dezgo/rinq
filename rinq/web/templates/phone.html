@@ -4124,16 +4124,17 @@ async function startTransfer() {
 
 async function completeTransfer() {
     stopRingback();
-    if (!isConsulting || !currentTransferCallType) {
+    const transferSid = currentTransferCallType === 'queue' ? currentQueueCallerSid : currentTransferKey;
+    if (!isConsulting || !currentTransferCallType || !transferSid) {
         closeTransferModal();
         return;
     }
     try {
         const body = { call_type: currentTransferCallType };
         if (currentTransferCallType === 'queue') {
-            body.call_sid = currentQueueCallerSid;
+            body.call_sid = transferSid;
         } else {
-            body.transfer_key = currentTransferKey;
+            body.transfer_key = transferSid;
         }
         console.log('Complete transfer:', JSON.stringify(body));
 
@@ -4216,16 +4217,17 @@ function stopTransferStatusPolling() {
 
 async function cancelTransfer() {
     stopRingback();
-    if (!isConsulting || !currentTransferCallType) {
+    const transferSid = currentTransferCallType === 'queue' ? currentQueueCallerSid : currentTransferKey;
+    if (!isConsulting || !currentTransferCallType || !transferSid) {
         closeTransferModal();
         return;
     }
     try {
         const body = { call_type: currentTransferCallType };
         if (currentTransferCallType === 'queue') {
-            body.call_sid = currentQueueCallerSid;
+            body.call_sid = transferSid;
         } else {
-            body.transfer_key = currentTransferKey;
+            body.transfer_key = transferSid;
             body.agent_call_sid = currentTransferAgentSid;
         }
         console.log('Cancel transfer:', JSON.stringify(body));
