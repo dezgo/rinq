@@ -201,20 +201,11 @@
 
 <div class="filters-row">
     <div class="period-tabs">
-        <a href="{{ url_for('web.leaderboard', period='today', queue=current_queue) }}" class="{{ 'active' if period == 'today' else '' }}">Today</a>
-        <a href="{{ url_for('web.leaderboard', period='yesterday', queue=current_queue) }}" class="{{ 'active' if period == 'yesterday' else '' }}">Yesterday</a>
-        <a href="{{ url_for('web.leaderboard', period='this_week', queue=current_queue) }}" class="{{ 'active' if period == 'this_week' else '' }}">This Week</a>
-        <a href="{{ url_for('web.leaderboard', period='this_month', queue=current_queue) }}" class="{{ 'active' if period == 'this_month' else '' }}">This Month</a>
+        <a href="{{ url_for('web.leaderboard', period='today') }}" class="{{ 'active' if period == 'today' else '' }}">Today</a>
+        <a href="{{ url_for('web.leaderboard', period='yesterday') }}" class="{{ 'active' if period == 'yesterday' else '' }}">Yesterday</a>
+        <a href="{{ url_for('web.leaderboard', period='this_week') }}" class="{{ 'active' if period == 'this_week' else '' }}">This Week</a>
+        <a href="{{ url_for('web.leaderboard', period='this_month') }}" class="{{ 'active' if period == 'this_month' else '' }}">This Month</a>
     </div>
-    {% if queues | length > 1 %}
-    <select onchange="window.location.href='{{ url_for('web.leaderboard', period=period) }}&queue='+this.value"
-            style="padding: 8px 12px; border: 1px solid #dee2e6; border-radius: 20px; font-size: 0.9em;">
-        <option value="">All Queues</option>
-        {% for q in queues %}
-        <option value="{{ q.id }}" {% if current_queue == q.id|string %}selected{% endif %}>{{ q.name }}</option>
-        {% endfor %}
-    </select>
-    {% endif %}
 </div>
 
 {% if by_calls and by_calls[0].answered_calls > 0 %}

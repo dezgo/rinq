@@ -1538,45 +1538,13 @@ def leaderboard():
     from rinq.database.db import get_db
 
     period = request.args.get('period', 'today')
-    queue_filter = request.args.get('queue', '')
-
-    db = get_db()
     user = get_current_user()
 
-    if user.is_admin:
-        queues = db.get_queues()
-    else:
-        queues = db.get_queues_for_user(user.email)
-
-    if not queue_filter and len(queues) == 1:
-        queue_filter = str(queues[0]['id'])
-
-    queue_name = None
-    queue_names = None
-    agent_emails = None
-    if queue_filter:
-        for q in queues:
-            if str(q['id']) == queue_filter:
-                queue_name = q['name']
-                members = db.get_queue_members(q['id'])
-                agent_emails = [m['user_email'] for m in members]
-                break
-    else:
-        queue_names = [q['name'] for q in queues] if queues else None
-        if queues:
-            all_emails = set()
-            for q in queues:
-                members = db.get_queue_members(q['id'])
-                all_emails.update(m['user_email'] for m in members)
-            agent_emails = list(all_emails) if all_emails else None
-
     service = get_reporting_service()
-    report_data = service.get_report_data(period, queue_name=queue_name, queue_names=queue_names, agent_emails=agent_emails)
+    report_data = service.get_report_data(period)
 
-    # Enrich agent stats are already done by reporting service
     agents = report_data.get('agent_stats', [])
 
-    # Build rankings for different categories
     by_calls = sorted(agents, key=lambda a: a['answered_calls'], reverse=True)
     by_talk_time = sorted(agents, key=lambda a: a['total_duration_seconds'], reverse=True)
 
@@ -1584,8 +1552,6 @@ def leaderboard():
                          period=period,
                          by_calls=by_calls,
                          by_talk_time=by_talk_time,
-                         queues=queues,
-                         current_queue=queue_filter,
                          format_duration=service.format_duration,
                          current_user=user,
                          active_nav='leaderboard')
