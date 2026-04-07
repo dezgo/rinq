@@ -105,6 +105,9 @@ From the Tina phone page, dial a 4-digit extension.
 | 8.1 | Contacts tab shows staff list (no Peter) | Falls back to local staff extensions |
 | 8.2 | Transfer modal shows all staff with extensions | Not filtered by is_active |
 | 8.3 | Contacts/transfer targets on different tenant | Shows that tenant's staff, not watson's |
+| 8.4 | Manager views Reports tab | Only sees stats for their reportees (not all staff) |
+| 8.5 | Admin views Reports tab | Sees stats for all active staff |
+| 8.6 | Staff admin page — set reports_to via dropdown | Flash confirms, value persists on reload |
 
 ## 9. Queue Display
 
