@@ -354,9 +354,6 @@ class TwilioService:
         except (TwilioRestException, TwilioException) as e:
             logger.error(f"Failed to get credential list mappings: {e}")
             return []
-        except Exception as e:
-            logger.error(f"Error in credential list mappings: {e}")
-            return []
 
     def get_domain_registration_credential_list_mappings(self, domain_sid: str) -> list[dict]:
         """Get credential lists mapped to a SIP domain for REGISTRATION authentication."""
@@ -372,9 +369,6 @@ class TwilioService:
             return result
         except (TwilioRestException, TwilioException) as e:
             logger.error(f"Failed to get registration credential list mappings: {e}")
-            return []
-        except Exception as e:
-            logger.error(f"Error in registration credential list mappings: {e}")
             return []
 
     def associate_credential_list_with_domain(self, domain_sid: str, credential_list_sid: str) -> dict:

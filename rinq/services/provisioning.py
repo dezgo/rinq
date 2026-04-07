@@ -11,6 +11,7 @@ Handles the full onboarding flow:
 import os
 import logging
 from twilio.rest import Client
+from twilio.base.exceptions import TwilioException
 
 from rinq.config import config
 from rinq.database.master import get_master_db
@@ -129,6 +130,6 @@ def provision_tenant(tenant_id: str, tenant_name: str, admin_email: str,
             'twiml_app_sid': twiml_app.sid,
         }
 
-    except Exception as e:
+    except (TwilioException, OSError) as e:
         logger.exception(f"Tenant provisioning failed: {e}")
         return {'success': False, 'error': str(e)}

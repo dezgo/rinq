@@ -14,6 +14,8 @@ import os
 import requests
 from datetime import datetime
 
+from twilio.base.exceptions import TwilioException
+
 from rinq.config import config
 from rinq.database.db import get_db
 from rinq.services.twilio_service import get_twilio_service, twilio_list
@@ -350,7 +352,7 @@ class RecordingService:
                 'success': True,
                 'recording_sid': recording.sid,
             }
-        except Exception as e:
+        except TwilioException as e:
             logger.error(f"Failed to start recording for call {call_sid}: {e}")
             return {'success': False, 'error': str(e)}
 
@@ -379,7 +381,7 @@ class RecordingService:
                 'success': True,
                 'stopped_count': stopped,
             }
-        except Exception as e:
+        except TwilioException as e:
             logger.error(f"Failed to stop recording for call {call_sid}: {e}")
             return {'success': False, 'error': str(e)}
 
@@ -402,7 +404,7 @@ class RecordingService:
                     'recording_sid': recordings[0].sid,
                 }
             return {'recording': False}
-        except Exception as e:
+        except TwilioException as e:
             logger.error(f"Failed to get recording status for call {call_sid}: {e}")
             return {'recording': False, 'error': str(e)}
 
@@ -451,7 +453,7 @@ class RecordingService:
                 self.db.clear_recording_local_file(recording_sid)
                 purged_count += 1
 
-            except Exception as e:
+            except OSError as e:
                 error_msg = f"Failed to purge recording {recording_sid}: {e}"
                 logger.error(error_msg)
                 errors.append(error_msg)
