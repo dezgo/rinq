@@ -4124,6 +4124,10 @@ async function startTransfer() {
 
 async function completeTransfer() {
     stopRingback();
+    if (!isConsulting) {
+        closeTransferModal();
+        return;
+    }
     try {
         const body = { call_type: currentTransferCallType };
         if (currentTransferCallType === 'queue') {
@@ -4212,6 +4216,11 @@ function stopTransferStatusPolling() {
 
 async function cancelTransfer() {
     stopRingback();
+    if (!isConsulting) {
+        // Polling already resolved the transfer — just close the modal
+        closeTransferModal();
+        return;
+    }
     try {
         const body = { call_type: currentTransferCallType };
         if (currentTransferCallType === 'queue') {
