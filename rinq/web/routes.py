@@ -984,8 +984,6 @@ def add_verified_caller_id():
 @admin_required
 def sync_verified_caller_ids():
     """Sync verified caller IDs from Twilio."""
-    from rinq.services.twilio_service import get_twilio_service
-
     user = get_current_user()
     twilio = get_twilio_service()
 
@@ -1535,7 +1533,6 @@ def reports():
 def leaderboard():
     """Call leaderboard — gamified agent performance ranking."""
     from rinq.services.reporting_service import get_reporting_service
-    from rinq.database.db import get_db
 
     period = request.args.get('period', 'today')
     user = get_current_user()
