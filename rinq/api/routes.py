@@ -1876,8 +1876,22 @@ def call_status_callback():
             talk_seconds=duration if call_status == 'completed' else 0,
         )
 
-        # Mark participant as left
+        # Mark participant as left and check if anyone is alone
+        participant = db.get_participant_by_sid(call_sid)
         db.remove_participant(call_sid)
+
+        if participant:
+            conf_name = participant['conference_name']
+            remaining = db.get_participants(conf_name)
+            if len(remaining) == 1:
+                # One person left alone — end the conference so they're not stuck
+                lone_sid = remaining[0]['call_sid']
+                try:
+                    service = get_twilio_service()
+                    service.client.calls(lone_sid).update(status='completed')
+                    logger.info(f"Ended lone call {lone_sid} in {conf_name} after all others left")
+                except Exception as e:
+                    logger.debug(f"Could not end lone call {lone_sid}: {e}")
 
         # Cancel any pending ring calls for conference-first inbound calls.
         # When the caller hangs up before an agent answers, the outbound
@@ -2224,6 +2238,20 @@ def conference_join():
     role = request.args.get('role', 'caller')
     call_sid = request.form.get('CallSid', '?')
     logger.info(f"Conference join: {call_sid} -> room={room}, role={role}")
+
+    # Track participant — conference_join is the central entry point for all
+    # conference participants, so this is the DRY place to record them.
+    if call_sid and call_sid != '?' and room:
+        try:
+            db = get_db()
+            participant_role = 'customer' if role == 'caller' else 'agent'
+            # Only add if not already tracked (avoid overwriting richer data
+            # from the specific entry point that initiated this call)
+            existing = db.get_participant_by_sid(call_sid)
+            if not existing:
+                db.add_participant(room, call_sid, participant_role)
+        except Exception as e:
+            logger.debug(f"Could not track participant {call_sid} in {room}: {e}")
 
     if not room:
         twiml = '''<?xml version="1.0" encoding="UTF-8"?>
