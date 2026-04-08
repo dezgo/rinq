@@ -2874,8 +2874,8 @@ async function makeCall() {
     }
     if (!phoneNumber) return;
 
-    // Fetch customer context before making the call
-    await fetchCustomerContext(phoneNumber);
+    // Fetch customer context in parallel — don't block the call
+    fetchCustomerContext(phoneNumber);
 
     const callerId = document.getElementById('callerId').value;
     currentCallerId = callerId;  // Track for transfers
