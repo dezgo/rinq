@@ -355,7 +355,7 @@ class RecordingService:
                     friendly_name=conference_name, status='in-progress', limit=1
                 )
                 if confs:
-                    recording = confs[0].recordings.create(
+                    recording = client.conferences(confs[0].sid).recordings.create(
                         recording_status_callback=status_callback,
                         recording_status_callback_event=['completed', 'absent'],
                     )
@@ -402,9 +402,9 @@ class RecordingService:
                     friendly_name=conference_name, status='in-progress', limit=1
                 )
                 if confs:
-                    for r in twilio_list(confs[0].recordings):
+                    for r in twilio_list(client.conferences(confs[0].sid).recordings):
                         if r.status == 'in-progress':
-                            r.update(status='stopped')
+                            client.conferences(confs[0].sid).recordings(r.sid).update(status='stopped')
                             stopped += 1
                             logger.info(f"Stopped conference recording {r.sid}")
 
@@ -444,7 +444,7 @@ class RecordingService:
                     friendly_name=conference_name, status='in-progress', limit=1
                 )
                 if confs:
-                    for r in twilio_list(confs[0].recordings):
+                    for r in twilio_list(client.conferences(confs[0].sid).recordings):
                         if r.status == 'in-progress':
                             return {'recording': True, 'recording_sid': r.sid}
 

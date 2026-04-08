@@ -2978,6 +2978,7 @@ function rejectCall() {
 }
 
 function endCall() {
+    autoRecordAttempted = false;
     // Notify server that the call has ended so call_log gets ended_at set.
     // This is the single point all call endings pass through on the client.
     const endSid = currentQueueCallerSid || currentOutboundCallSid
@@ -3286,8 +3287,10 @@ function resetRecordingState() {
 }
 
 // Auto-start recording if user preference is enabled
+let autoRecordAttempted = false;
 async function autoStartRecordingIfEnabled() {
-    if (recordingEnabled && !isRecording) {
+    if (recordingEnabled && !isRecording && !autoRecordAttempted) {
+        autoRecordAttempted = true;
         // Small delay to ensure call is fully connected
         setTimeout(async () => {
             if (currentCall && !isRecording) {
