@@ -267,6 +267,30 @@ def update_forwarding(sid):
 # Lock for all in-memory call tracking dicts (webhook threads are concurrent)
 _call_tracking_lock = threading.Lock()
 
+
+def _handle_participant_left(call_sid: str, db=None):
+    """Mark a participant as left and auto-end lone calls.
+
+    Called from every call-end path (status callbacks, browser signal, hangup).
+    """
+    if not db:
+        db = get_db()
+    participant = db.get_participant_by_sid(call_sid)
+    db.remove_participant(call_sid)
+
+    if participant:
+        conf_name = participant['conference_name']
+        remaining = db.get_participants(conf_name)
+        if len(remaining) == 1:
+            lone_sid = remaining[0]['call_sid']
+            try:
+                service = get_twilio_service()
+                service.client.calls(lone_sid).update(status='completed')
+                logger.info(f"Ended lone call {lone_sid} in {conf_name} after all others left")
+            except Exception as e:
+                logger.debug(f"Could not end lone call {lone_sid}: {e}")
+
+
 # SIP helpers — delegated to services/sip.py
 from rinq.services.sip import get_sip_domain as _get_sip_domain_impl, get_sip_uri_for_user as _get_sip_uri_for_user
 
@@ -1876,22 +1900,8 @@ def call_status_callback():
             talk_seconds=duration if call_status == 'completed' else 0,
         )
 
-        # Mark participant as left and check if anyone is alone
-        participant = db.get_participant_by_sid(call_sid)
-        db.remove_participant(call_sid)
-
-        if participant:
-            conf_name = participant['conference_name']
-            remaining = db.get_participants(conf_name)
-            if len(remaining) == 1:
-                # One person left alone — end the conference so they're not stuck
-                lone_sid = remaining[0]['call_sid']
-                try:
-                    service = get_twilio_service()
-                    service.client.calls(lone_sid).update(status='completed')
-                    logger.info(f"Ended lone call {lone_sid} in {conf_name} after all others left")
-                except Exception as e:
-                    logger.debug(f"Could not end lone call {lone_sid}: {e}")
+        # Mark participant as left and end lone calls
+        _handle_participant_left(call_sid, db)
 
         # Cancel any pending ring calls for conference-first inbound calls.
         # When the caller hangs up before an agent answers, the outbound
@@ -2573,6 +2583,10 @@ def outbound_customer_status():
     logger.info(f"Outbound customer status: {customer_call_sid} -> {call_status}, agent={agent_call_sid}")
 
     db = get_db()
+
+    # Mark participant as left on any terminal state
+    if call_status in ('completed', 'busy', 'no-answer', 'failed', 'canceled'):
+        _handle_participant_left(customer_call_sid, db)
 
     # Terminal failure states — customer didn't answer
     if call_status in ('busy', 'no-answer', 'failed', 'canceled'):
@@ -3939,6 +3953,7 @@ def voice_call_ended():
 
     db = get_db()
     db.complete_call(call_sid=call_sid, status='answered')
+    _handle_participant_left(call_sid, db)
     logger.info(f"Call ended (browser signal): {call_sid}")
     return jsonify({"success": True})
 
@@ -4014,6 +4029,8 @@ def voice_hangup():
     except Exception as e:
         # Call may already be completed — that's fine
         logger.warning(f"Server-side hangup for {call_sid}: {e}")
+
+    _handle_participant_left(call_sid, db)
 
     return jsonify({"success": True})
 

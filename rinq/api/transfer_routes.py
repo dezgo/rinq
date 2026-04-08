@@ -446,6 +446,12 @@ def register(bp):
         if not original_call:
             return '', 200
 
+        # Mark the consult call participant as left
+        consult_call_sid = request.form.get('CallSid', '')
+        if call_status in ('completed', 'busy', 'no-answer', 'failed', 'canceled') and consult_call_sid:
+            from rinq.api.routes import _handle_participant_left
+            _handle_participant_left(consult_call_sid, db)
+
         if call_status in ('completed', 'busy', 'no-answer', 'failed', 'canceled'):
             logger.info(f"Consultation call failed ({call_status}) for transfer {original_call} (source={source})")
 
