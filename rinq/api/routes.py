@@ -5329,8 +5329,8 @@ def get_contacts():
         # External staff directory available — merge with local data
         for staff in peter_staff:
             name = staff.get('name', '')
-            # Peter uses google_primary_email as the main identifier, fall back to work_email
-            email = (staff.get('google_primary_email') or staff.get('work_email') or '').lower()
+            # Peter uses google_primary_email, local uses email
+            email = (staff.get('google_primary_email') or staff.get('work_email') or staff.get('email') or '').lower()
 
             if not email:
                 continue
