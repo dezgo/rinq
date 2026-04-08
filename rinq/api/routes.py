@@ -2333,8 +2333,6 @@ def conference_join():
 </Response>'''
         return Response(twiml, mimetype='application/xml')
 
-    rec_attrs = _conference_record_attrs()
-
     # Different settings for caller vs agent
     if role == 'caller':
         # Caller: end conference when they hang up so agent side disconnects too
@@ -2353,7 +2351,7 @@ def conference_join():
         twiml = f'''<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Dial>
-        <Conference startConferenceOnEnter="true" endConferenceOnExit="false" {rec_attrs}>{xml_escape(room)}</Conference>
+        <Conference startConferenceOnEnter="true" endConferenceOnExit="false">{xml_escape(room)}</Conference>
     </Dial>
 </Response>'''
     else:
@@ -2361,7 +2359,7 @@ def conference_join():
         twiml = f'''<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Dial>
-        <Conference startConferenceOnEnter="true" endConferenceOnExit="true" {rec_attrs}>{xml_escape(room)}</Conference>
+        <Conference startConferenceOnEnter="true" endConferenceOnExit="true">{xml_escape(room)}</Conference>
     </Dial>
 </Response>'''
 
