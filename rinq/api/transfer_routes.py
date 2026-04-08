@@ -266,15 +266,20 @@ def register(bp):
 
     @bp.route('/voice/transfer/agent-consult', methods=['POST'])
     def transfer_agent_consult():
-        """TwiML to move agent to consultation conference."""
+        """TwiML to move agent to consultation conference.
+
+        Agent joins with startConferenceOnEnter=false and hears ringback
+        until the transfer target answers and starts the conference.
+        """
         conference = request.args.get('conference')
         if not conference:
             return Response('<?xml version="1.0" encoding="UTF-8"?><Response><Say>Sorry, an error occurred.</Say><Hangup/></Response>', mimetype='application/xml')
 
+        ringback_url = f"{config.webhook_base_url}/api/voice/ringback"
         twiml = f'''<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Dial>
-        <Conference beep="false" startConferenceOnEnter="true" endConferenceOnExit="true">
+        <Conference beep="false" startConferenceOnEnter="false" endConferenceOnExit="true" waitUrl="{xml_escape(ringback_url)}" waitMethod="POST">
             {xml_escape(conference)}
         </Conference>
     </Dial>
