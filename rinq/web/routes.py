@@ -1575,19 +1575,16 @@ def team():
 
     # Get staff list for the dropdown — all users, not just active phone agents
     elevated_emails = {p.get('email', '').lower() for p in permissions}
-    try:
-        all_users = db.get_users()
-        available_staff = []
-        for u in all_users:
-            staff_email = (u.get('staff_email') or '').lower()
-            if staff_email and staff_email not in elevated_emails:
-                available_staff.append({
-                    '_email': staff_email,
-                    'name': u.get('friendly_name') or staff_email.split('@')[0].replace('.', ' ').title(),
-                })
-        available_staff.sort(key=lambda s: s.get('name', ''))
-    except Exception:
-        available_staff = []
+    all_users = db.get_users()
+    available_staff = []
+    for u in all_users:
+        staff_email = (u.get('staff_email') or '').lower()
+        if staff_email and staff_email not in elevated_emails:
+            available_staff.append({
+                '_email': staff_email,
+                'name': u.get('friendly_name') or staff_email.split('@')[0].replace('.', ' ').title(),
+            })
+    available_staff.sort(key=lambda s: s.get('name', ''))
 
     # Sort: admins first, then managers
     role_order = {'admin': 0, 'manager': 1}
