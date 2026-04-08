@@ -273,7 +273,13 @@ input:checked + .toggle-slider:before {
                     {% endif %}
                 </td>
                 <td style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                    {{ rec.caller_name or rec.from_number or '-' }}
+                    {% if can_filter_staff and filter_staff != 'mine' %}
+                        {{ rec.staff_name or (rec.staff_email.split('@')[0] if rec.staff_email else '-') }}
+                    {% elif rec.call_type == 'outbound' %}
+                        {{ rec.caller_name or rec.to_number or '-' }}
+                    {% else %}
+                        {{ rec.caller_name or rec.from_number or '-' }}
+                    {% endif %}
                 </td>
                 <td class="duration-cell">
                     {% set mins = (rec.duration_seconds // 60)|int %}
