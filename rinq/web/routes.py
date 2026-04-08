@@ -1564,8 +1564,8 @@ def team():
     from rinq.integrations import get_permission_service, get_staff_directory
 
     user = get_current_user()
+    db = get_db()
     perms = get_permission_service()
-    staff_dir = get_staff_directory()
 
     # Get current Tina permissions
     permissions = perms.get_permissions('tina') if perms else []
