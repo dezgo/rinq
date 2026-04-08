@@ -270,15 +270,6 @@ _call_tracking_lock = threading.Lock()
 # SIP helpers — delegated to services/sip.py
 from rinq.services.sip import get_sip_domain as _get_sip_domain_impl, get_sip_uri_for_user as _get_sip_uri_for_user
 
-# Track agent calls initiated for each customer call (for cancellation)
-# Format: {customer_call_sid: [agent_call_sid, agent_call_sid, ...]}
-_agent_calls_by_customer = {}
-
-# Reverse mapping: agent_call_sid -> {customer_call_sid, queue_id}
-# Used by status callbacks to know which customer call an agent rejection affects
-_customer_by_agent_call = {}
-
-
 def _cancel_agent_calls(customer_call_sid: str, except_call_sid: str = None):
     """Cancel all pending agent calls for a customer, optionally excluding one.
 
@@ -286,9 +277,8 @@ def _cancel_agent_calls(customer_call_sid: str, except_call_sid: str = None):
         customer_call_sid: The customer's call SID
         except_call_sid: Optional agent call SID to NOT cancel (the one that answered)
     """
-    with _call_tracking_lock:
-        logger.info(f"_cancel_agent_calls called for {customer_call_sid}, tracking has {len(_agent_calls_by_customer)} entries")
-        agent_sids = _agent_calls_by_customer.pop(customer_call_sid, [])
+    db = get_db()
+    agent_sids = db.pop_ring_attempts(customer_call_sid)
     if not agent_sids:
         logger.info(f"No agent calls found to cancel for {customer_call_sid}")
         return
@@ -310,17 +300,12 @@ def _cancel_agent_calls(customer_call_sid: str, except_call_sid: str = None):
             logger.debug(f"Could not cancel agent call {agent_sid}: {e}")
 
     if cancelled > 0:
-        try:
-            db = get_db()
-            db.log_activity(
-                action="agent_calls_cancelled",
-                target=customer_call_sid,
-                details=f"Cancelled {cancelled} pending agent calls",
-                performed_by="system"
-            )
-        except RuntimeError:
-            # No Flask app context in background thread — skip logging
-            logger.info(f"Cancelled {cancelled} agent calls for {customer_call_sid} (no app context for activity log)")
+        db.log_activity(
+            action="agent_calls_cancelled",
+            target=customer_call_sid,
+            details=f"Cancelled {cancelled} pending agent calls",
+            performed_by="system"
+        )
 
 
 def _get_sip_domain() -> str | None:
@@ -368,6 +353,7 @@ def _ring_agents_for_queue(queue_id: int, queue_name: str, customer_caller_id: s
 
             calls_initiated = 0
             agent_call_sids = []  # Track for cancellation
+            metadata_by_sid = {}  # Reverse mapping metadata per SID
 
             for member in active_members:
                 user_email = member['user_email']
@@ -397,22 +383,21 @@ def _ring_agents_for_queue(queue_id: int, queue_name: str, customer_caller_id: s
                             logger.info(f"Initiated SIP call to {sip_uri} for queue {queue_name}: {call.sid}")
                             db.stamp_sip_activity(user_email)
                             agent_call_sids.append(call.sid)
-                            # Store reverse mapping for status callback lookup
-                            with _call_tracking_lock:
-                                _customer_by_agent_call[call.sid] = {
-                                    'customer_call_sid': customer_call_sid,
-                                    'queue_id': queue_id,
-                                    'user_email': user_email,
-                                    'device_type': 'sip'
-                                }
+                            # Store reverse mapping metadata for rejection handling
+                            metadata_by_sid[call.sid] = json.dumps({
+                                'customer_call_sid': customer_call_sid,
+                                'queue_id': queue_id,
+                                'user_email': user_email,
+                                'device_type': 'sip'
+                            })
                             calls_initiated += 1
                         except Exception as e:
                             logger.error(f"Failed to call SIP device for {user_email}: {e}")
 
-            # Store agent call SIDs for later cancellation
+            # Store agent call SIDs in DB for cancellation (shared across workers)
             if agent_call_sids:
-                with _call_tracking_lock:
-                    _agent_calls_by_customer[customer_call_sid] = agent_call_sids
+                db.store_ring_attempts(customer_call_sid, agent_call_sids, 'queue',
+                                       metadata_by_sid=metadata_by_sid)
                 logger.info(f"Stored {len(agent_call_sids)} agent calls for customer {customer_call_sid}")
 
             db.log_activity(
@@ -430,13 +415,10 @@ def _ring_agents_for_queue(queue_id: int, queue_name: str, customer_caller_id: s
     thread.start()
 
 
-# Track ringing calls for conference-first inbound (for cancellation when one answers)
-_conference_ring_calls = {}  # conference_name -> [call_sids]
-
-
 def _ring_targets_into_conference(dial_targets: list, conference_name: str,
                                    caller_id: str, caller_call_sid: str,
-                                   base_url: str = None, caller_identity: str = None):
+                                   base_url: str = None, caller_identity: str = None,
+                                   db=None):
     """Ring multiple devices and have the first to answer join a conference.
 
     Similar to _ring_agents_for_queue but for conference-first direct
@@ -448,6 +430,7 @@ def _ring_targets_into_conference(dial_targets: list, conference_name: str,
         caller_id: Caller ID to show on ringing phones
         caller_call_sid: The caller's call SID (for status callbacks)
         base_url: Webhook base URL (must be passed from request context)
+        db: Database instance (must be captured from request context before spawning)
     """
     import threading
 
@@ -514,8 +497,7 @@ def _ring_targets_into_conference(dial_targets: list, conference_name: str,
                     logger.error(f"Failed to ring {to_addr}: {e}")
 
             if call_sids:
-                with _call_tracking_lock:
-                    _conference_ring_calls[conference_name] = call_sids
+                db.store_ring_attempts(conference_name, call_sids, 'conference')
                 logger.info(f"Stored {len(call_sids)} ring calls for conference {conference_name}")
             else:
                 # No targets could be rung — end the conference so caller falls through
@@ -702,7 +684,7 @@ def voice_incoming():
                 response_parts.append(f'    <Redirect>{xml_escape(no_answer_url)}</Redirect>')
 
                 get_twilio_service().capture_for_thread()
-                _ring_targets_into_conference(dial_targets, conference_name, called_number, call_sid, base_url=config.webhook_base_url)
+                _ring_targets_into_conference(dial_targets, conference_name, called_number, call_sid, base_url=config.webhook_base_url, db=db)
 
                 db.log_activity(
                     action="call_direct_assignment",
@@ -782,7 +764,7 @@ def voice_incoming():
                 response_parts.append(f'    <Redirect>{xml_escape(no_answer_url)}</Redirect>')
 
                 get_twilio_service().capture_for_thread()
-                _ring_targets_into_conference(dial_targets, conference_name, called_number, call_sid, base_url=config.webhook_base_url)
+                _ring_targets_into_conference(dial_targets, conference_name, called_number, call_sid, base_url=config.webhook_base_url, db=db)
 
                 db.log_activity(
                     action="call_dialing_agents",
@@ -1899,8 +1881,7 @@ def call_status_callback():
         # ring calls (SIP/browser) keep ringing because they're separate
         # calls not yet joined to the conference.
         conference_name = f"call_{call_sid}"
-        with _call_tracking_lock:
-            ring_sids = _conference_ring_calls.pop(conference_name, [])
+        ring_sids = db.pop_ring_attempts(conference_name)
         if ring_sids:
             service = get_twilio_service()
             for sid in ring_sids:
@@ -2119,9 +2100,9 @@ def queue_agent_ring_status(queue_id):
 
     logger.info(f"Agent ring status: {agent_call_sid} -> {call_status} (customer: {customer_call_sid})")
 
-    # Clean up the reverse mapping
-    with _call_tracking_lock:
-        call_info = _customer_by_agent_call.pop(agent_call_sid, None)
+    # Look up reverse mapping from DB and clean up
+    call_info = db.get_ring_attempt_metadata(agent_call_sid)
+    db.remove_ring_attempt_by_sid(agent_call_sid)
     if not call_info:
         logger.debug(f"No tracking info for agent call {agent_call_sid}")
         return Response('OK', status=200)
@@ -2281,13 +2262,6 @@ def conference_join():
     </Dial>
 </Response>'''
 
-    db.log_activity(
-        action="conference_join",
-        target=room,
-        details=f"Role: {role}",
-        performed_by="twilio"
-    )
-
     return Response(twiml, mimetype='application/xml')
 
 
@@ -2361,13 +2335,14 @@ def inbound_ring_status():
 
     logger.info(f"Inbound ring status: {agent_call_sid} -> {call_status}, conference={conference_name}")
 
-    with _call_tracking_lock:
-        ring_sids = list(_conference_ring_calls.get(conference_name, []))
+    db = get_db()
 
     if call_status == 'in-progress':
         # Agent answered — cancel all other ringing legs
-        db = get_db()
         service = get_twilio_service()
+
+        # Pop all ring attempts and cancel the others
+        ring_sids = db.pop_ring_attempts(conference_name)
 
         # Store child SIDs both ways so either party can find the other
         db.set_call_child_sid(agent_call_sid, caller_call_sid)
@@ -2388,21 +2363,14 @@ def inbound_ring_status():
                 except Exception as e:
                     logger.debug(f"Could not cancel ring leg {sid}: {e}")
 
-        with _call_tracking_lock:
-            _conference_ring_calls.pop(conference_name, None)
         logger.info(f"Agent {agent_call_sid} answered, cancelled {len(ring_sids) - 1} other legs")
 
     elif call_status in ('completed', 'busy', 'no-answer', 'failed', 'canceled'):
-        # This leg failed — check if all legs have failed
-        with _call_tracking_lock:
-            live_sids = _conference_ring_calls.get(conference_name, [])
-            if agent_call_sid in live_sids:
-                live_sids.remove(agent_call_sid)
-            all_failed = not live_sids
-            if all_failed:
-                _conference_ring_calls.pop(conference_name, None)
+        # This leg failed — remove it and check if all legs have failed
+        db.remove_ring_attempt(conference_name, agent_call_sid)
+        remaining = db.get_ring_attempts(conference_name)
 
-        if all_failed:
+        if not remaining:
             service = get_twilio_service()
             try:
                 confs = twilio_list(service.client.conferences,
@@ -3343,7 +3311,7 @@ def voice_extension_dial():
     db.set_call_conference(call_sid, conference_name)
 
     get_twilio_service().capture_for_thread()
-    _ring_targets_into_conference(dial_targets, conference_name, from_number, call_sid, base_url=config.webhook_base_url)
+    _ring_targets_into_conference(dial_targets, conference_name, from_number, call_sid, base_url=config.webhook_base_url, db=db)
 
     no_answer_url = f"{config.webhook_base_url}/api/voice/extension-no-answer?called={quote(called_number, safe='')}&from={quote(from_number, safe='')}&flow_id={flow_id}"
     ringback_url = f"{config.webhook_base_url}/api/voice/ringback"
@@ -4090,7 +4058,7 @@ def _handle_internal_extension_call(extension: str, from_identity: str, staff_em
     # Ring recipient's devices via REST API into the conference
     get_twilio_service().capture_for_thread()
     _ring_targets_into_conference(dial_targets, conference_name, dial_caller_id, call_sid,
-                                 base_url=config.webhook_base_url, caller_identity=caller_identity)
+                                 base_url=config.webhook_base_url, caller_identity=caller_identity, db=db)
 
     # Caller joins conference — hears ringback until recipient answers
     ringback_url = f"{config.webhook_base_url}/api/voice/ringback"
@@ -5672,11 +5640,14 @@ def cleanup_queue():
     db = get_db()
     deleted_count = db.cleanup_old_queued_calls(hours=hours)
 
+    # Clean up stale ring attempts (safety net for missed callbacks)
+    stale_ring_count = db.cleanup_old_ring_attempts(max_age_minutes=10)
+
     caller = get_api_caller()
     db.log_activity(
         'queue_cleanup',
         f'{hours}h',
-        f"Deleted {deleted_count} old queued_calls records",
+        f"Deleted {deleted_count} old queued_calls, {stale_ring_count} stale ring_attempts",
         caller
     )
 

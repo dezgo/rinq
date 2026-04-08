@@ -102,7 +102,8 @@ def resolve_participant(call_sid, *, agent_call_sid=None, caller_email=None,
     # 6. Twilio call details (API fetch)
     try:
         call = twilio_service.client.calls(call_sid).fetch()
-        for identifier in [call.to, call.from_]:
+        call_from = getattr(call, '_from', None) or getattr(call, 'from_', None)
+        for identifier in [call.to, call_from]:
             if identifier and identifier in user_map:
                 name_val = user_map[identifier]
                 name = name_val['name'] if isinstance(name_val, dict) else name_val
@@ -112,7 +113,7 @@ def resolve_participant(call_sid, *, agent_call_sid=None, caller_email=None,
                 if friendly:
                     return {'call_sid': call_sid, 'name': friendly, 'role': 'agent'}
         # Not a known staff member — show the phone number
-        for num in [call.to, call.from_]:
+        for num in [call.to, call_from]:
             if num and num.startswith('+') and num not in user_map:
                 return {'call_sid': call_sid, 'name': num, 'role': 'customer'}
     except Exception as e:

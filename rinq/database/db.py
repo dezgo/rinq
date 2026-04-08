@@ -2984,6 +2984,116 @@ class Database:
             ).fetchone()
             return row['child_call_sid'] if row and row['child_call_sid'] else None
 
+    # ── Ring attempt tracking ──────────────────────────────────────────
+    # Stored in DB so all gunicorn workers share the same state.
+
+    def store_ring_attempts(self, group_key: str, call_sids: list[str],
+                            group_type: str, metadata_by_sid: dict | None = None) -> None:
+        """Store a batch of outbound ring call SIDs for later cancellation.
+
+        Args:
+            group_key: Grouping key (conference_name or customer_call_sid)
+            call_sids: List of outbound call SIDs
+            group_type: 'conference' or 'queue'
+            metadata_by_sid: Optional dict of {call_sid: json_string} for extra data
+        """
+        with self._get_conn() as conn:
+            for sid in call_sids:
+                meta = (metadata_by_sid or {}).get(sid)
+                conn.execute(
+                    "INSERT OR IGNORE INTO ring_attempts (group_key, call_sid, group_type, metadata) VALUES (?, ?, ?, ?)",
+                    (group_key, sid, group_type, meta)
+                )
+            conn.commit()
+
+    def get_ring_attempts(self, group_key: str) -> list[str]:
+        """Get all call SIDs for a ring group.
+
+        Returns:
+            List of call SIDs
+        """
+        with self._get_conn() as conn:
+            rows = conn.execute(
+                "SELECT call_sid FROM ring_attempts WHERE group_key = ?",
+                (group_key,)
+            ).fetchall()
+            return [r['call_sid'] for r in rows]
+
+    def get_ring_attempt_metadata(self, call_sid: str) -> dict | None:
+        """Get metadata for a specific ring attempt by its call SID.
+
+        Returns:
+            Dict with group_key, group_type, metadata (parsed JSON) or None
+        """
+        import json
+        with self._get_conn() as conn:
+            row = conn.execute(
+                "SELECT group_key, group_type, metadata FROM ring_attempts WHERE call_sid = ?",
+                (call_sid,)
+            ).fetchone()
+            if not row:
+                return None
+            result = {'group_key': row['group_key'], 'group_type': row['group_type']}
+            if row['metadata']:
+                try:
+                    result.update(json.loads(row['metadata']))
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            return result
+
+    def remove_ring_attempt(self, group_key: str, call_sid: str) -> int:
+        """Remove a single ring attempt. Returns rows deleted."""
+        with self._get_conn() as conn:
+            cursor = conn.execute(
+                "DELETE FROM ring_attempts WHERE group_key = ? AND call_sid = ?",
+                (group_key, call_sid)
+            )
+            conn.commit()
+            return cursor.rowcount
+
+    def remove_ring_attempt_by_sid(self, call_sid: str) -> int:
+        """Remove a ring attempt by call SID (regardless of group). Returns rows deleted."""
+        with self._get_conn() as conn:
+            cursor = conn.execute(
+                "DELETE FROM ring_attempts WHERE call_sid = ?",
+                (call_sid,)
+            )
+            conn.commit()
+            return cursor.rowcount
+
+    def pop_ring_attempts(self, group_key: str) -> list[str]:
+        """Get and remove all call SIDs for a ring group (atomic pop).
+
+        Returns:
+            List of call SIDs that were removed
+        """
+        with self._get_conn() as conn:
+            rows = conn.execute(
+                "SELECT call_sid FROM ring_attempts WHERE group_key = ?",
+                (group_key,)
+            ).fetchall()
+            sids = [r['call_sid'] for r in rows]
+            if sids:
+                conn.execute(
+                    "DELETE FROM ring_attempts WHERE group_key = ?",
+                    (group_key,)
+                )
+                conn.commit()
+            return sids
+
+    def cleanup_old_ring_attempts(self, max_age_minutes: int = 10) -> int:
+        """Remove stale ring attempts older than max_age_minutes.
+
+        Safety net for attempts that were never cleaned up (e.g. missed callbacks).
+        """
+        with self._get_conn() as conn:
+            cursor = conn.execute(
+                "DELETE FROM ring_attempts WHERE created_at < datetime('now', ?)",
+                (f'-{max_age_minutes} minutes',)
+            )
+            conn.commit()
+            return cursor.rowcount
+
     def get_queue_stats(self, queue_id: int = None) -> dict:
         """Get statistics for queued calls.
 

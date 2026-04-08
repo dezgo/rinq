@@ -114,7 +114,7 @@ def register(bp):
         try:
             twilio = get_twilio_service()
             call = twilio.client.calls(call_sid).fetch()
-            from_number = call.from_formatted or call.from_ or ''
+            from_number = call.from_formatted or getattr(call, '_from', None) or ''
             to_number = call.to_formatted or call.to or ''
         except Exception as e:
             logger.warning(f"Could not fetch call details from Twilio: {e}")

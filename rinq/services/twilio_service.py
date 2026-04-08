@@ -857,7 +857,7 @@ class TwilioService:
             for call in calls:
                 result.append({
                     'call_sid': call.sid,
-                    'from_number': call.from_formatted or call.from_,
+                    'from_number': call.from_formatted or getattr(call, '_from', None),
                     'to_number': call.to_formatted or call.to,
                     'direction': call.direction,
                     'start_time': call.start_time.isoformat() if call.start_time else None,
