@@ -4562,6 +4562,14 @@ def get_presence():
     active_calls = _get_active_calls_from_twilio()
     on_call_emails = {c['agent_email'].lower() for c in active_calls if c.get('agent_email')}
 
+    # Build set of emails that have SIP credentials (desk phone configured)
+    users = db.get_users()
+    sip_emails = {
+        u['staff_email'].lower()
+        for u in users
+        if u.get('username') and u.get('staff_email')
+    }
+
     presence = {}
     for ext in extensions:
         email = ext.get('email', '')
@@ -4574,57 +4582,14 @@ def get_presence():
             except (ValueError, TypeError):
                 pass
 
-        # SIP device registered (refreshed every ~10 min by cron)
-        sip_reg = ext.get('sip_registered_at')
-        sip_registered = False
-        if sip_reg:
-            try:
-                reg_time = datetime.fromisoformat(sip_reg)
-                sip_registered = (now - reg_time).total_seconds() < 900  # 15 min grace
-            except (ValueError, TypeError):
-                pass
-
         presence[email] = {
             'online': is_online,
             'dnd': bool(ext.get('dnd_enabled')),
             'on_call': email.lower() in on_call_emails,
-            'sip_registered': sip_registered,
+            'has_sip_device': email.lower() in sip_emails,
         }
 
     return jsonify({"presence": presence})
-
-
-@api_bp.route('/sip/refresh-registrations', methods=['POST'])
-@api_or_session_auth
-def refresh_sip_registrations():
-    """Refresh SIP device registration status for all tenants.
-
-    Checks Twilio for active SIP registrations and updates
-    staff_extensions.sip_registered_at. Called every 10 minutes via cron.
-
-    Iterates all active tenants with Twilio configured, since this is
-    called from cron with no tenant context.
-
-    Returns:
-        {"success": true, "tenants": {"watson": {...}, "derek": {...}}}
-    """
-    from rinq.database.master import get_master_db
-    from rinq.services.twilio_service import get_twilio_service
-
-    master_db = get_master_db()
-    tenants = [t for t in master_db.get_tenants() if t.get('twilio_account_sid')]
-    results = {}
-
-    for tenant in tenants:
-        g.tenant = tenant
-        try:
-            service = get_twilio_service()
-            results[tenant['id']] = service.refresh_sip_registrations()
-        except Exception as e:
-            logger.error(f"SIP registration refresh failed for tenant {tenant['id']}: {e}")
-            results[tenant['id']] = {"success": False, "error": str(e)}
-
-    return jsonify({"success": True, "tenants": results})
 
 
 # =============================================================================

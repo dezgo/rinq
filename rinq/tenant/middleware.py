@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 # Routes that don't need tenant context
 TENANT_EXEMPT_PREFIXES = (
     '/login', '/auth/', '/logout', '/health', '/info', '/static/',
-    '/api/sip/refresh-registrations',
 )
 
 

@@ -3451,7 +3451,7 @@ function applyFilterAndRender() {
     if (activeFilter === 'online') {
         filtered = filtered.filter(c => {
             const p = contactPresence[c.email];
-            return p && (p.online || p.sip_registered) && !p.dnd;
+            return p && (p.online || p.has_sip_device) && !p.dnd;
         });
     } else if (activeFilter === 'favourites') {
         filtered = filtered.filter(c => favouriteEmails.has(c.email));
@@ -3496,8 +3496,8 @@ function renderContacts(contacts) {
     const sorted = [...contacts].sort((a, b) => {
         const pa = contactPresence[a.email] || {};
         const pb = contactPresence[b.email] || {};
-        const orderA = pa.dnd ? 2 : (pa.online || pa.on_call) ? 0 : (pa.sip_registered ? 1 : 3);
-        const orderB = pb.dnd ? 2 : (pb.online || pb.on_call) ? 0 : (pb.sip_registered ? 1 : 3);
+        const orderA = pa.dnd ? 2 : (pa.online || pa.on_call) ? 0 : (pa.has_sip_device ? 1 : 3);
+        const orderB = pb.dnd ? 2 : (pb.online || pb.on_call) ? 0 : (pb.has_sip_device ? 1 : 3);
         if (orderA !== orderB) return orderA - orderB;
         return (a.name || '').localeCompare(b.name || '');
     });
@@ -3574,13 +3574,13 @@ function renderContactCard(contact) {
     if (presence.dnd) dotClass = ' dnd';
     else if (presence.on_call) dotClass = ' on-call';
     else if (presence.online) dotClass = ' online';
-    else if (presence.sip_registered) dotClass = ' sip';
+    else if (presence.has_sip_device) dotClass = ' sip';
 
     // Status badge text
     let statusBadge = '';
     if (presence.dnd) statusBadge = '<span class="contact-status-badge dnd">DND</span>';
     else if (presence.on_call) statusBadge = '<span class="contact-status-badge on-call">On call</span>';
-    else if (!presence.online && presence.sip_registered) statusBadge = '<span class="contact-status-badge" style="background:#e8f5e9;color:#2e7d32">desk phone</span>';
+    else if (!presence.online && presence.has_sip_device) statusBadge = '<span class="contact-status-badge" style="background:#e8f5e9;color:#2e7d32">desk phone</span>';
 
     const defaultNumber = contact.phone || contact.extension || '';
     const cardTitle = hasNumber ? `Select ${escapeAttr(contact.name)} on dialpad` : '';
@@ -3885,8 +3885,8 @@ function renderTransferTargets() {
         const bBusy = pb.on_call || pb.dnd;
         if (aBusy !== bBusy) return aBusy ? 1 : -1;
         // SIP-registered devices sort above fully offline
-        const aSip = pa.sip_registered || false;
-        const bSip = pb.sip_registered || false;
+        const aSip = pa.has_sip_device || false;
+        const bSip = pb.has_sip_device || false;
         if (aSip !== bSip) return aSip ? -1 : 1;
         return (a.name || '').localeCompare(b.name || '');
     });
@@ -3898,7 +3898,7 @@ function renderTransferTargets() {
         const isOnline = presence.online || presence.on_call;
         const isBusy = presence.on_call;
         const isDnd = presence.dnd;
-        const isSipRegistered = presence.sip_registered || false;
+        const isSipRegistered = presence.has_sip_device || false;
 
         let statusHtml = '';
         if (isDnd) statusHtml = ' <span class="target-busy-badge" style="background:#fde8e8;color:#e74c3c">DND</span>';
