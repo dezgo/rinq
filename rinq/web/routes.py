@@ -1580,7 +1580,7 @@ def team():
         # Filter to staff not already elevated
         available_staff = []
         for s in all_staff:
-            staff_email = (s.get('work_email') or s.get('google_primary_email') or '').lower()
+            staff_email = (s.get('email') or s.get('work_email') or s.get('google_primary_email') or '').lower()
             if staff_email and staff_email not in elevated_emails:
                 s['_email'] = staff_email  # Stash for the template
                 available_staff.append(s)
