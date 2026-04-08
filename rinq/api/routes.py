@@ -278,17 +278,10 @@ def _handle_participant_left(call_sid: str, db=None):
     participant = db.get_participant_by_sid(call_sid)
     db.remove_participant(call_sid)
 
-    if participant:
-        conf_name = participant['conference_name']
-        remaining = db.get_participants(conf_name)
-        if len(remaining) == 1:
-            lone_sid = remaining[0]['call_sid']
-            try:
-                service = get_twilio_service()
-                service.client.calls(lone_sid).update(status='completed')
-                logger.info(f"Ended lone call {lone_sid} in {conf_name} after all others left")
-            except Exception as e:
-                logger.debug(f"Could not end lone call {lone_sid}: {e}")
+    # Note: we don't auto-terminate lone calls server-side because
+    # calls.update(status='completed') triggers after-dial TwiML which
+    # can cause unexpected callbacks (e.g. blind transfer rejection flow).
+    # The frontend handles auto-hangup via poll (sawMultipleParticipants).
 
 
 # SIP helpers — delegated to services/sip.py
