@@ -4597,18 +4597,34 @@ def get_presence():
 @api_bp.route('/sip/refresh-registrations', methods=['POST'])
 @api_or_session_auth
 def refresh_sip_registrations():
-    """Refresh SIP device registration status.
+    """Refresh SIP device registration status for all tenants.
 
     Checks Twilio for active SIP registrations and updates
     staff_extensions.sip_registered_at. Called every 10 minutes via cron.
 
+    Iterates all active tenants with Twilio configured, since this is
+    called from cron with no tenant context.
+
     Returns:
-        {"success": true, "registered": N, "cleared": N}
+        {"success": true, "tenants": {"watson": {...}, "derek": {...}}}
     """
+    from rinq.database.master import get_master_db
     from rinq.services.twilio_service import get_twilio_service
-    service = get_twilio_service()
-    result = service.refresh_sip_registrations()
-    return jsonify(result)
+
+    master_db = get_master_db()
+    tenants = [t for t in master_db.get_tenants() if t.get('twilio_account_sid')]
+    results = {}
+
+    for tenant in tenants:
+        g.tenant = tenant
+        try:
+            service = get_twilio_service()
+            results[tenant['id']] = service.refresh_sip_registrations()
+        except Exception as e:
+            logger.error(f"SIP registration refresh failed for tenant {tenant['id']}: {e}")
+            results[tenant['id']] = {"success": False, "error": str(e)}
+
+    return jsonify({"success": True, "tenants": results})
 
 
 # =============================================================================
