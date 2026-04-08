@@ -2894,7 +2894,7 @@ async function makeCall() {
         });
 
         currentCall.on('accept', () => {
-            setStatus('Connected', 'busy');
+            setStatus('Ringing...', 'busy');
             startCallTimer();
             callNumber.textContent = phoneNumber;
             callInfo.classList.add('active');
@@ -2904,8 +2904,8 @@ async function makeCall() {
                 currentOutboundCallSid = currentCall.parameters.CallSid;
             }
             startCallStatePolling();
-            // Auto-start recording if enabled
-            autoStartRecordingIfEnabled();
+            // Don't auto-record yet — customer hasn't answered.
+            // Recording starts when call state shows 2+ participants.
         });
 
         currentCall.on('disconnect', () => {
@@ -4948,6 +4948,16 @@ async function pollCallState() {
         // Update customer call SID if we didn't have it
         if (state.customer_call_sid && !currentQueueCallerSid) {
             currentQueueCallerSid = state.customer_call_sid;
+        }
+
+        // Customer answered — update status and start recording
+        if (state.participants && state.participants.length >= 2) {
+            if (phoneStatus.textContent === 'Ringing...') {
+                setStatus('Connected', 'busy');
+            }
+            if (recordingEnabled && !isRecording) {
+                autoStartRecordingIfEnabled();
+            }
         }
 
         // Handle transfer state from server
