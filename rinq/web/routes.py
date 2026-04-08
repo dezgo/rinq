@@ -1573,17 +1573,18 @@ def team():
     # Only show elevated roles (user access is automatic for all domain staff)
     permissions = [p for p in permissions if p.get('role') in ('manager', 'admin')]
 
-    # Get staff list for the dropdown
+    # Get staff list for the dropdown — all users, not just active phone agents
     elevated_emails = {p.get('email', '').lower() for p in permissions}
     try:
-        all_staff = staff_dir.get_active_staff() if staff_dir else []
-        # Filter to staff not already elevated
+        all_users = db.get_users()
         available_staff = []
-        for s in all_staff:
-            staff_email = (s.get('email') or s.get('work_email') or s.get('google_primary_email') or '').lower()
+        for u in all_users:
+            staff_email = (u.get('staff_email') or '').lower()
             if staff_email and staff_email not in elevated_emails:
-                s['_email'] = staff_email  # Stash for the template
-                available_staff.append(s)
+                available_staff.append({
+                    '_email': staff_email,
+                    'name': u.get('friendly_name') or staff_email.split('@')[0].replace('.', ' ').title(),
+                })
         available_staff.sort(key=lambda s: s.get('name', ''))
     except Exception:
         available_staff = []
