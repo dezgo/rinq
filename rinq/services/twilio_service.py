@@ -691,13 +691,26 @@ class TwilioService:
                 return {"success": True, "registered": 0, "cleared": 0, "skipped": "no SIP domains"}
 
             # Collect registered usernames across all domains
+            # Use the REST API directly — the Python SDK doesn't expose
+            # the SIP Registration resource in all versions.
+            import requests as http_requests
+            account_sid = self.client.username
+            auth_token = self.client.password
+
             registered_usernames = set()
             for domain in domains:
                 try:
-                    registrations = twilio_list(self.client.sip.domains(domain['sid']).registrations)
-                    for reg in registrations:
-                        registered_usernames.add(reg.address_of_record)
-                except (TwilioRestException, TwilioException) as e:
+                    url = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/SIP/Domains/{domain['sid']}/Registrations.json"
+                    resp = http_requests.get(url, auth=(account_sid, auth_token), timeout=15)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        for reg in data.get('registrations', []):
+                            addr = reg.get('address_of_record', '')
+                            if addr:
+                                registered_usernames.add(addr)
+                    else:
+                        logger.warning(f"SIP registrations API returned {resp.status_code} for domain {domain['domain_name']}")
+                except Exception as e:
                     logger.warning(f"Failed to get registrations for domain {domain['domain_name']}: {e}")
 
             # Map SIP usernames to staff emails
