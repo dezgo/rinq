@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 from urllib.parse import urlencode, quote
 from xml.sax.saxutils import escape as xml_escape
 
-from flask import Blueprint, jsonify, request, Response, send_file
+from flask import Blueprint, g, jsonify, request, Response, send_file
 
 try:
     from shared.auth.bot_api import api_or_session_auth, get_api_caller, get_api_caller_email
