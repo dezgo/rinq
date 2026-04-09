@@ -238,11 +238,11 @@ input:checked + .toggle-slider:before {
             <option value="outbound" {% if filter_type == 'outbound' %}selected{% endif %}>Outbound</option>
         </select>
         {% if can_filter_staff %}
-        <label for="staffFilter">Staff:</label>
-        <select id="staffFilter" onchange="window.location.href='{{ url_for('web.recordings') }}?staff=' + this.value">
-            <option value="">All staff</option>
-            <option value="mine" {% if filter_staff == 'mine' %}selected{% endif %}>My recordings</option>
-        </select>
+        {% if filter_staff == 'mine' %}
+        <a href="{{ url_for('web.recordings') }}" style="padding: 6px 14px; background: #e9ecef; border-radius: 4px; text-decoration: none; color: #495057; font-size: 0.9em; font-weight: 500;">All staff</a>
+        {% else %}
+        <a href="{{ url_for('web.recordings', staff='mine') }}" style="padding: 6px 14px; background: #e9ecef; border-radius: 4px; text-decoration: none; color: #495057; font-size: 0.9em; font-weight: 500;">My recordings</a>
+        {% endif %}
         {% endif %}
     </div>
 

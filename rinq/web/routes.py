@@ -1644,6 +1644,7 @@ def recordings():
     recording_enabled = db.get_user_recording_default(user.email)
 
     # Build the list of staff emails this user can see recordings for
+    from rinq.integrations import get_staff_directory
     is_admin = user.is_admin
 
     if is_admin and filter_staff != 'mine':
@@ -1653,7 +1654,6 @@ def recordings():
         staff_emails = [user.email]
     else:
         # User sees own + reportees' recordings
-        from rinq.integrations import get_staff_directory
         staff_emails = [user.email]
         staff_dir = get_staff_directory()
         if staff_dir:
