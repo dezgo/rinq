@@ -9,6 +9,7 @@ Handles all Twilio API interactions:
 """
 
 import logging
+import threading
 from datetime import datetime
 from typing import Optional
 
@@ -17,6 +18,7 @@ from twilio.base.exceptions import TwilioException, TwilioRestException
 
 from rinq.config import config
 from rinq.database.db import get_db
+from rinq.tenant.context import get_twilio_config
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +47,7 @@ class TwilioService:
 
     def __init__(self):
         self._clients = {}  # Cache clients per account SID
-        self._thread_account_sid = None  # Captured for background threads
+        self._thread_local = threading.local()  # Per-thread captured account SID
 
     @property
     def db(self):
@@ -62,8 +64,9 @@ class TwilioService:
         except RuntimeError:
             pass
         # In background threads, use captured creds
-        if self._thread_account_sid and self._thread_account_sid in self._clients:
-            return self._thread_account_sid, None  # Client already cached
+        thread_sid = getattr(self._thread_local, 'account_sid', None)
+        if thread_sid and thread_sid in self._clients:
+            return thread_sid, None  # Client already cached
         return config.twilio_account_sid, config.twilio_auth_token
 
     def capture_for_thread(self):
@@ -73,7 +76,7 @@ class TwilioService:
         if account_sid and auth_token:
             if account_sid not in self._clients:
                 self._clients[account_sid] = Client(account_sid, auth_token)
-            self._thread_account_sid = account_sid
+            self._thread_local.account_sid = account_sid
 
     @property
     def client(self) -> Client:
@@ -449,7 +452,7 @@ class TwilioService:
             result["issues"].append("No SIP domain found. Create one in Twilio Console.")
 
         # Check for credential list
-        if config.sip_credential_list_sid:
+        if get_twilio_config('sip_credential_list_sid'):
             result["has_credential_list"] = True
         else:
             result["issues"].append("TWILIO_SIP_CREDENTIAL_LIST_SID not configured in .env")
@@ -459,14 +462,14 @@ class TwilioService:
             # Check calls
             calls_mappings = self.get_domain_credential_list_mappings(result["domain_sid"])
             for mapping in calls_mappings:
-                if mapping["credential_list_sid"] == config.sip_credential_list_sid:
+                if mapping["credential_list_sid"] == get_twilio_config('sip_credential_list_sid'):
                     result["calls_linked"] = True
                     break
 
             # Check registrations
             reg_mappings = self.get_domain_registration_credential_list_mappings(result["domain_sid"])
             for mapping in reg_mappings:
-                if mapping["credential_list_sid"] == config.sip_credential_list_sid:
+                if mapping["credential_list_sid"] == get_twilio_config('sip_credential_list_sid'):
                     result["registrations_linked"] = True
                     break
 
@@ -502,7 +505,7 @@ class TwilioService:
             credential_list_sid: The SID of the credential list. If not provided,
                                 uses the configured default from TWILIO_SIP_CREDENTIAL_LIST_SID.
         """
-        cred_list_sid = credential_list_sid or config.sip_credential_list_sid
+        cred_list_sid = credential_list_sid or get_twilio_config('sip_credential_list_sid')
         if not cred_list_sid:
             logger.warning("No credential list SID configured")
             return []
@@ -531,7 +534,7 @@ class TwilioService:
         - Auto-link staff_email by matching SIP usernames to staff extensions
         - Mark credentials that no longer exist in Twilio as inactive
         """
-        if not config.sip_credential_list_sid:
+        if not get_twilio_config('sip_credential_list_sid'):
             return {"success": False, "error": "No credential list SID configured"}
 
         try:

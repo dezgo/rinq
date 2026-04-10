@@ -88,14 +88,6 @@ def resolve_tenant():
                 g.tenant = tenant
                 return
 
-        # Fallback: tenant_id in URL args
-        tid = request.args.get('tenant_id')
-        if tid:
-            tenant = master_db.get_tenant(tid)
-            if tenant:
-                g.tenant = tenant
-                return
-
         # Last resort: if only one tenant has Twilio configured, use it
         tenants = [t for t in master_db.get_tenants() if t.get('twilio_account_sid')]
         if len(tenants) == 1:

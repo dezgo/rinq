@@ -28,7 +28,10 @@ logger = logging.getLogger(__name__)
 
 # Create Flask app
 app = Flask(__name__)
-app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'dev-secret-key-change-in-prod')
+_secret_key = os.environ.get('FLASK_SECRET_KEY')
+if not _secret_key and not os.getenv('FLASK_DEBUG', '').lower() == 'true':
+    raise RuntimeError("FLASK_SECRET_KEY must be set in production. Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\"")
+app.secret_key = _secret_key or 'dev-secret-key-change-in-prod'
 app.config['BOT_NAME'] = config.name
 
 # Add custom Jinja2 filters

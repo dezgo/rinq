@@ -5610,11 +5610,11 @@ def get_my_call_state():
     current_user = get_current_user()
     caller_email = current_user.email if current_user else get_api_caller_email()
 
-    import traceback
     try:
         return _get_call_state_inner(agent_call_sid, caller_email)
     except Exception as e:
-        return jsonify({"in_call": False, "error": str(e), "traceback": traceback.format_exc()}), 500
+        logger.exception(f"Error getting call state for {agent_call_sid}")
+        return jsonify({"in_call": False, "error": "Failed to get call state"}), 500
 
 
 def _get_call_state_inner(agent_call_sid, caller_email=None):

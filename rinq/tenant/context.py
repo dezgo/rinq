@@ -70,4 +70,5 @@ def get_twilio_config(key: str, default=None):
     tenant = get_current_tenant()
     if not tenant:
         raise RuntimeError(f"No tenant in context when reading {key}")
-    return tenant.get(key) or default
+    val = tenant.get(key)
+    return val if val is not None else default

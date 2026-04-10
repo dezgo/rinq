@@ -390,7 +390,7 @@ def generate_staff_name_audio(email: str, name: str, extension: str, actor: str)
         return {'success': False, 'error': 'No default TTS voice configured'}
 
     # Build deterministic output path
-    from config import config
+    from rinq.config import config
     audio_folder = config.base_dir / 'audio'
     audio_folder.mkdir(exist_ok=True)
     filename = f"name_ext_{extension}.mp3"

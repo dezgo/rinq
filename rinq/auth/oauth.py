@@ -106,6 +106,9 @@ def callback():
     """Handle Google OAuth callback."""
     config = _get_config()
     state = session.pop('oauth_state', None)
+    if not state:
+        flash("Invalid authentication state. Please try again.", "error")
+        return redirect(url_for('standalone_auth.login'))
     code_verifier = session.pop('code_verifier', None)
     flow = _get_flow(state=state)
     flow.code_verifier = code_verifier

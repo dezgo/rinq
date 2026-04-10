@@ -23,8 +23,11 @@ def get_sip_domain() -> str | None:
 
     Returns the domain name like 'watson.sip.twilio.com' or None if not configured.
     """
-    from flask import g
-    tenant_id = getattr(g, 'tenant', {}).get('id', '_none') if hasattr(g, 'tenant') and g.tenant else '_none'
+    try:
+        from flask import g
+        tenant_id = getattr(g, 'tenant', {}).get('id', '_none') if hasattr(g, 'tenant') and g.tenant else '_none'
+    except RuntimeError:
+        tenant_id = '_none'
 
     with _sip_cache_lock:
         cached = _sip_domain_cache.get(tenant_id)

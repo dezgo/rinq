@@ -4292,13 +4292,27 @@ class Database:
             conn.commit()
             return cursor.lastrowid
 
+    _CALL_LOG_FIELDS = {
+        'status', 'direction', 'call_type', 'from_number', 'to_number',
+        'customer_name', 'customer_email', 'conference_name', 'answered_by',
+        'duration', 'talk_duration', 'ring_duration', 'recording_url',
+    }
+
     def get_call_log_field(self, call_sid: str, field: str):
         """Get a single field from a call_log entry by call SID."""
+        if field not in self._CALL_LOG_FIELDS:
+            raise ValueError(f"Invalid call_log field: {field}")
         with self._get_conn() as conn:
             row = conn.execute(
                 f"SELECT {field} FROM call_log WHERE call_sid = ?", (call_sid,)
             ).fetchone()
             return row[field] if row else None
+
+    _CALL_LOG_UPDATE_FIELDS = {
+        'status', 'call_type', 'agent_email', 'answered_at', 'ended_at',
+        'customer_name', 'customer_email', 'customer_id', 'notes',
+        'ring_seconds', 'ai_receptionist', 'answered_by',
+    }
 
     def update_call_log(self, call_sid: str, updates: dict) -> None:
         """Update a call_log entry."""
@@ -4308,12 +4322,13 @@ class Database:
         set_clauses = []
         values = []
         for key, value in updates.items():
-            if key not in ('call_sid', 'id', 'created_at'):
-                set_clauses.append(f"{key} = ?")
-                # Convert 'CURRENT_TIMESTAMP' string to actual datetime
-                if value == 'CURRENT_TIMESTAMP':
-                    value = now
-                values.append(value)
+            if key not in self._CALL_LOG_UPDATE_FIELDS:
+                continue
+            set_clauses.append(f"{key} = ?")
+            # Convert 'CURRENT_TIMESTAMP' string to actual datetime
+            if value == 'CURRENT_TIMESTAMP':
+                value = now
+            values.append(value)
         if not set_clauses:
             return
         set_clauses.append("updated_at = ?")
