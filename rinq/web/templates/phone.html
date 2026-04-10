@@ -2016,7 +2016,7 @@
                 <ul style="margin: 0; padding-left: 20px; color: #495057;">
                     <li><strong>Mute</strong> — Turn off your microphone</li>
                     <li><strong>Hold</strong> — Put the caller on hold with music</li>
-                    <li><strong>Record</strong> — Start/stop call recording</li>
+                    <li><strong>Record</strong> — Record/pause call recording</li>
                     <li><strong>Transfer</strong> — Send the call to a colleague or external number</li>
                 </ul>
             </div>
@@ -3268,14 +3268,14 @@ async function toggleRecording() {
 function updateRecordButton() {
     if (isRecording) {
         btnRecord.classList.add('recording');
-        recordIcon.textContent = '⏹️';
-        recordText.textContent = 'Stop';
-        btnRecord.title = 'Stop recording';
+        recordIcon.textContent = '⏸️';
+        recordText.textContent = 'Pause';
+        btnRecord.title = 'Pause recording';
     } else {
         btnRecord.classList.remove('recording');
         recordIcon.textContent = '⏺️';
         recordText.textContent = 'Record';
-        btnRecord.title = 'Start recording';
+        btnRecord.title = 'Resume recording';
     }
 }
 

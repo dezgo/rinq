@@ -331,12 +331,10 @@ class RecordingService:
         return False
 
     def start_recording(self, call_sid: str) -> dict:
-        """Start recording an active call via its conference.
+        """Start or resume recording an active call.
 
-        Finds the conference for the call and records at the conference level,
-        capturing all participants including across transfers.
-
-        Falls back to call-level recording if no conference is found.
+        If a paused recording exists, resumes it (same recording, one file).
+        Otherwise creates a new recording.
 
         Args:
             call_sid: The agent's Twilio call SID
@@ -346,11 +344,20 @@ class RecordingService:
         """
         try:
             client = get_twilio_service().client
-            status_callback = f"{config.webhook_base_url}/api/voice/recording-status"
 
-            # Conference recording is handled via TwiML record="record-from-start"
-            # attribute on the Conference noun. The browser's start_recording
-            # button uses call-level recording as a supplement.
+            # Check for a paused recording to resume first
+            paused = self._find_recording(call_sid, status='paused')
+            if paused:
+                paused['resource'].update(status='in-progress')
+                logger.info(f"Resumed recording {paused['sid']} for {call_sid}")
+                return {
+                    'success': True,
+                    'recording_sid': paused['sid'],
+                    'resumed': True,
+                }
+
+            # No paused recording — create a new one
+            status_callback = f"{config.webhook_base_url}/api/voice/recording-status"
             recording = client.calls(call_sid).recordings.create(
                 recording_status_callback=status_callback,
                 recording_status_callback_event=['completed', 'absent'],
@@ -365,19 +372,20 @@ class RecordingService:
             return {'success': False, 'error': str(e)}
 
     def stop_recording(self, call_sid: str) -> dict:
-        """Stop recording an active call.
+        """Pause recording on an active call.
 
-        Checks both conference recordings and call recordings.
+        Uses pause (not stop) so the recording can be resumed later
+        as a single continuous file.
 
         Args:
             call_sid: The agent's Twilio call SID
 
         Returns:
-            Dict with 'success' and 'stopped_count' or 'error'
+            Dict with 'success' and 'paused_count' or 'error'
         """
         try:
             client = get_twilio_service().client
-            stopped = 0
+            paused = 0
 
             # Try conference recordings first
             conference_name = self.db.get_call_conference(call_sid)
@@ -388,24 +396,56 @@ class RecordingService:
                 if confs:
                     for r in twilio_list(client.conferences(confs[0].sid).recordings):
                         if r.status == 'in-progress':
-                            client.conferences(confs[0].sid).recordings(r.sid).update(status='stopped')
-                            stopped += 1
-                            logger.info(f"Stopped conference recording {r.sid}")
+                            client.conferences(confs[0].sid).recordings(r.sid).update(status='paused')
+                            paused += 1
+                            logger.info(f"Paused conference recording {r.sid}")
 
-            # Also check call-level recordings (backward compat)
+            # Also check call-level recordings
             for r in twilio_list(client.calls(call_sid).recordings):
                 if r.status == 'in-progress':
-                    r.update(status='stopped')
-                    stopped += 1
-                    logger.info(f"Stopped call recording {r.sid}")
+                    r.update(status='paused')
+                    paused += 1
+                    logger.info(f"Paused call recording {r.sid}")
 
             return {
                 'success': True,
-                'stopped_count': stopped,
+                'stopped_count': paused,  # keep key name for API compat
             }
         except TwilioException as e:
-            logger.error(f"Failed to stop recording for {call_sid}: {e}")
+            logger.error(f"Failed to pause recording for {call_sid}: {e}")
             return {'success': False, 'error': str(e)}
+
+    def _find_recording(self, call_sid: str, status: str = 'in-progress') -> dict | None:
+        """Find a recording with the given status for a call.
+
+        Checks conference recordings first, then call-level.
+        Returns dict with 'sid' and 'resource' (for update calls), or None.
+        """
+        try:
+            client = get_twilio_service().client
+
+            # Conference recordings
+            conference_name = self.db.get_call_conference(call_sid)
+            if conference_name:
+                confs = twilio_list(client.conferences,
+                    friendly_name=conference_name, status='in-progress', limit=1
+                )
+                if confs:
+                    for r in twilio_list(client.conferences(confs[0].sid).recordings):
+                        if r.status == status:
+                            return {
+                                'sid': r.sid,
+                                'resource': client.conferences(confs[0].sid).recordings(r.sid),
+                            }
+
+            # Call-level recordings
+            for r in twilio_list(client.calls(call_sid).recordings):
+                if r.status == status:
+                    return {'sid': r.sid, 'resource': r}
+
+        except TwilioException as e:
+            logger.warning(f"Error finding {status} recording for {call_sid}: {e}")
+        return None
 
     def get_recording_status(self, call_sid: str) -> dict:
         """Get recording status for a call.
@@ -416,31 +456,17 @@ class RecordingService:
             call_sid: The agent's Twilio call SID
 
         Returns:
-            Dict with 'recording' (bool), 'recording_sid' (if recording)
+            Dict with 'recording' (bool), 'paused' (bool), 'recording_sid'
         """
-        try:
-            client = get_twilio_service().client
+        active = self._find_recording(call_sid, status='in-progress')
+        if active:
+            return {'recording': True, 'paused': False, 'recording_sid': active['sid']}
 
-            # Check conference recordings first
-            conference_name = self.db.get_call_conference(call_sid)
-            if conference_name:
-                confs = twilio_list(client.conferences,
-                    friendly_name=conference_name, status='in-progress', limit=1
-                )
-                if confs:
-                    for r in twilio_list(client.conferences(confs[0].sid).recordings):
-                        if r.status == 'in-progress':
-                            return {'recording': True, 'recording_sid': r.sid}
+        paused = self._find_recording(call_sid, status='paused')
+        if paused:
+            return {'recording': True, 'paused': True, 'recording_sid': paused['sid']}
 
-            # Fallback to call recordings
-            for r in twilio_list(client.calls(call_sid).recordings):
-                if r.status == 'in-progress':
-                    return {'recording': True, 'recording_sid': r.sid}
-
-            return {'recording': False}
-        except TwilioException as e:
-            logger.error(f"Failed to get recording status for {call_sid}: {e}")
-            return {'recording': False, 'error': str(e)}
+        return {'recording': False, 'paused': False}
 
     def get_user_recording_preference(self, email: str) -> bool:
         """Get whether a user has recording enabled by default."""
