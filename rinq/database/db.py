@@ -42,6 +42,37 @@ class Database:
         return conn
 
     # =========================================================================
+    # Shared helpers
+    # =========================================================================
+
+    @staticmethod
+    def _fill_hourly(rows, hour_key='hour'):
+        """Build a 24-hour list from query rows, zero-filling missing hours."""
+        hour_data = {row[hour_key]: row for row in rows}
+        result = []
+        for hour in range(24):
+            if hour in hour_data:
+                row = hour_data[hour]
+                result.append({
+                    'hour': hour,
+                    'label': f"{hour:02d}:00",
+                    'total_calls': row['total_calls'] or 0,
+                    'answered_calls': row['answered_calls'] or 0,
+                    'abandoned_calls': row['abandoned_calls'] or 0,
+                    'timeout_calls': row['timeout_calls'] or 0,
+                })
+            else:
+                result.append({
+                    'hour': hour,
+                    'label': f"{hour:02d}:00",
+                    'total_calls': 0,
+                    'answered_calls': 0,
+                    'abandoned_calls': 0,
+                    'timeout_calls': 0,
+                })
+        return result
+
+    # =========================================================================
     # Phone Numbers
     # =========================================================================
 
@@ -3309,73 +3340,65 @@ class Database:
     # Call Transfer - Track transfer state for warm/blind transfers
     # =========================================================================
 
+    _TRANSFER_TABLES = {'queued_calls', 'call_log'}
+
+    def _transfer_tables(self, source: str) -> list[str]:
+        """Return which tables to update based on source.
+
+        source='queued_calls' → both tables; source='call_log' → call_log only.
+        """
+        if source == 'call_log':
+            return ['call_log']
+        return ['queued_calls', 'call_log']
+
     def start_transfer(self, call_sid: str, transfer_type: str, target: str,
-                       target_name: str, transferred_by: str) -> None:
-        """Start a transfer for a call. Writes to both queued_calls and call_log."""
+                       target_name: str, transferred_by: str,
+                       source: str = 'queued_calls') -> None:
+        """Start a transfer for a call."""
         now = datetime.now(timezone.utc).isoformat()
         params = (transfer_type, target, target_name, transferred_by, now, call_sid)
         with self._get_conn() as conn:
-            conn.execute("""
-                UPDATE queued_calls
-                SET transfer_status = 'pending', transfer_type = ?,
-                    transfer_target = ?, transfer_target_name = ?,
-                    transferred_by = ?, transferred_at = ?
-                WHERE call_sid = ?
-            """, params)
-            conn.execute("""
-                UPDATE call_log
-                SET transfer_status = 'pending', transfer_type = ?,
-                    transfer_target = ?, transfer_target_name = ?,
-                    transferred_by = ?, transferred_at = ?
-                WHERE call_sid = ?
-            """, params)
+            for table in self._transfer_tables(source):
+                conn.execute(f"""
+                    UPDATE {table}
+                    SET transfer_status = 'pending', transfer_type = ?,
+                        transfer_target = ?, transfer_target_name = ?,
+                        transferred_by = ?, transferred_at = ?
+                    WHERE call_sid = ?
+                """, params)
             conn.commit()
 
     def update_transfer_consultation(self, call_sid: str, consult_call_sid: str,
-                                      consult_conference: str) -> None:
-        """Update transfer with consultation call details (for warm transfers).
-
-        Args:
-            call_sid: The original caller's call SID
-            consult_call_sid: The SID of the consultation call to the target
-            consult_conference: The conference room name for the consultation
-        """
+                                      consult_conference: str,
+                                      source: str = 'queued_calls') -> None:
+        """Update transfer with consultation call details (for warm transfers)."""
+        params = (consult_call_sid, consult_conference, call_sid)
         with self._get_conn() as conn:
-            params = (consult_call_sid, consult_conference, call_sid)
-            conn.execute("""
-                UPDATE queued_calls
-                SET transfer_status = 'consulting',
-                    transfer_consult_call_sid = ?, transfer_consult_conference = ?
-                WHERE call_sid = ?
-            """, params)
-            conn.execute("""
-                UPDATE call_log
-                SET transfer_status = 'consulting',
-                    transfer_consult_call_sid = ?, transfer_consult_conference = ?
-                WHERE call_sid = ?
-            """, params)
+            for table in self._transfer_tables(source):
+                conn.execute(f"""
+                    UPDATE {table}
+                    SET transfer_status = 'consulting',
+                        transfer_consult_call_sid = ?, transfer_consult_conference = ?
+                    WHERE call_sid = ?
+                """, params)
             conn.commit()
 
-    def complete_transfer(self, call_sid: str) -> None:
+    def complete_transfer(self, call_sid: str, source: str = 'queued_calls') -> None:
         """Mark a transfer as completed."""
         now = datetime.now(timezone.utc).isoformat()
         with self._get_conn() as conn:
-            conn.execute("""
-                UPDATE queued_calls
-                SET transfer_status = 'completed', status = 'transferred', ended_at = ?
-                WHERE call_sid = ?
-            """, (now, call_sid))
-            conn.execute("""
-                UPDATE call_log
-                SET transfer_status = 'completed', status = 'transferred', ended_at = ?
-                WHERE call_sid = ?
-            """, (now, call_sid))
+            for table in self._transfer_tables(source):
+                conn.execute(f"""
+                    UPDATE {table}
+                    SET transfer_status = 'completed', status = 'transferred', ended_at = ?
+                    WHERE call_sid = ?
+                """, (now, call_sid))
             conn.commit()
 
-    def cancel_transfer(self, call_sid: str) -> None:
+    def cancel_transfer(self, call_sid: str, source: str = 'queued_calls') -> None:
         """Cancel a pending or consulting transfer."""
         with self._get_conn() as conn:
-            for table in ('queued_calls', 'call_log'):
+            for table in self._transfer_tables(source):
                 conn.execute(f"""
                     UPDATE {table}
                     SET transfer_status = 'cancelled',
@@ -3385,146 +3408,66 @@ class Database:
                 """, (call_sid,))
             conn.commit()
 
-    def fail_transfer(self, call_sid: str, reason: str = None) -> None:
-        """Mark a transfer as failed.
-
-        Args:
-            call_sid: The original caller's call SID
-            reason: Optional failure reason
-        """
+    def fail_transfer(self, call_sid: str, reason: str = None,
+                      source: str = 'queued_calls') -> None:
+        """Mark a transfer as failed."""
         with self._get_conn() as conn:
-            for table in ('queued_calls', 'call_log'):
+            for table in self._transfer_tables(source):
                 conn.execute(f"UPDATE {table} SET transfer_status = 'failed' WHERE call_sid = ?", (call_sid,))
             conn.commit()
 
-    def update_queued_call_transfer_status(self, call_sid: str, status: str) -> None:
-        """Update transfer_status on a queued call."""
+    def update_transfer_status(self, call_sid: str, status: str,
+                               source: str = 'queued_calls') -> None:
+        """Update transfer_status on a call."""
         with self._get_conn() as conn:
-            conn.execute(
-                "UPDATE queued_calls SET transfer_status = ? WHERE call_sid = ?",
-                (status, call_sid)
-            )
-            conn.execute(
-                "UPDATE call_log SET transfer_status = ? WHERE call_sid = ?",
-                (status, call_sid)
-            )
+            for table in self._transfer_tables(source):
+                conn.execute(
+                    f"UPDATE {table} SET transfer_status = ? WHERE call_sid = ?",
+                    (status, call_sid)
+                )
             conn.commit()
 
-    def update_call_log_transfer_status(self, call_sid: str, status: str) -> None:
-        """Update transfer_status on a call_log entry."""
-        with self._get_conn() as conn:
-            conn.execute(
-                "UPDATE call_log SET transfer_status = ? WHERE call_sid = ?",
-                (status, call_sid)
-            )
-            conn.commit()
-
-    def get_transfer_state(self, call_sid: str) -> dict | None:
-        """Get the current transfer state for a call. Checks queued_calls then call_log."""
-        with self._get_conn() as conn:
-            row = conn.execute("""
-                SELECT transfer_status, transfer_type, transfer_target,
+    def get_transfer_state(self, call_sid: str, source: str = 'queued_calls') -> dict | None:
+        """Get the current transfer state for a call."""
+        _TRANSFER_COLS = """transfer_status, transfer_type, transfer_target,
                        transfer_target_name, transfer_consult_call_sid,
                        transfer_consult_conference, transferred_by, transferred_at,
-                       conference_name
-                FROM queued_calls WHERE call_sid = ?
-            """, (call_sid,)).fetchone()
-            if row and row['transfer_status']:
-                return dict(row)
-            # Fallback to call_log for conference-first calls
-            row = conn.execute("""
-                SELECT transfer_status, transfer_type, transfer_target,
-                       transfer_target_name, transfer_consult_call_sid,
-                       transfer_consult_conference, transferred_by, transferred_at,
-                       conference_name
-                FROM call_log WHERE call_sid = ?
-            """, (call_sid,)).fetchone()
-            if row and row['transfer_status']:
-                return dict(row)
+                       conference_name"""
+        with self._get_conn() as conn:
+            for table in self._transfer_tables(source):
+                row = conn.execute(f"""
+                    SELECT {_TRANSFER_COLS}
+                    FROM {table} WHERE call_sid = ?
+                """, (call_sid,)).fetchone()
+                if row and row['transfer_status']:
+                    return dict(row)
             return None
 
-    # =========================================================================
-    # Transfer State (call_log-based — for non-queue calls)
-    # =========================================================================
+    # Backward-compatible aliases for callers using the old _log suffix
+    def start_transfer_log(self, *args, **kwargs):
+        return self.start_transfer(*args, source='call_log', **kwargs)
 
-    def start_transfer_log(self, call_sid: str, transfer_type: str, target: str,
-                           target_name: str, transferred_by: str) -> None:
-        """Start a transfer for any call type (uses call_log)."""
-        now = datetime.now(timezone.utc).isoformat()
-        with self._get_conn() as conn:
-            conn.execute("""
-                UPDATE call_log
-                SET transfer_status = 'pending',
-                    transfer_type = ?,
-                    transfer_target = ?,
-                    transfer_target_name = ?,
-                    transferred_by = ?,
-                    transferred_at = ?
-                WHERE call_sid = ?
-            """, (transfer_type, target, target_name, transferred_by, now, call_sid))
-            conn.commit()
+    def update_transfer_consultation_log(self, *args, **kwargs):
+        return self.update_transfer_consultation(*args, source='call_log', **kwargs)
 
-    def update_transfer_consultation_log(self, call_sid: str, consult_call_sid: str,
-                                          consult_conference: str) -> None:
-        """Update transfer with consultation details (uses call_log)."""
-        with self._get_conn() as conn:
-            conn.execute("""
-                UPDATE call_log
-                SET transfer_status = 'consulting',
-                    transfer_consult_call_sid = ?,
-                    transfer_consult_conference = ?
-                WHERE call_sid = ?
-            """, (consult_call_sid, consult_conference, call_sid))
-            conn.commit()
+    def complete_transfer_log(self, *args, **kwargs):
+        return self.complete_transfer(*args, source='call_log', **kwargs)
 
-    def complete_transfer_log(self, call_sid: str) -> None:
-        """Mark a transfer as completed (uses call_log)."""
-        now = datetime.now(timezone.utc).isoformat()
-        with self._get_conn() as conn:
-            conn.execute("""
-                UPDATE call_log
-                SET transfer_status = 'completed',
-                    status = 'transferred',
-                    ended_at = ?
-                WHERE call_sid = ?
-            """, (now, call_sid))
-            conn.commit()
+    def cancel_transfer_log(self, *args, **kwargs):
+        return self.cancel_transfer(*args, source='call_log', **kwargs)
 
-    def cancel_transfer_log(self, call_sid: str) -> None:
-        """Cancel a transfer (uses call_log)."""
-        with self._get_conn() as conn:
-            conn.execute("""
-                UPDATE call_log
-                SET transfer_status = 'cancelled',
-                    transfer_consult_call_sid = NULL,
-                    transfer_consult_conference = NULL
-                WHERE call_sid = ?
-            """, (call_sid,))
-            conn.commit()
+    def fail_transfer_log(self, *args, **kwargs):
+        return self.fail_transfer(*args, source='call_log', **kwargs)
 
-    def fail_transfer_log(self, call_sid: str, reason: str = None) -> None:
-        """Mark a transfer as failed (uses call_log)."""
-        with self._get_conn() as conn:
-            conn.execute("""
-                UPDATE call_log
-                SET transfer_status = 'failed'
-                WHERE call_sid = ?
-            """, (call_sid,))
-            conn.commit()
+    def get_transfer_state_log(self, *args, **kwargs):
+        return self.get_transfer_state(*args, source='call_log', **kwargs)
 
-    def get_transfer_state_log(self, call_sid: str) -> dict | None:
-        """Get transfer state from call_log."""
-        with self._get_conn() as conn:
-            row = conn.execute("""
-                SELECT transfer_status, transfer_type, transfer_target,
-                       transfer_target_name, transfer_consult_call_sid,
-                       transfer_consult_conference, transferred_by, transferred_at,
-                       conference_name
-                FROM call_log WHERE call_sid = ?
-            """, (call_sid,)).fetchone()
-            if row and row['transfer_status']:
-                return dict(row)
-            return None
+    # Legacy aliases
+    def update_queued_call_transfer_status(self, call_sid, status):
+        return self.update_transfer_status(call_sid, status, source='queued_calls')
+
+    def update_call_log_transfer_status(self, call_sid, status):
+        return self.update_transfer_status(call_sid, status, source='call_log')
 
     def get_transfer_by_consult_sid(self, consult_call_sid: str) -> dict | None:
         """Look up a transfer by the consultation call SID (the target agent's call)."""
@@ -3999,33 +3942,7 @@ class Database:
 
             rows = conn.execute(query, params).fetchall()
 
-            # Create a dict for quick lookup
-            hour_data = {row['stat_hour']: row for row in rows}
-
-            # Return all 24 hours, filling in zeros for missing hours
-            result = []
-            for hour in range(24):
-                if hour in hour_data:
-                    row = hour_data[hour]
-                    result.append({
-                        'hour': hour,
-                        'label': f"{hour:02d}:00",
-                        'total_calls': row['total_calls'] or 0,
-                        'answered_calls': row['answered_calls'] or 0,
-                        'abandoned_calls': row['abandoned_calls'] or 0,
-                        'timeout_calls': row['timeout_calls'] or 0,
-                    })
-                else:
-                    result.append({
-                        'hour': hour,
-                        'label': f"{hour:02d}:00",
-                        'total_calls': 0,
-                        'answered_calls': 0,
-                        'abandoned_calls': 0,
-                        'timeout_calls': 0,
-                    })
-
-            return result
+            return self._fill_hourly(rows, hour_key='stat_hour')
 
     def get_realtime_stats_today(self) -> dict:
         """Get real-time statistics for today from live data.
@@ -4228,31 +4145,7 @@ class Database:
                 ORDER BY hour
             """, (today,)).fetchall()
 
-            hour_data = {row['hour']: row for row in rows}
-
-            result = []
-            for hour in range(24):
-                if hour in hour_data:
-                    row = hour_data[hour]
-                    result.append({
-                        'hour': hour,
-                        'label': f"{hour:02d}:00",
-                        'total_calls': row['total_calls'] or 0,
-                        'answered_calls': row['answered_calls'] or 0,
-                        'abandoned_calls': row['abandoned_calls'] or 0,
-                        'timeout_calls': row['timeout_calls'] or 0,
-                    })
-                else:
-                    result.append({
-                        'hour': hour,
-                        'label': f"{hour:02d}:00",
-                        'total_calls': 0,
-                        'answered_calls': 0,
-                        'abandoned_calls': 0,
-                        'timeout_calls': 0,
-                    })
-
-            return result
+            return self._fill_hourly(rows)
 
     # =========================================================================
     # Call Log - Comprehensive call tracking
@@ -4773,18 +4666,7 @@ class Database:
                     SUM(CASE WHEN status = 'voicemail' THEN 1 ELSE 0 END) as timeout_calls
                 FROM call_log WHERE {where} GROUP BY hour ORDER BY hour
             """, params).fetchall()
-            hour_data = {row['hour']: row for row in rows}
-            result = []
-            for hour in range(24):
-                if hour in hour_data:
-                    row = hour_data[hour]
-                    result.append({'hour': hour, 'label': f"{hour:02d}:00", 'total_calls': row['total_calls'] or 0,
-                        'answered_calls': row['answered_calls'] or 0, 'abandoned_calls': row['abandoned_calls'] or 0,
-                        'timeout_calls': row['timeout_calls'] or 0})
-                else:
-                    result.append({'hour': hour, 'label': f"{hour:02d}:00", 'total_calls': 0,
-                        'answered_calls': 0, 'abandoned_calls': 0, 'timeout_calls': 0})
-            return result
+            return self._fill_hourly(rows)
 
     def get_my_call_history(self, agent_email: str, limit: int = 50) -> list[dict]:
         """Get recent call history for a specific agent.
