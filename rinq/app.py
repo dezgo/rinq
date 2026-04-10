@@ -114,15 +114,45 @@ try:
     from shared.error_handlers import register_error_handlers
     register_error_handlers(app, logger, superadmin_emails='auto')
 except ImportError:
-    # Standalone mode — basic error handlers
+    # Standalone mode — error handlers
+    from flask import render_template, request as flask_request
+
+    def _wants_json():
+        return (flask_request.path.startswith('/api/') or
+                flask_request.accept_mimetypes.best == 'application/json')
+
+    def _error_ctx():
+        from flask import g
+        tenant = getattr(g, 'tenant', None)
+        return tenant.get('product_name') if tenant and tenant.get('product_name') else config.product_name
+
     @app.errorhandler(404)
     def not_found(e):
-        return jsonify({'error': 'Not found'}), 404
+        if _wants_json():
+            return jsonify({'error': 'Not found'}), 404
+        return render_template('error.html', code=404,
+                               title='Page not found',
+                               message="The page you're looking for doesn't exist or has been moved.",
+                               product_name=_error_ctx()), 404
 
     @app.errorhandler(500)
     def server_error(e):
         logger.exception("Server error")
-        return jsonify({'error': 'Internal server error'}), 500
+        if _wants_json():
+            return jsonify({'error': 'Internal server error'}), 500
+        return render_template('error.html', code=500,
+                               title='Something went wrong',
+                               message="We hit an unexpected error. Try refreshing the page.",
+                               product_name=_error_ctx()), 500
+
+    @app.errorhandler(403)
+    def forbidden(e):
+        if _wants_json():
+            return jsonify({'error': 'Forbidden'}), 403
+        return render_template('error.html', code=403,
+                               title='Access denied',
+                               message="You don't have permission to access this page.",
+                               product_name=_error_ctx()), 403
 
 
 # =============================================================================
