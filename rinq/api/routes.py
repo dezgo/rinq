@@ -27,7 +27,7 @@ except ImportError:
     from rinq.auth.decorators import api_or_session_auth, get_api_caller, get_api_caller_email
 from rinq.services.twilio_service import get_twilio_service, twilio_list
 from rinq.services.auth import login_required, get_current_user
-from rinq.database.db import get_db
+from rinq.database.db import get_db, _parse_dt
 from rinq.config import config
 from rinq.tenant.context import get_twilio_config
 
@@ -4572,7 +4572,7 @@ def get_presence():
         is_online = False
         if last_hb:
             try:
-                hb_time = datetime.fromisoformat(last_hb)
+                hb_time = _parse_dt(last_hb)
                 is_online = (now - hb_time).total_seconds() < 60
             except (ValueError, TypeError):
                 pass
@@ -4582,7 +4582,7 @@ def get_presence():
         sip_ts = ext.get('sip_registered_at')
         if sip_ts:
             try:
-                sip_time = datetime.fromisoformat(sip_ts)
+                sip_time = _parse_dt(sip_ts)
                 sip_active = (now - sip_time).total_seconds() < 86400  # 24 hours
             except (ValueError, TypeError):
                 pass
@@ -4685,9 +4685,7 @@ def get_queued_callers():
     for caller in callers:
         if caller.get('enqueued_at'):
             try:
-                enqueued = datetime.fromisoformat(caller['enqueued_at'])
-                if enqueued.tzinfo is None:
-                    enqueued = enqueued.replace(tzinfo=timezone.utc)
+                enqueued = _parse_dt(caller['enqueued_at'])
                 wait_seconds = int((now - enqueued).total_seconds())
                 caller['wait_seconds'] = wait_seconds
                 caller['wait_display'] = f"{wait_seconds // 60}:{wait_seconds % 60:02d}"
@@ -4733,7 +4731,7 @@ def get_pending_callbacks():
     for cb in callbacks:
         if cb.get('requested_at'):
             try:
-                requested = datetime.fromisoformat(cb['requested_at'])
+                requested = _parse_dt(cb['requested_at'])
                 wait_seconds = int((now - requested).total_seconds())
                 cb['wait_seconds'] = wait_seconds
                 cb['wait_display'] = f"{wait_seconds // 60}:{wait_seconds % 60:02d}"

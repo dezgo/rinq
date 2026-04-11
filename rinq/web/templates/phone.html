@@ -4551,6 +4551,14 @@ async function answerQueueCall(callSid) {
 function startQueuePolling() {
     fetchQueueCallers();  // Initial fetch
     queuePollingInterval = setInterval(fetchQueueCallers, 5000);  // Poll every 5 seconds
+    // Tick wait times up every second between polls
+    setInterval(() => {
+        if (!window._lastCallers || !window._lastCallers.length) return;
+        window._lastCallers.forEach(c => {
+            if (c.wait_seconds != null) c.wait_seconds++;
+        });
+        renderQueueCallers(window._lastCallers);
+    }, 1000);
 }
 
 // Store last callers for re-render during answer

@@ -11,6 +11,19 @@ import sqlite3
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
 
+
+def _parse_dt(value: str) -> datetime:
+    """Parse a DB timestamp string as UTC-aware datetime.
+
+    DB stores naive UTC strings like '2026-04-11 10:15:00'.
+    This ensures they're timezone-aware so subtraction from
+    datetime.now(timezone.utc) works correctly.
+    """
+    dt = datetime.fromisoformat(value)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
 try:
     from shared.migrations import MigrationRunner
 except ImportError:
@@ -2869,7 +2882,7 @@ class Database(StatsMixin, CallLogMixin):
             wait_seconds = None
             if row and row['enqueued_at']:
                 try:
-                    enqueued = datetime.fromisoformat(row['enqueued_at'])
+                    enqueued = _parse_dt(row['enqueued_at'])
                     wait_seconds = int((datetime.now(timezone.utc) - enqueued).total_seconds())
                 except (ValueError, TypeError):
                     pass
@@ -2917,7 +2930,7 @@ class Database(StatsMixin, CallLogMixin):
             wait_seconds = None
             if row['enqueued_at']:
                 try:
-                    enqueued = datetime.fromisoformat(row['enqueued_at'])
+                    enqueued = _parse_dt(row['enqueued_at'])
                     wait_seconds = int((datetime.now(timezone.utc) - enqueued).total_seconds())
                 except (ValueError, TypeError):
                     pass
