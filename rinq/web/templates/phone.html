@@ -4396,8 +4396,8 @@ function renderQueueCallers(callers) {
 
     // Render caller cards
     queueCallersList.innerHTML = waitingCallers.map(caller => {
-        const waitTime = formatWaitTime(caller.enqueued_at);
-        const isLongWait = getWaitSeconds(caller.enqueued_at) > 60;
+        const waitTime = caller.wait_display || formatWaitTime(caller.enqueued_at);
+        const isLongWait = (caller.wait_seconds || getWaitSeconds(caller.enqueued_at)) > 60;
         const isAnswering = answeringCallSid === caller.call_sid;
 
         let details = [];
@@ -4633,8 +4633,8 @@ function renderQueueCallers(callers) {
     }
 
     queueCallersList.innerHTML = waitingCallers.map(caller => {
-        const waitTime = formatWaitTime(caller.enqueued_at);
-        const isLongWait = getWaitSeconds(caller.enqueued_at) > 60;
+        const waitTime = caller.wait_display || formatWaitTime(caller.enqueued_at);
+        const isLongWait = (caller.wait_seconds || getWaitSeconds(caller.enqueued_at)) > 60;
         const isAnswering = answeringCallSid === caller.call_sid;
 
         let details = [];
