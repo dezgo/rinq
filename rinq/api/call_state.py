@@ -108,6 +108,7 @@ def get_call_state(agent_call_sid: str, caller_email: str = None) -> dict:
             for p in main_parts:
                 if not any(ep['call_sid'] == p['call_sid'] for ep in result['participants']):
                     is_on_hold = (transfer_state['transfer_status'] == 'consulting'
+                                  and transfer_state.get('transfer_type') == 'warm'
                                   and p['role'] == 'customer')
                     result['participants'].append({
                         'call_sid': p['call_sid'],
@@ -119,8 +120,10 @@ def get_call_state(agent_call_sid: str, caller_email: str = None) -> dict:
                     if p['role'] == 'customer':
                         result['customer_call_sid'] = p['call_sid']
 
-        # Mark customer as on hold in main participant list during consult
-        if transfer_state['transfer_status'] == 'consulting':
+        # Mark customer as on hold in main participant list during warm consult
+        # (3-way calls keep the customer in the conference, not on hold)
+        if (transfer_state['transfer_status'] == 'consulting'
+                and transfer_state.get('transfer_type') == 'warm'):
             for p in result['participants']:
                 if p['role'] == 'customer':
                     p['hold'] = True
