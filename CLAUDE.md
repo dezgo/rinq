@@ -149,6 +149,7 @@ Cron jobs hit the gunicorn unix socket directly (no API key needed):
 - **Recordings purge:** daily 3am — `curl -s -X POST --unix-socket /var/www/rinq/rinq.sock http://localhost/api/recordings/purge`
 - **Stats aggregation:** every 15min — `curl -s -X POST --unix-socket /var/www/rinq/rinq.sock http://localhost/api/stats/aggregate`
 - **Queue cleanup:** every 5min — `curl -s -X POST --unix-socket /var/www/rinq/rinq.sock http://localhost/api/queue/cleanup`
+- **Address book sync:** daily 2am — `curl -s -X POST --unix-socket /var/www/rinq/rinq.sock http://localhost/api/address-book/sync` (iterates all tenants; Watson syncs from Peter, others no-op)
 
 18. **Every call is a conference** — all call types (outbound, inbound, queue answer, extension, SIP auto-ring) use Twilio conferences. No `<Queue>` noun or direct `<Dial><Number>` bridges. This enables consistent recording, participant tracking, hold/transfer for all calls
 19. **call_participants table** — source of truth for who is in each call. Updated at every lifecycle event (join, leave, transfer). `call_state.py` reads from this table instead of making Twilio API calls. The `conference_join` endpoint is the catch-all for participant tracking
