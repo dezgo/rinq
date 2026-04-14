@@ -436,11 +436,11 @@ def register(bp):
                 hide_mobile = bool(ext.get('hide_mobile'))
                 mobile = '' if hide_mobile else staff.get('phone_mobile', '')
 
-                # Phone: assignment > mobile > fixed line > extension
+                # Phone: assignment > mobile > fixed line. Extension is a
+                # separate field/button — don't duplicate it here.
                 phone = (assignments.get(email, '')
                          or mobile
-                         or staff.get('phone_fixed', '')
-                         or ext.get('extension', ''))
+                         or staff.get('phone_fixed', ''))
 
                 contacts.append({
                     'name': name,
@@ -474,7 +474,7 @@ def register(bp):
 
                 ring_settings = db.get_user_ring_settings(email)
                 forward_to = '' if ext.get('hide_mobile') else (ext.get('forward_to') or '')
-                phone = assignments.get(email, '') or forward_to or ext.get('extension', '')
+                phone = assignments.get(email, '') or forward_to
 
                 contacts.append({
                     'name': name,
@@ -492,18 +492,34 @@ def register(bp):
         contacts.sort(key=lambda c: c['name'].lower())
 
         # Merge address book entries (tagged so UI can distinguish them).
-        # Skip entries whose email matches a staff member with hide_mobile set —
-        # the directory should respect that flag across both sources.
-        hidden_mobile_emails = {
-            (ext.get('email') or '').lower()
-            for ext in extensions.values()
-            if ext.get('hide_mobile')
-        }
+        # Skip entries whose email already appears in the staff list — staff
+        # take precedence over their synced address book copy. Also enrich
+        # staff contacts with section/position from the address book if the
+        # staff source didn't provide them.
         try:
             ab_entries = db.get_address_book()
+            ab_by_email = {}
+            for entry in ab_entries:
+                e = (entry.get('email') or '').lower()
+                if e:
+                    ab_by_email[e] = entry
+
+            staff_emails_in_contacts = set()
+            for c in contacts:
+                e = (c.get('email') or '').lower()
+                if not e:
+                    continue
+                staff_emails_in_contacts.add(e)
+                ab = ab_by_email.get(e)
+                if ab:
+                    if not c.get('section') and ab.get('section'):
+                        c['section'] = ab['section']
+                    if not c.get('position') and ab.get('position'):
+                        c['position'] = ab['position']
+
             for entry in ab_entries:
                 entry_email = (entry.get('email') or '').lower()
-                if entry_email and entry_email in hidden_mobile_emails:
+                if entry_email and entry_email in staff_emails_in_contacts:
                     continue
                 contacts.append({
                     'name': entry['name'],
