@@ -516,6 +516,12 @@ def register(bp):
                         c['section'] = ab['section']
                     if not c.get('position') and ab.get('position'):
                         c['position'] = ab['position']
+                    # Bring across the mobile from the address book if the
+                    # staff source didn't supply one — unless the user has
+                    # opted to hide it.
+                    ext = extensions.get(e, {})
+                    if not c.get('phone') and ab.get('display_mobile') and not ext.get('hide_mobile'):
+                        c['phone'] = ab['display_mobile']
 
             for entry in ab_entries:
                 entry_email = (entry.get('email') or '').lower()
