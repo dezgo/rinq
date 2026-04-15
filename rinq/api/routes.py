@@ -2317,8 +2317,16 @@ def conference_join():
                             name = user.get('friendly_name')
                         resolved_role = 'agent'  # Staff member, not customer
                     elif to.startswith('+'):
-                        # External number — use caller's number, not the number they dialled
-                        caller_number = getattr(call, '_from', None) or to
+                        # External number — pick whichever party is "the other
+                        # side" based on call direction. For inbound calls the
+                        # customer is in From (they dialled us); for outbound
+                        # calls the customer is in To (we dialled them, From
+                        # is our tenant caller ID).
+                        direction = getattr(call, 'direction', '') or ''
+                        if direction.startswith('outbound'):
+                            caller_number = to
+                        else:
+                            caller_number = getattr(call, '_from', None) or to
                         name = caller_number
                 except Exception:
                     pass
