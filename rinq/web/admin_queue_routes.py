@@ -21,6 +21,13 @@ def _parse_local_dt(value: str):
     return dt_local.astimezone(pytz.utc).isoformat()
 
 
+def _pause_redirect(queue_id: int, user) -> str:
+    """Redirect back to wherever the user came from — admin queues or manager queues."""
+    if user.is_admin:
+        return url_for('web.admin_queues') + f'#queue_{queue_id}'
+    return url_for('web.queues') + f'#queue_{queue_id}'
+
+
 def _utc_to_local(iso: str) -> str:
     """Convert a UTC ISO string to Australia/Sydney datetime-local input format."""
     if not iso:
@@ -215,6 +222,48 @@ def register(bp):
         return redirect(url_for('web.admin_queues') + f'#queue_{queue_id}')
     
     
+    @bp.route('/admin/queue/<int:queue_id>/manager/add', methods=['POST'])
+    @admin_required
+    def add_queue_manager(queue_id):
+        user_email = request.form.get('user_email', '').strip().lower()
+        if not user_email:
+            flash("User email is required.", "error")
+            return redirect(url_for('web.admin_queues') + f'#queue_{queue_id}')
+
+        user = get_current_user()
+        db = get_db()
+        try:
+            db.add_queue_manager(queue_id, user_email, _audit_tag(user))
+            db.log_activity(action="add_queue_manager", target=user_email,
+                            details=f"Added as manager of queue {queue_id}",
+                            performed_by=_audit_tag(user))
+            flash(f"Added {user_email} as queue manager.", "success")
+        except Exception as e:
+            if "UNIQUE constraint" in str(e):
+                flash(f"{user_email} is already a manager of this queue.", "error")
+            else:
+                flash(f"Failed to add manager: {e}", "error")
+        return redirect(url_for('web.admin_queues') + f'#queue_{queue_id}')
+
+
+    @bp.route('/admin/queue/<int:queue_id>/manager/remove', methods=['POST'])
+    @admin_required
+    def remove_queue_manager(queue_id):
+        user_email = request.form.get('user_email', '').strip().lower()
+        if not user_email:
+            flash("User email is required.", "error")
+            return redirect(url_for('web.admin_queues') + f'#queue_{queue_id}')
+
+        user = get_current_user()
+        db = get_db()
+        db.remove_queue_manager(queue_id, user_email)
+        db.log_activity(action="remove_queue_manager", target=user_email,
+                        details=f"Removed as manager of queue {queue_id}",
+                        performed_by=_audit_tag(user))
+        flash(f"Removed {user_email} as queue manager.", "success")
+        return redirect(url_for('web.admin_queues') + f'#queue_{queue_id}')
+
+
     @bp.route('/admin/queue/<int:queue_id>/schedule-pause', methods=['POST'])
     @manager_required
     def schedule_queue_pause(queue_id):
@@ -224,6 +273,12 @@ def register(bp):
         - paused_from: defaults to now (immediate pause)
         - paused_until: if omitted, queue is paused indefinitely
         """
+        user = get_current_user()
+        db = get_db()
+
+        if not user.is_admin and not db.is_queue_manager(queue_id, user.email):
+            return "Access denied", 403
+
         paused_from_str = request.form.get('paused_from', '').strip()
         paused_until_str = request.form.get('paused_until', '').strip()
 
@@ -236,14 +291,12 @@ def register(bp):
             paused_until_utc = _parse_local_dt(paused_until_str) if paused_until_str else None
         except ValueError:
             flash("Invalid date/time format.", "error")
-            return redirect(url_for('web.admin_queues') + f'#queue_{queue_id}')
+            return redirect(_pause_redirect(queue_id, user))
 
         if paused_until_utc and paused_from_utc >= paused_until_utc:
             flash("'Resume at' must be after 'Pause from'.", "error")
-            return redirect(url_for('web.admin_queues') + f'#queue_{queue_id}')
+            return redirect(_pause_redirect(queue_id, user))
 
-        user = get_current_user()
-        db = get_db()
         db.schedule_queue_pause(queue_id, paused_from_utc, paused_until_utc, _audit_tag(user))
         db.log_activity(
             action="schedule_queue_pause",
@@ -252,7 +305,7 @@ def register(bp):
             performed_by=_audit_tag(user)
         )
         flash("Pause scheduled." if paused_from_str else "Queue paused.", "success")
-        return redirect(url_for('web.admin_queues') + f'#queue_{queue_id}')
+        return redirect(_pause_redirect(queue_id, user))
 
 
     @bp.route('/admin/queue/<int:queue_id>/clear-pause', methods=['POST'])
@@ -261,6 +314,10 @@ def register(bp):
         """Remove the scheduled pause window from a queue."""
         user = get_current_user()
         db = get_db()
+
+        if not user.is_admin and not db.is_queue_manager(queue_id, user.email):
+            return "Access denied", 403
+
         db.clear_queue_pause(queue_id, _audit_tag(user))
         db.log_activity(
             action="clear_queue_pause",
@@ -269,7 +326,7 @@ def register(bp):
             performed_by=_audit_tag(user)
         )
         flash("Pause cleared.", "success")
-        return redirect(url_for('web.admin_queues') + f'#queue_{queue_id}')
+        return redirect(_pause_redirect(queue_id, user))
 
 
     @bp.route('/admin/queue/<int:queue_id>/delete', methods=['POST'])

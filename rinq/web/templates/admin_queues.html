@@ -362,6 +362,51 @@
                 </p>
                 {% endif %}
             </div>
+
+            <!-- Queue Managers (admin only) -->
+            {% if current_user.is_admin %}
+            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #e9ecef;">
+                <strong style="font-size: 0.9em;">🔑 Managers</strong>
+                <p class="text-muted" style="margin: 2px 0 6px 0; font-size: 0.8em;">Can pause this queue. Independent of membership.</p>
+                {% set managers = queue.get('managers', []) %}
+                {% if managers %}
+                <div style="margin-bottom: 8px;">
+                    {% for m in managers %}
+                    <div class="member-row">
+                        <span class="badge badge-info">{{ m.user_email.split('@')[0] }}</span>
+                        <span class="text-muted" style="font-size: 0.85em;">{{ m.user_email }}</span>
+                        <form method="post" action="{{ url_for('web.remove_queue_manager', queue_id=queue.id) }}"
+                              style="margin-left: auto;">
+                            <input type="hidden" name="user_email" value="{{ m.user_email }}">
+                            <button type="submit" class="member-delete confirm-delete" title="Remove">×</button>
+                        </form>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted" style="margin: 4px 0 8px 0; font-size: 0.85em;">No managers assigned.</p>
+                {% endif %}
+
+                {% set manager_emails = managers|map(attribute='user_email')|list %}
+                {% set available_managers = all_staff|rejectattr('email', 'in', manager_emails)|list %}
+                {% if available_managers %}
+                <form method="post" action="{{ url_for('web.add_queue_manager', queue_id=queue.id) }}"
+                      style="display: flex; gap: 8px; align-items: end; padding: 8px; background: white; border-radius: 5px; border: 1px solid #e0e0e0;">
+                    <div>
+                        <label style="display: block; font-size: 0.8em; color: #666; margin-bottom: 2px;">Assign manager</label>
+                        <select name="user_email" required
+                                style="padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; min-width: 220px;">
+                            <option value="">Select staff...</option>
+                            {% for staff in available_managers %}
+                            <option value="{{ staff.email }}">{{ staff.email.split('@')[0] }} (ext {{ staff.extension }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-small">Add</button>
+                </form>
+                {% endif %}
+            </div>
+            {% endif %}
         </div><!-- End queue-content -->
     </div><!-- End queue-card -->
     {% endfor %}

@@ -1721,6 +1721,52 @@ class Database(StatsMixin, CallLogMixin):
                   now, updated_by, queue_id))
             conn.commit()
 
+    # =========================================================================
+    # Queue Managers
+    # =========================================================================
+
+    def get_queue_managers(self, queue_id: int) -> list[dict]:
+        with self._get_conn() as conn:
+            rows = conn.execute("""
+                SELECT * FROM queue_managers WHERE queue_id = ? ORDER BY user_email
+            """, (queue_id,)).fetchall()
+            return [dict(r) for r in rows]
+
+    def add_queue_manager(self, queue_id: int, user_email: str, created_by: str) -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        with self._get_conn() as conn:
+            conn.execute("""
+                INSERT INTO queue_managers (queue_id, user_email, created_at, created_by)
+                VALUES (?, ?, ?, ?)
+            """, (queue_id, user_email.lower(), now, created_by))
+            conn.commit()
+
+    def remove_queue_manager(self, queue_id: int, user_email: str) -> None:
+        with self._get_conn() as conn:
+            conn.execute("""
+                DELETE FROM queue_managers WHERE queue_id = ? AND user_email = ?
+            """, (queue_id, user_email.lower()))
+            conn.commit()
+
+    def get_queues_for_manager(self, user_email: str) -> list[dict]:
+        """Get all queues a user can manage (via queue_managers), with pause status."""
+        with self._get_conn() as conn:
+            rows = conn.execute("""
+                SELECT q.*
+                FROM queues q
+                JOIN queue_managers qm ON q.id = qm.queue_id
+                WHERE qm.user_email = ? AND q.is_active = 1
+                ORDER BY q.name
+            """, (user_email.lower(),)).fetchall()
+            return [dict(r) for r in rows]
+
+    def is_queue_manager(self, queue_id: int, user_email: str) -> bool:
+        with self._get_conn() as conn:
+            row = conn.execute("""
+                SELECT 1 FROM queue_managers WHERE queue_id = ? AND user_email = ?
+            """, (queue_id, user_email.lower())).fetchone()
+            return row is not None
+
     def schedule_queue_pause(self, queue_id: int, paused_from: str, paused_until: str, updated_by: str) -> None:
         """Set a scheduled pause window on a queue (UTC ISO strings)."""
         now = datetime.now(timezone.utc).isoformat()

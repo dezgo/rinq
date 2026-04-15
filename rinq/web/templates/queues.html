@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+.queue-card {
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 12px;
+    background: #fff;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+.queue-card.is-paused {
+    border-color: #f5c6cb;
+    background: #fff8f8;
+}
+.queue-card.is-scheduled {
+    border-color: #ffeeba;
+    background: #fffdf5;
+}
+.pause-form-inline {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    margin-top: 12px;
+    padding: 12px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border: 1px solid #e0e0e0;
+}
+{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <div>
+        <h2 style="margin: 0;">Queues</h2>
+        <p class="text-muted" style="margin: 5px 0 0 0;">Pause or schedule downtime for your queues.</p>
+    </div>
+</div>
+
+{% if queues %}
+{% for queue in queues %}
+<div id="queue_{{ queue.id }}" class="queue-card{% if queue.pause_status == 'active' %} is-paused{% elif queue.pause_status == 'scheduled' %} is-scheduled{% endif %}">
+    <div style="flex: 1; min-width: 200px;">
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <strong style="font-size: 1.05em;">{{ queue.name }}</strong>
+            {% if queue.pause_status == 'active' %}
+                <span class="badge badge-danger">Paused</span>
+            {% elif queue.pause_status == 'scheduled' %}
+                <span class="badge" style="background: #856404; color: #fff;">Scheduled</span>
+            {% else %}
+                <span class="badge" style="background: #28a745; color: #fff;">Active</span>
+            {% endif %}
+        </div>
+
+        {% if queue.pause_status == 'active' %}
+        <p style="margin: 6px 0 0 0; font-size: 0.9em; color: #721c24;">
+            ⚠ Calls are going to voicemail.
+            {% if queue.paused_until_local %}
+            Resumes at {{ queue.paused_until_local[11:16] }} on {{ queue.paused_until_local[:10] }}.
+            {% else %}
+            <strong>Paused indefinitely</strong> — remember to clear this when ready.
+            {% endif %}
+        </p>
+        {% elif queue.pause_status == 'scheduled' %}
+        <p style="margin: 6px 0 0 0; font-size: 0.9em; color: #856404;">
+            Pauses at {{ queue.paused_from_local[11:16] }} on {{ queue.paused_from_local[:10] }}{% if queue.paused_until_local %}, resumes at {{ queue.paused_until_local[11:16] }}{% endif %}.
+        </p>
+        {% endif %}
+
+        <!-- Pause form -->
+        <div id="pauseForm{{ queue.id }}" style="display: {% if queue.pause_status in ('active', 'scheduled') %}none{% else %}block{% endif %};">
+            <form method="post" action="{{ url_for('web.schedule_queue_pause', queue_id=queue.id) }}">
+                <div class="pause-form-inline">
+                    <div>
+                        <label style="display: block; font-size: 0.8em; color: #666; margin-bottom: 3px;">
+                            Pause from <span style="color: #999;">(blank = now)</span>
+                        </label>
+                        <input type="datetime-local" name="paused_from"
+                               style="padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9em;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.8em; color: #666; margin-bottom: 3px;">
+                            Resume at <span style="color: #999;">(blank = indefinite)</span>
+                        </label>
+                        <input type="datetime-local" name="paused_until"
+                               style="padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9em;">
+                    </div>
+                    <button type="submit" class="btn btn-small">Pause Queue</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Action buttons -->
+    <div style="display: flex; gap: 8px; align-items: flex-start; flex-shrink: 0;">
+        {% if queue.pause_status in ('active', 'scheduled') %}
+        <form method="post" action="{{ url_for('web.clear_queue_pause', queue_id=queue.id) }}" style="margin: 0;">
+            <button type="submit" class="btn btn-small btn-danger">Clear Pause</button>
+        </form>
+        <button type="button" class="btn btn-small btn-secondary"
+                onclick="document.getElementById('pauseForm{{ queue.id }}').style.display = document.getElementById('pauseForm{{ queue.id }}').style.display === 'none' ? 'block' : 'none'">
+            Edit
+        </button>
+        {% endif %}
+    </div>
+</div>
+{% endfor %}
+
+{% else %}
+<div class="card" style="padding: 30px; text-align: center;">
+    <p class="text-muted">You haven't been assigned as manager of any queues yet.</p>
+    <p class="text-muted" style="font-size: 0.9em;">Ask an admin to assign you on the Queue admin page.</p>
+</div>
+{% endif %}
+{% endblock %}

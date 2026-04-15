@@ -269,6 +269,9 @@
             <a href="{{ url_for('web.recordings') }}" {% if active_nav == 'recordings' %}class="active"{% endif %} data-pwa-hide>🎙️ Recordings</a>
             <a href="{{ url_for('web.reports') }}" {% if active_nav == 'reports' %}class="active"{% endif %} data-pwa-hide>📈 Reports</a>
             <a href="{{ url_for('web.leaderboard') }}" {% if active_nav == 'leaderboard' %}class="active"{% endif %} data-pwa-hide>🏆 Leaderboard</a>
+            {% if current_user and current_user.is_manager %}
+            <a href="{{ url_for('web.queues') }}" {% if active_nav == 'queues' %}class="active"{% endif %} data-pwa-hide>Queues</a>
+            {% endif %}
             {% if current_user and current_user.is_admin %}
             <a href="{{ url_for('web.admin') }}" {% if active_nav in ['admin', 'visualizer', 'desk_phones', 'activity', 'setup'] %}class="active"{% endif %} data-pwa-hide>Admin</a>
             {% endif %}

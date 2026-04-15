@@ -1214,6 +1214,7 @@ def admin_queues():
     now_utc = _dt.now(pytz.utc).isoformat()
     for queue in queues:
         queue['members'] = db.get_queue_members(queue['id'])
+        queue['managers'] = db.get_queue_managers(queue['id'])
         queue['paused_from_local'] = _utc_to_local(queue.get('paused_from'))
         queue['paused_until_local'] = _utc_to_local(queue.get('paused_until'))
         pf, pu = queue.get('paused_from'), queue.get('paused_until')
@@ -1663,6 +1664,40 @@ def admin_remove():
         flash('Failed to remove admin.', 'danger')
 
     return redirect(url_for('web.admin'))
+
+
+@web_bp.route('/queues')
+@manager_required
+def queues():
+    """Lightweight queue management page for managers — pause controls only."""
+    import pytz
+    from datetime import datetime as _dt
+    from rinq.web.admin_queue_routes import _utc_to_local
+
+    user = get_current_user()
+    db = get_db()
+
+    if user.is_admin:
+        managed_queues = db.get_queues()
+    else:
+        managed_queues = db.get_queues_for_manager(user.email)
+
+    now_utc = _dt.now(pytz.utc).isoformat()
+    for queue in managed_queues:
+        queue['paused_from_local'] = _utc_to_local(queue.get('paused_from'))
+        queue['paused_until_local'] = _utc_to_local(queue.get('paused_until'))
+        pf, pu = queue.get('paused_from'), queue.get('paused_until')
+        if pf:
+            if now_utc < pf:
+                queue['pause_status'] = 'scheduled'
+            elif pu and now_utc > pu:
+                queue['pause_status'] = 'expired'
+            else:
+                queue['pause_status'] = 'active'
+        else:
+            queue['pause_status'] = None
+
+    return render_template('queues.html', queues=managed_queues, current_user=user)
 
 
 @web_bp.route('/admin/users')
