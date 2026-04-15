@@ -85,6 +85,7 @@ def get_call_state(agent_call_sid: str, caller_email: str = None) -> dict:
 
         result['transfer'] = {
             'status': transfer_state['transfer_status'],
+            'type': transfer_state.get('transfer_type'),
             'target_name': transfer_state.get('transfer_target_name'),
             'consult_participants': [],
         }

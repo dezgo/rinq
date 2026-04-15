@@ -1390,13 +1390,71 @@
     color: #e74c3c;
 }
 
-/* Conference participant panel */
-.conf-participant {
+/* Conference participant cards */
+.conf-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+.conf-panel-title {
+    font-weight: 600;
+    color: #6c757d;
+    font-size: 0.75em;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.conf-panel-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+.conf-btn-record {
+    background: none;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 0.75em;
+    color: #6c757d;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.15s;
+}
+.conf-btn-record:hover { background: #f8f9fa; border-color: #dee2e6; }
+.conf-btn-record.recording { color: #e74c3c; border-color: #f5c6cb; background: #fdf0f0; }
+.conf-drag-handle { cursor: move; color: #ccc; font-size: 1.1em; }
+
+.conf-participant-card {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 6px;
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 4px 0;
 }
+.conf-participant-card.on-hold { background: #fef9ee; border-color: #fde8a0; }
+.conf-participant-card.muted { background: #f5f5f5; border-color: #ddd; }
+.conf-participant-card.ringing { background: #f0f8ff; border-color: #b8d8f0; }
+.conf-participant-card.add-card {
+    background: none;
+    border: 1.5px dashed #ced4da;
+    border-radius: 8px;
+    padding: 7px 10px;
+    justify-content: center;
+    cursor: pointer;
+    color: #6c757d;
+    font-size: 0.82em;
+    font-weight: 500;
+    transition: all 0.15s;
+    margin-bottom: 0;
+}
+.conf-participant-card.add-card:hover { background: #f8f9fa; border-color: #adb5bd; color: #495057; }
+.conf-participant-card.add-card.adding { opacity: 0.5; pointer-events: none; }
+
 .conf-participant-dot {
     width: 8px;
     height: 8px;
@@ -1406,14 +1464,93 @@
 .conf-participant-dot.connected { background: #27ae60; }
 .conf-participant-dot.on-hold { background: #f39c12; }
 .conf-participant-dot.muted { background: #95a5a6; }
+.conf-participant-dot.ringing {
+    background: #3498db;
+    animation: ring-pulse 1s ease-in-out infinite;
+}
+@keyframes ring-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(1.3); }
+}
+
+.conf-participant-info {
+    flex: 1;
+    min-width: 0;
+}
 .conf-participant-name {
     font-weight: 500;
     color: #2c3e50;
+    font-size: 0.88em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .conf-participant-status {
-    font-size: 0.85em;
+    font-size: 0.75em;
     color: #6c757d;
-    margin-left: auto;
+    margin-top: 1px;
+}
+
+.conf-card-actions {
+    display: flex;
+    gap: 3px;
+    flex-shrink: 0;
+}
+.conf-card-btn {
+    background: none;
+    border: 1px solid #e9ecef;
+    border-radius: 5px;
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75em;
+    cursor: pointer;
+    color: #6c757d;
+    transition: all 0.15s;
+    flex-shrink: 0;
+}
+.conf-card-btn:hover { background: #e9ecef; border-color: #ced4da; color: #495057; }
+.conf-card-btn.active { background: #fff3cd; border-color: #ffc107; color: #856404; }
+.conf-card-btn.kick:hover { background: #fdf0f0; border-color: #f5c6cb; color: #dc3545; }
+
+/* Add to Call modal */
+.add-to-call-modal {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 10001;
+    align-items: center;
+    justify-content: center;
+}
+.add-to-call-modal.open { display: flex; }
+.add-to-call-content {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    width: 320px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+}
+.add-to-call-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+}
+.add-to-call-header h3 {
+    margin: 0;
+    font-size: 1em;
+    font-weight: 600;
+    color: #2c3e50;
+}
+.add-to-call-list {
+    overflow-y: auto;
+    flex: 1;
 }
 
 .contact-info {
@@ -1881,14 +2018,6 @@
                     <span id="muteIcon">🎤</span>
                     <span id="muteText">Mute</span>
                 </button>
-                <button class="btn-mute" id="btnHold" onclick="toggleHold()">
-                    <span id="holdIcon">⏸️</span>
-                    <span id="holdText">Hold</span>
-                </button>
-                <button class="btn-record" id="btnRecord" onclick="toggleRecording()" title="Toggle call recording">
-                    <span id="recordIcon">⏺️</span>
-                    <span id="recordText">Record</span>
-                </button>
                 <button class="btn-transfer" id="btnTransfer" onclick="openTransferModal()">
                     <span>🔀</span>
                     <span>Transfer</span>
@@ -2059,10 +2188,6 @@
                     <strong>Warm</strong>
                     <span>Talk to target first</span>
                 </div>
-                <div class="transfer-type-btn" id="btnThreeWay" onclick="selectTransferType('three_way')">
-                    <strong>3-Way</strong>
-                    <span>All parties talk</span>
-                </div>
             </div>
 
             <div style="font-size: 0.8em; color: #e67e22; margin-bottom: 12px; text-align: center;">
@@ -2099,22 +2224,41 @@
         <!-- Consulting action buttons (shown during warm transfer) -->
         <div class="transfer-actions" id="consultingActions" style="display: none;">
             <button class="btn-transfer-action btn-transfer-cancel" onclick="cancelTransfer()">
-                Cancel Transfer
+                Go back
             </button>
             <button class="btn-transfer-action btn-transfer-complete" id="btnCompleteTransfer" onclick="completeTransfer()">
-                Complete Transfer
+                Hand off
             </button>
         </div>
     </div>
 </div>
 
 <!-- Floating call state panel — always on top during active calls -->
-<div id="conferencePanel" style="display: none; position: fixed; bottom: 20px; right: 20px; width: 260px; background: white; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); padding: 12px 14px; font-size: 0.85em; z-index: 9999; cursor: move; border: 1px solid #e9ecef;">
-    <div style="font-weight: 600; color: #6c757d; margin-bottom: 8px; font-size: 0.75em; text-transform: uppercase; display: flex; justify-content: space-between; align-items: center;">
-        In this call
-        <span style="cursor: move; color: #ccc; font-size: 1.2em;">&#x2630;</span>
+<div id="conferencePanel" style="display: none; position: fixed; bottom: 20px; right: 20px; width: 300px; background: white; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); padding: 12px 14px; font-size: 0.85em; z-index: 9999; border: 1px solid #e9ecef;">
+    <div class="conf-panel-header">
+        <span class="conf-panel-title">In this call</span>
+        <div class="conf-panel-actions">
+            <button class="conf-btn-record" id="confBtnRecord" onclick="toggleRecording()" title="Toggle recording">
+                <span id="confRecordIcon">⏺</span>
+                <span id="confRecordText">Record</span>
+            </button>
+            <span class="conf-drag-handle">&#x2630;</span>
+        </div>
     </div>
     <div id="conferencePanelList"></div>
+</div>
+
+<!-- Add to Call modal -->
+<div class="add-to-call-modal" id="addToCallModal">
+    <div class="add-to-call-content">
+        <div class="add-to-call-header">
+            <h3>Add to Call</h3>
+            <button class="btn-close-modal" onclick="closeAddToCallModal()">&times;</button>
+        </div>
+        <div class="add-to-call-list" id="addToCallList">
+            <div style="padding: 20px; text-align: center; color: #7f8c8d;">Loading...</div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
@@ -2314,6 +2458,10 @@ function resetCallState() {
     }
     // Conference tracking
     window._sawMultipleParticipants = false;
+    window._addToCallPending = false;
+    // Clear optimistic per-card state
+    Object.keys(_cardMuted).forEach(k => delete _cardMuted[k]);
+    Object.keys(_cardHeld).forEach(k => delete _cardHeld[k]);
     // Call state polling
     if (typeof callStateInterval !== 'undefined' && callStateInterval) {
         clearInterval(callStateInterval);
@@ -2327,19 +2475,19 @@ const phoneStatus = document.getElementById('phoneStatus');
 const btnCall = document.getElementById('btnCall');
 const btnHangup = document.getElementById('btnHangup');
 const btnMute = document.getElementById('btnMute');
-const btnHold = document.getElementById('btnHold');
+const btnHold = null; // Hold moved to per-participant cards
 const muteIcon = document.getElementById('muteIcon');
 const muteText = document.getElementById('muteText');
-const holdIcon = document.getElementById('holdIcon');
-const holdText = document.getElementById('holdText');
+const holdIcon = null; // Hold moved to per-participant cards
+const holdText = null; // Hold moved to per-participant cards
 const callInfo = document.getElementById('callInfo');
 const callDuration = document.getElementById('callDuration');
 const callNumber = document.getElementById('callNumber');
 const incomingCall = document.getElementById('incomingCall');
 const incomingNumber = document.getElementById('incomingNumber');
-const btnRecord = document.getElementById('btnRecord');
-const recordIcon = document.getElementById('recordIcon');
-const recordText = document.getElementById('recordText');
+const btnRecord = document.getElementById('confBtnRecord');
+const recordIcon = document.getElementById('confRecordIcon');
+const recordText = document.getElementById('confRecordText');
 
 // Customer context pane
 const contextPane = document.getElementById('customerContextPane');
@@ -3072,110 +3220,44 @@ function updateMuteButton() {
     }
 }
 
+// toggleHold kept for internal use (e.g. auto-hold on transfer)
+// Hold is now exposed via per-participant cards in the conference panel.
 async function toggleHold() {
     if (!currentCall) return;
-    if (btnHold.disabled) return;  // Already processing
 
-    // Disable button while processing to prevent double-clicks
-    btnHold.disabled = true;
-    btnHold.style.opacity = '0.5';
-
-    // Ensure we have the customer SID from polling (e.g. after a transfer)
     if (!currentQueueCallerSid && lastCallState && lastCallState.customer_call_sid) {
         currentQueueCallerSid = lastCallState.customer_call_sid;
     }
 
-    // For queue calls, use the conference-based hold API
-    if (currentQueueCallerSid) {
-        const newHoldState = !isOnHold;
+    const targetSid = currentQueueCallerSid ||
+        (currentCall.parameters ? currentCall.parameters.CallSid : null);
+    if (!targetSid) return;
 
-        try {
-            const response = await fetch('/api/voice/call/hold', {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    call_sid: currentQueueCallerSid,
-                    action: newHoldState ? 'hold' : 'unhold'
-                })
-            });
-
+    const newHoldState = !isOnHold;
+    try {
+        const response = await fetch('/api/voice/call/hold', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                call_sid: targetSid,
+                action: newHoldState ? 'hold' : 'unhold'
+            })
+        });
+        if (!response.ok) {
             const data = await response.json();
-
-            if (!response.ok) {
-                console.error('Hold API error:', data.error);
-                btnHold.disabled = false;
-                btnHold.style.opacity = '1';
-                return;
-            }
-
-            isOnHold = newHoldState;
-            updateHoldButton();
-
-            // When resuming from hold, re-apply mute state if it was muted
-            // (The SDK may reset audio state when hold is released)
-            if (!newHoldState && isMuted) {
-                currentCall.mute(true);
-            }
-
-        } catch (error) {
-            console.error('Error toggling hold:', error);
-            btnHold.disabled = false;
-            btnHold.style.opacity = '1';
-        }
-    } else {
-        // For non-queue calls, use conference hold via the agent's call SID
-        const agentCallSid = currentCall.parameters ? currentCall.parameters.CallSid : null;
-        if (!agentCallSid) {
-            // Fallback: just mute
-            isOnHold = !isOnHold;
-            currentCall.mute(isOnHold);
-            if (isOnHold) isMuted = true;
-            updateMuteButton();
-            updateHoldButton();
+            console.error('Hold API error:', data.error);
             return;
         }
-
-        const newHoldState = !isOnHold;
-        try {
-            const response = await fetch('/api/voice/call/hold', {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    call_sid: agentCallSid,
-                    action: newHoldState ? 'hold' : 'unhold'
-                })
-            });
-            const data = await response.json();
-            if (!response.ok) {
-                console.error('Hold API error:', data.error);
-                btnHold.disabled = false;
-                btnHold.style.opacity = '1';
-                return;
-            }
-            isOnHold = newHoldState;
-            updateHoldButton();
-        } catch (error) {
-            console.error('Error toggling hold:', error);
-            btnHold.disabled = false;
-            btnHold.style.opacity = '1';
-        }
+        isOnHold = newHoldState;
+        if (!newHoldState && isMuted) currentCall.mute(true);
+    } catch (error) {
+        console.error('Error toggling hold:', error);
     }
 }
 
 function updateHoldButton() {
-    btnHold.disabled = false;
-    btnHold.style.opacity = '1';
-    if (isOnHold) {
-        btnHold.classList.add('muted');
-        holdIcon.textContent = '▶️';
-        holdText.textContent = 'Resume';
-    } else {
-        btnHold.classList.remove('muted');
-        holdIcon.textContent = '⏸️';
-        holdText.textContent = 'Hold';
-    }
+    // No-op: hold state is now reflected in participant cards
 }
 
 // ============================================
@@ -3287,14 +3369,15 @@ async function toggleRecording() {
 }
 
 function updateRecordButton() {
+    if (!btnRecord) return;
     if (isRecording) {
         btnRecord.classList.add('recording');
-        recordIcon.textContent = '⏸️';
+        recordIcon.textContent = '⏸';
         recordText.textContent = 'Pause';
         btnRecord.title = 'Pause recording';
     } else {
         btnRecord.classList.remove('recording');
-        recordIcon.textContent = '⏺️';
+        recordIcon.textContent = '⏺';
         const isPaused = currentRecordingSid != null;
         recordText.textContent = isPaused ? 'Resume' : 'Record';
         btnRecord.title = isPaused ? 'Resume recording' : 'Start recording';
@@ -4044,7 +4127,6 @@ function selectTransferType(type) {
     transferType = type;
     document.getElementById('btnBlindTransfer').classList.toggle('active', type === 'blind');
     document.getElementById('btnWarmTransfer').classList.toggle('active', type === 'warm');
-    document.getElementById('btnThreeWay').classList.toggle('active', type === 'three_way');
 }
 
 function updateTransferButton() {
@@ -4095,9 +4177,6 @@ function openTransferModal() {
     document.getElementById('btnWarmTransfer').style.opacity = '1';
     document.getElementById('btnWarmTransfer').style.pointerEvents = 'auto';
     document.getElementById('btnWarmTransfer').title = '';
-    document.getElementById('btnThreeWay').style.opacity = '1';
-    document.getElementById('btnThreeWay').style.pointerEvents = 'auto';
-    document.getElementById('btnThreeWay').title = '';
 
     // Show target selection, hide consulting
     transferTargetSelection.style.display = 'block';
@@ -5085,6 +5164,11 @@ async function pollCallState() {
         // Update conference participant panel
         renderCallStatePanel(state);
 
+        // Clear "adding to call" spinner once the new participant appears
+        if (window._addToCallPending && state.participants && state.participants.length >= 2) {
+            window._addToCallPending = false;
+        }
+
         // Update customer call SID if we didn't have it
         if (state.customer_call_sid && !currentQueueCallerSid) {
             currentQueueCallerSid = state.customer_call_sid;
@@ -5172,6 +5256,10 @@ async function pollCallState() {
     }
 }
 
+// Track optimistic mute/hold state per call SID so cards reflect immediate feedback
+const _cardMuted = {};
+const _cardHeld = {};
+
 function renderCallStatePanel(state) {
     const panel = document.getElementById('conferencePanel');
     const list = document.getElementById('conferencePanelList');
@@ -5180,44 +5268,253 @@ function renderCallStatePanel(state) {
         panel.style.display = 'none';
         return;
     }
-    console.log('renderCallStatePanel:', state.participants?.length, 'participants, transfer:', !!state.transfer);
 
-    // Flat list of all participants across all conferences
+    // My own call SID — used to identify "me" in the participant list
+    const myCallSid = currentCall ? currentCall.parameters?.CallSid : null;
+
+    // Build participant list:
+    //   1. Main conference participants
+    //   2. Ringing card if a warm transfer is pending
     const allParticipants = [...(state.participants || [])];
-    if (state.transfer) {
-        for (const p of (state.transfer.consult_participants || [])) {
-            // Don't duplicate — same person can have different SIDs across conferences
-            if (!allParticipants.some(existing => existing.name === p.name)) {
-                allParticipants.push(p);
-            }
-        }
+    const transfer = state.transfer;
+    let ringingCard = null;
+
+    if (transfer && transfer.status === 'pending' && transfer.type === 'warm') {
+        // Show a ringing card for the transfer target
+        ringingCard = {
+            call_sid: null,
+            name: transfer.target_name || 'Ringing…',
+            role: 'agent',
+            ringing: true,
+        };
     }
 
-    if (allParticipants.length === 0) {
+    if (allParticipants.length === 0 && !ringingCard) {
         panel.style.display = 'none';
         return;
     }
 
+    const addingToCall = window._addToCallPending;
+
+    const cards = allParticipants.map(p => renderParticipantCard(p, myCallSid));
+    if (ringingCard) cards.push(renderParticipantCard(ringingCard, myCallSid));
+    cards.push(renderAddCard(addingToCall));
+
     panel.style.display = '';
-    list.innerHTML = allParticipants.map(renderParticipant).join('');
+    list.innerHTML = cards.join('');
 }
 
-function renderParticipant(p) {
+function renderParticipantCard(p, myCallSid) {
+    const isMe = p.call_sid && p.call_sid === myCallSid;
+    const isMutedState = isMe ? isMuted : (_cardMuted[p.call_sid] ?? p.muted);
+    const isHeldState = _cardHeld[p.call_sid] ?? p.hold;
+
+    let cardClass = 'conf-participant-card';
     let dotClass = 'connected';
     let statusText = '';
-    if (p.hold) {
+
+    if (p.ringing) {
+        cardClass += ' ringing';
+        dotClass = 'ringing';
+        statusText = 'ringing…';
+    } else if (isHeldState) {
+        cardClass += ' on-hold';
         dotClass = 'on-hold';
         statusText = 'on hold';
-    } else if (p.muted) {
+    } else if (isMutedState) {
+        cardClass += ' muted';
         dotClass = 'muted';
         statusText = 'muted';
     }
-    const roleLabel = p.role === 'customer' ? ' (customer)' : '';
-    return `<div class="conf-participant">
+
+    const nameLabel = escapeHtml(p.name) + (p.role === 'customer' ? ' <span style="font-size:0.8em;color:#95a5a6">(customer)</span>' : '');
+
+    let actions = '';
+    if (p.ringing) {
+        // Can only cancel a ringing transfer
+        actions = `<button class="conf-card-btn kick" onclick="cancelTransfer()" title="Cancel">✕</button>`;
+    } else if (isMe) {
+        // Self: only mute (client-side)
+        const muteTitle = isMutedState ? 'Unmute' : 'Mute';
+        const muteClass = isMutedState ? 'conf-card-btn active' : 'conf-card-btn';
+        actions = `<button class="${muteClass}" onclick="toggleMute()" title="${muteTitle}">🎤</button>`;
+    } else if (p.call_sid) {
+        const muteTitle = isMutedState ? 'Unmute' : 'Mute';
+        const muteClass = isMutedState ? 'conf-card-btn active' : 'conf-card-btn';
+        const holdTitle = isHeldState ? 'Unhold' : 'Hold';
+        const holdClass = isHeldState ? 'conf-card-btn active' : 'conf-card-btn';
+        const sidAttr = escapeHtml(p.call_sid);
+        actions = `<button class="${muteClass}" onclick="participantMute('${sidAttr}', ${isMutedState})" title="${muteTitle}">🎤</button>` +
+                  `<button class="${holdClass}" onclick="participantHold('${sidAttr}', ${isHeldState})" title="${holdTitle}">⏸</button>` +
+                  `<button class="conf-card-btn kick" onclick="participantKick('${sidAttr}')" title="Remove">✕</button>`;
+    }
+
+    return `<div class="${cardClass}">
         <div class="conf-participant-dot ${dotClass}"></div>
-        <span class="conf-participant-name">${escapeHtml(p.name)}${roleLabel}</span>
-        ${statusText ? `<span class="conf-participant-status">${statusText}</span>` : ''}
+        <div class="conf-participant-info">
+            <div class="conf-participant-name">${nameLabel}</div>
+            ${statusText ? `<div class="conf-participant-status">${statusText}</div>` : ''}
+        </div>
+        <div class="conf-card-actions">${actions}</div>
     </div>`;
+}
+
+function renderAddCard(adding) {
+    const cls = adding ? 'conf-participant-card add-card adding' : 'conf-participant-card add-card';
+    const label = adding ? 'Adding…' : '+ Add to Call';
+    return `<div class="${cls}" onclick="openAddToCallModal()">
+        ${label}
+    </div>`;
+}
+
+// ============================================
+// Per-participant card actions
+// ============================================
+
+async function participantMute(callSid, currentlyMuted) {
+    const newMuted = !currentlyMuted;
+    _cardMuted[callSid] = newMuted;
+    // Optimistically re-render
+    if (lastCallState) renderCallStatePanel(lastCallState);
+
+    try {
+        const resp = await fetch('/api/voice/participant/mute', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ call_sid: callSid, muted: newMuted })
+        });
+        if (!resp.ok) {
+            // Revert on failure
+            _cardMuted[callSid] = currentlyMuted;
+            if (lastCallState) renderCallStatePanel(lastCallState);
+        }
+    } catch (e) {
+        _cardMuted[callSid] = currentlyMuted;
+        if (lastCallState) renderCallStatePanel(lastCallState);
+    }
+}
+
+async function participantHold(callSid, currentlyHeld) {
+    const newHeld = !currentlyHeld;
+    _cardHeld[callSid] = newHeld;
+    if (lastCallState) renderCallStatePanel(lastCallState);
+
+    try {
+        const resp = await fetch('/api/voice/participant/hold', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ call_sid: callSid, hold: newHeld })
+        });
+        if (!resp.ok) {
+            _cardHeld[callSid] = currentlyHeld;
+            if (lastCallState) renderCallStatePanel(lastCallState);
+        }
+    } catch (e) {
+        _cardHeld[callSid] = currentlyHeld;
+        if (lastCallState) renderCallStatePanel(lastCallState);
+    }
+}
+
+async function participantKick(callSid) {
+    if (!confirm('Remove this person from the call?')) return;
+    try {
+        await fetch('/api/voice/participant/kick', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ call_sid: callSid })
+        });
+    } catch (e) {
+        console.error('Error kicking participant:', e);
+    }
+}
+
+// ============================================
+// Add to Call modal
+// ============================================
+
+window._addToCallPending = false;
+
+function openAddToCallModal() {
+    if (window._addToCallPending) return;
+    const modal = document.getElementById('addToCallModal');
+    modal.classList.add('open');
+    populateAddToCallList();
+}
+
+function closeAddToCallModal() {
+    document.getElementById('addToCallModal').classList.remove('open');
+}
+
+function populateAddToCallList() {
+    const list = document.getElementById('addToCallList');
+    if (!allContacts || allContacts.length === 0) {
+        list.innerHTML = '<div style="padding: 20px; text-align: center; color: #7f8c8d;">No contacts available</div>';
+        return;
+    }
+
+    // Show staff members (internal) first, then external
+    const staff = allContacts.filter(c => c.type === 'staff' || c.extension);
+    const external = allContacts.filter(c => c.type !== 'staff' && !c.extension && c.phone);
+
+    let html = '';
+    const renderContact = (c) => {
+        const target = c.extension ? `sip:${escapeHtml(c.extension)}` : escapeHtml(c.phone || '');
+        const name = escapeHtml(c.name || target);
+        const sub = c.extension ? `ext ${c.extension}` : (c.phone || '');
+        return `<div class="target-item" style="cursor:pointer;" onclick="startAddToCall('${target}', '${name}')">
+            <div class="target-name">${name}</div>
+            <div class="target-sub">${escapeHtml(sub)}</div>
+        </div>`;
+    };
+
+    if (staff.length) {
+        html += '<div style="font-size:0.75em;color:#6c757d;text-transform:uppercase;letter-spacing:0.04em;padding:8px 0 4px;">Team</div>';
+        html += staff.map(renderContact).join('');
+    }
+    if (external.length) {
+        html += '<div style="font-size:0.75em;color:#6c757d;text-transform:uppercase;letter-spacing:0.04em;padding:8px 0 4px;margin-top:4px;">External</div>';
+        html += external.map(renderContact).join('');
+    }
+
+    list.innerHTML = html || '<div style="padding: 20px; text-align: center; color: #7f8c8d;">No contacts available</div>';
+}
+
+async function startAddToCall(target, targetName) {
+    closeAddToCallModal();
+    window._addToCallPending = true;
+    if (lastCallState) renderCallStatePanel(lastCallState);
+
+    const agentCallSid = currentCall ? currentCall.parameters?.CallSid : null;
+    try {
+        const response = await fetch('/api/voice/transfer/warm/start', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                call_sid: currentQueueCallerSid,
+                target: target,
+                target_name: targetName,
+                agent_call_sid: agentCallSid,
+                call_type: currentTransferCallType,
+                three_way: true
+            })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            console.error('Add to call failed:', data.error);
+            window._addToCallPending = false;
+            if (lastCallState) renderCallStatePanel(lastCallState);
+        }
+        // On success the poll will update the panel; _addToCallPending clears
+        // once the new participant appears in call_participants
+    } catch (e) {
+        console.error('Add to call error:', e);
+        window._addToCallPending = false;
+        if (lastCallState) renderCallStatePanel(lastCallState);
+    }
 }
 
 // ============================================
