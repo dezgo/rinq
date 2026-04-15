@@ -2928,6 +2928,23 @@ async function makeCall() {
 }
 
 function hangupCall() {
+    // If we're in the middle of a warm-transfer consult, hanging up should
+    // act on the transfer, not drop the customer. Agent's mental model:
+    // "I've briefed the target, I'm done" → Complete Transfer (target takes
+    // the customer). If the target hasn't answered yet → Cancel Transfer
+    // (return to the customer). Only hijack when we have enough state to
+    // act on, otherwise fall through to the normal hangup flow.
+    const haveTransferState = isConsulting && currentTransferCallType
+        && (currentQueueCallerSid || currentTransferKey);
+    if (haveTransferState) {
+        if (consultTargetAnswered) {
+            completeTransfer();
+        } else {
+            cancelTransfer();
+        }
+        return;
+    }
+
     // Capture call SID before endCall() nulls it
     const callSid = currentCall?.parameters?.CallSid || currentOutboundCallSid;
 
