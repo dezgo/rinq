@@ -8,6 +8,7 @@
     <meta name="theme-color" content="#e74c3c">
     <title>{{ product_name }}{% block title_suffix %}{% endblock %}</title>
     {% if shared_css_url %}<link rel="stylesheet" href="{{ shared_css_url }}">{% else %}<link rel="stylesheet" href="{{ url_for('static', filename='rinq.css') }}">{% endif %}
+    {% block extra_head %}{% endblock %}
     <style>
         :root {
             --bot-primary: #e74c3c;

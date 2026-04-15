@@ -2,8 +2,11 @@
 
 {% block title_suffix %} - Softphone{% endblock %}
 
-{% block extra_css %}
+{% block extra_head %}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.css">
+{% endblock %}
+
+{% block extra_css %}
 /* Queue Dashboard Styles */
 .queue-dashboard {
     max-width: 800px;
@@ -5737,9 +5740,11 @@ function resolveInternalCaller(from) {
     var steps = [
         {
             v: 1, intro: true,
+            element: '.phone-container',
             popover: {
                 title: "What's new: Call Panel",
-                description: "The softphone call panel has been redesigned. Each person in the call now gets their own card with individual controls. This quick tour shows you the key changes.",
+                description: "The softphone has been updated. Each person on a call now gets their own card with individual controls. A quick tour of the key changes.",
+                side: 'over',
             }
         },
         {
@@ -5811,10 +5816,12 @@ function resolveInternalCaller(from) {
         },
         {
             v: 1, intro: true,
+            element: '#phoneSidebar',
             showDemoOnEnter: false,
             popover: {
                 title: "That's it!",
-                description: 'Same calls, same transfers — just a clearer picture of who\'s on the line. Click the <strong>?</strong> button in the info bar to replay this tour anytime.',
+                description: 'Same calls, same transfers — just a clearer view of who\'s on the line. Click the <strong>?</strong> in the info bar to replay anytime.',
+                side: 'left', align: 'start',
             }
         },
     ];
