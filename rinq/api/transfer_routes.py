@@ -136,7 +136,6 @@ def register(bp):
         target = data.get('target')
         target_name = data.get('target_name', 'Unknown')
         agent_call_sid = data.get('agent_call_sid')
-        call_type = data.get('call_type', 'queue')
         three_way = data.get('three_way', False)
 
         transferred_by = get_api_caller_email()
@@ -150,29 +149,20 @@ def register(bp):
             conf_name = db.get_call_conference(call_sid)
         customer_sid = child_sid or call_sid
 
-        if three_way and conf_name and customer_sid:
-            result = transfer_service.warm_transfer_start_universal(
-                agent_call_sid, target, target_name, transferred_by,
-                call_type, three_way=True,
-                customer_call_sid_override=customer_sid,
-                conference_name_override=conf_name
-            )
-        elif conf_name and customer_sid:
-            if not customer_sid or not target or not agent_call_sid:
-                return jsonify({"error": "call_sid, target, and agent_call_sid required"}), 400
-            result = transfer_service.warm_transfer_start(
-                customer_sid, target, target_name, transferred_by, agent_call_sid,
-                conference_name_override=conf_name
-            )
-            if result.get('success'):
-                result['transfer_key'] = customer_sid
-        else:
-            if not agent_call_sid or not target:
-                return jsonify({"error": "agent_call_sid and target required"}), 400
-            result = transfer_service.warm_transfer_start_universal(
-                agent_call_sid, target, target_name, transferred_by,
-                call_type, three_way=three_way
-            )
+        if not conf_name or not customer_sid:
+            return jsonify({"error": "Could not locate active conference for this call. "
+                            "Ensure the call is connected before transferring."}), 400
+
+        if not target or not agent_call_sid:
+            return jsonify({"error": "agent_call_sid and target required"}), 400
+
+        result = transfer_service.warm_transfer_start(
+            customer_sid, target, target_name, transferred_by, agent_call_sid,
+            conference_name_override=conf_name,
+            three_way=three_way
+        )
+        if result.get('success'):
+            result['transfer_key'] = customer_sid
 
         return jsonify(result) if result.get('success') else (jsonify(result), 400)
 
@@ -192,15 +182,6 @@ def register(bp):
             return jsonify({"error": "call_sid or transfer_key required"}), 400
 
         result = transfer_service.warm_transfer_complete(call_sid, transferred_by)
-        if not result.get('success') and result.get('error') == 'No transfer in progress':
-            result = transfer_service.warm_transfer_complete_universal(call_sid, transferred_by)
-
-        # Mark original agent as left (they've handed off the call)
-        if result.get('success'):
-            db = get_db()
-            agent_call_sid = result.get('agent_call_sid')
-            if agent_call_sid:
-                db.remove_participant(agent_call_sid)
 
         return jsonify(result) if result.get('success') else (jsonify(result), 400)
 
@@ -220,9 +201,6 @@ def register(bp):
             return jsonify({"error": "call_sid or transfer_key required"}), 400
 
         result = transfer_service.warm_transfer_cancel(call_sid, cancelled_by)
-        if not result.get('success') and 'not found' in (result.get('error', '').lower()):
-            agent_call_sid = data.get('agent_call_sid')
-            result = transfer_service.warm_transfer_cancel_universal(call_sid, cancelled_by, agent_call_sid=agent_call_sid)
 
         return jsonify(result) if result.get('success') else (jsonify(result), 400)
 

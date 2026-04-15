@@ -3379,7 +3379,9 @@ class Database(StatsMixin, CallLogMixin):
                     UPDATE {table}
                     SET transfer_status = 'pending', transfer_type = ?,
                         transfer_target = ?, transfer_target_name = ?,
-                        transferred_by = ?, transferred_at = ?
+                        transferred_by = ?, transferred_at = ?,
+                        transfer_consult_call_sid = NULL,
+                        transfer_consult_conference = NULL
                     WHERE call_sid = ?
                 """, params)
             conn.commit()
