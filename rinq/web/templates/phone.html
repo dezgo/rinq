@@ -5772,6 +5772,7 @@ function resolveInternalCaller(from) {
         {
             v: 1,
             element: '#btnTransfer',
+            showCallBarDemo: true,
             popover: {
                 title: 'Transfer',
                 description: '<strong>Blind</strong> — hand the call off immediately.<br><strong>Warm</strong> — speak to the other person first, then choose <em>Hand off</em> (complete) or <em>Go back</em> (cancel and return to the caller).',
@@ -5864,9 +5865,20 @@ function resolveInternalCaller(from) {
         var filtered = filterSteps(sinceVersion);
         if (filtered.length < 2) return;
 
-        // Track which steps need the demo panel
         var demoPanelActive = false;
+        var callBarDemoActive = false;
 
+        function showCallBarDemo() {
+            var el = document.getElementById('callInfo');
+            if (el) { el.classList.add('active'); callBarDemoActive = true; }
+        }
+        function hideCallBarDemo() {
+            var el = document.getElementById('callInfo');
+            if (el) { el.classList.remove('active'); }
+            callBarDemoActive = false;
+        }
+
+        // driverObj declared first so callbacks can reference it via closure
         var driverObj = window.driver.js.driver({
             showProgress: true,
             animate: true,
@@ -5878,21 +5890,29 @@ function resolveInternalCaller(from) {
             prevBtnText: '← Back',
             doneBtnText: 'Done',
             allowClose: true,
-            onHighlightStarted: function (el, step) {
-                var idx = filtered.indexOf(step);
+            onHighlightStarted: function () {
+                // Use getActiveIndex() — the mapped step objects differ from filtered,
+                // so filtered.indexOf(step) would always return -1.
+                var idx = driverObj.getActiveIndex();
                 var s = filtered[idx];
-                if (s && s.showDemoOnEnter === true && !demoPanelActive) {
+                if (!s) return;
+
+                // Call-bar demo: make #callInfo (and #btnTransfer) visible for that step
+                if (s.showCallBarDemo && !callBarDemoActive) showCallBarDemo();
+                else if (!s.showCallBarDemo && callBarDemoActive) hideCallBarDemo();
+
+                // Panel demo
+                if (s.showDemoOnEnter === true && !demoPanelActive) {
                     showDemoPanel();
                     demoPanelActive = true;
-                } else if (s && s.showDemoOnEnter === false && demoPanelActive) {
-                    // keep panel visible for subsequent panel steps
                 }
             },
-            onDeHighlighted: function (el, step) {
+            onDeHighlighted: function () {
                 // panel cleanup happens in onDestroyed / on close
             },
             onDestroyed: function () {
                 if (demoPanelActive) { hideDemoPanel(); demoPanelActive = false; }
+                hideCallBarDemo();
                 markComplete();
             },
             steps: filtered.map(function (s) {
