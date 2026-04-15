@@ -2896,6 +2896,17 @@ function setStatus(text, state) {
     phoneStatus.className = 'phone-status status-' + state;
 }
 
+let _phoneErrorTimer = null;
+function showPhoneError(msg) {
+    if (_phoneErrorTimer) clearTimeout(_phoneErrorTimer);
+    setStatus(msg, 'offline');
+    _phoneErrorTimer = setTimeout(() => {
+        _phoneErrorTimer = null;
+        // Only revert if we're still showing the error (not mid-call)
+        if (!currentCall) setStatus('Ready', 'ready');
+    }, 5000);
+}
+
 function dial(digit) {
     if (currentCall) {
         // During active call, send DTMF tone
@@ -4477,7 +4488,12 @@ async function completeTransfer() {
             // Clear the customer SID before endCall so call-ended reports our
             // own agent SID, not the customer's. The customer is still live.
             currentQueueCallerSid = null;
+            const callRef = currentCall;  // capture before endCall() nulls it
             endCall();
+            // Explicitly disconnect the Twilio Device connection so the SDK
+            // marks it as available. Without this, the next device.connect()
+            // throws "A Call is already active".
+            if (callRef) { try { callRef.disconnect(); } catch (e) {} }
         } else {
             if (data.caller_disconnected) {
                 stopTransferStatusPolling();
@@ -4777,14 +4793,14 @@ async function answerQueueCall(callSid) {
     if (answeringCallSid) return;  // Already answering a call
     stopQueueAlert();
     if (!device) {
-        alert('Browser phone not ready. Please wait for it to initialize.');
+        showPhoneError('Browser phone not ready — please wait');
         return;
     }
 
     // Find the caller to get the queue_id
     const caller = (window._lastCallers || []).find(c => c.call_sid === callSid);
     if (!caller) {
-        alert('Caller not found in queue');
+        showPhoneError('Caller no longer in queue');
         return;
     }
 
@@ -4841,7 +4857,7 @@ async function answerQueueCall(callSid) {
 
     } catch (error) {
         console.error('Error answering call:', error);
-        alert('Error answering call: ' + error.message);
+        showPhoneError('Could not connect — ' + error.message);
         setStatus('Ready', 'ready');
         btnCall.style.display = 'inline-block';
         btnHangup.style.display = 'none';
