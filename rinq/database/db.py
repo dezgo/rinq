@@ -3490,15 +3490,18 @@ class Database(StatsMixin, CallLogMixin):
         with self._get_conn() as conn:
             row = conn.execute("""
                 SELECT transferred_by, transfer_target_name, transfer_type,
-                       transfer_status, from_number, customer_name
+                       transfer_status, direction, from_number, to_number, customer_name
                 FROM call_log WHERE transfer_consult_call_sid = ?
                 AND transfer_status IN ('pending', 'consulting', 'callback')
             """, (consult_call_sid,)).fetchone()
             if not row:
-                # Also check queued_calls for queue-originated transfers
+                # Also check queued_calls for queue-originated transfers.
+                # Queue calls are always inbound, so caller_number IS the customer.
                 row = conn.execute("""
                     SELECT transferred_by, transfer_target_name, transfer_type,
-                           transfer_status, caller_number as from_number, customer_name
+                           transfer_status, 'inbound' as direction,
+                           caller_number as from_number, NULL as to_number,
+                           customer_name
                     FROM queued_calls WHERE transfer_consult_call_sid = ?
                     AND transfer_status IN ('pending', 'consulting', 'callback')
                 """, (consult_call_sid,)).fetchone()

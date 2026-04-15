@@ -438,7 +438,13 @@ def register(bp):
                 "is_callback": is_callback,
             }
             customer_name = transfer.get('customer_name')
-            customer_number = transfer.get('from_number')
+            # The customer's number lives in from_number for inbound calls
+            # and to_number for outbound calls. Using from_number blindly
+            # would display our own tenant number for outbound transfers.
+            if transfer.get('direction') == 'outbound':
+                customer_number = transfer.get('to_number') or transfer.get('from_number')
+            else:
+                customer_number = transfer.get('from_number')
             if customer_name or customer_number:
                 result['customer'] = customer_name or customer_number
             return jsonify(result)
