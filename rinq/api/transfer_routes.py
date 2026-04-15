@@ -474,25 +474,44 @@ def register(bp):
             transfer_state = db.get_transfer_state(original_call)
         transfer_status_db = transfer_state.get('transfer_status') if transfer_state else None
 
-        # Success path: warm_transfer_complete() redirected the consult_call
-        # into the main conference (via target-join), marked the DB complete,
-        # and eventually the customer↔target conversation ended. That's when
-        # we see 'completed' with duration > 0 AND transfer_status already
-        # 'completed'. Nothing to do.
+        # Consult call ended with a real conversation (completed + duration).
+        # For blind/three-way transfers this is always success — target
+        # answered and the call ran to completion. For warm transfers it's
+        # ambiguous: it could be the natural end of the whole call after
+        # Complete Transfer was clicked, or it could be the agent hanging
+        # up mid-consult without completing. warm_transfer_complete() sets
+        # transfer_status='completed' in the first case, so we can
+        # discriminate on that.
         call_duration = int(request.form.get('CallDuration', '0') or '0')
-        if (call_status == 'completed' and call_duration > 0
-                and transfer_status_db == 'completed'):
-            logger.info(f"Transfer consult call ended normally for {original_call} (duration={call_duration}s)")
-            return '', 200
+        transfer_type_db = transfer_state.get('transfer_type') if transfer_state else None
+        if call_status == 'completed' and call_duration > 0:
+            is_warm_mid_consult = (
+                transfer_type_db == 'warm'
+                and transfer_status_db != 'completed'
+            )
+            if not is_warm_mid_consult:
+                # Blind, three-way, or warm that was properly completed.
+                logger.info(
+                    f"Transfer consult call ended normally for {original_call} "
+                    f"(duration={call_duration}s, type={transfer_type_db})"
+                )
+                # warm_transfer_complete() already marked it — don't double-set.
+                if transfer_status_db != 'completed':
+                    if source == 'call_log':
+                        db.complete_transfer_log(original_call)
+                    else:
+                        db.complete_transfer(original_call)
+                return '', 200
+            # else: fall through to salvage below
 
         if call_status in ('completed', 'busy', 'no-answer', 'failed', 'canceled'):
-            # 'completed' with duration but transfer_status != 'completed' means
-            # someone hung up mid-consult without clicking Complete Transfer.
-            # The customer is now orphaned on hold in the main conference —
-            # salvage by running the same rejoin flow used for failed consults.
+            # Warm transfer that never saw a Complete Transfer click, or a
+            # failed consult (target didn't answer / errored). Either way,
+            # the customer is orphaned on hold in the main conference —
+            # salvage by running the rejoin flow.
             if call_status == 'completed' and call_duration > 0:
                 logger.warning(
-                    f"Transfer consult ended mid-consult for {original_call} "
+                    f"Warm transfer consult ended mid-consult for {original_call} "
                     f"(duration={call_duration}s, transfer_status={transfer_status_db}) "
                     "— customer was not explicitly transferred, attempting rejoin"
                 )
