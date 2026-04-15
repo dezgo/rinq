@@ -334,6 +334,23 @@ def _get_sip_domain() -> str | None:
     return _get_sip_domain_impl()
 
 
+def _is_queue_paused(queue: dict) -> bool:
+    """Return True if the queue is currently within its scheduled pause window.
+
+    paused_from is required; paused_until is optional (None = indefinite).
+    """
+    paused_from = queue.get('paused_from')
+    if not paused_from:
+        return False
+    now = datetime.now(timezone.utc).isoformat()
+    if now < paused_from:
+        return False  # Not started yet
+    paused_until = queue.get('paused_until')
+    if paused_until and now > paused_until:
+        return False  # Already expired
+    return True
+
+
 def _ring_agents_for_queue(queue_id: int, queue_name: str, customer_caller_id: str, our_caller_id: str, customer_call_sid: str, base_url: str = None):
     """Initiate outbound calls to all agents when a caller enters the queue.
 
@@ -813,12 +830,15 @@ def voice_incoming():
             members = db.get_queue_members(queue['id'])
             active_members = [m for m in members if m.get('is_active')]
             available_members = []
-            for m in active_members:
-                settings = db.get_user_ring_settings(m['user_email'])
-                if settings.get('dnd'):
-                    continue
-                if settings.get('ring_browser', True) or settings.get('ring_sip', True):
-                    available_members.append(m)
+            if _is_queue_paused(queue):
+                logger.info(f"Queue '{queue.get('name')}' is paused — treating as no available agents")
+            else:
+                for m in active_members:
+                    settings = db.get_user_ring_settings(m['user_email'])
+                    if settings.get('dnd'):
+                        continue
+                    if settings.get('ring_browser', True) or settings.get('ring_sip', True):
+                        available_members.append(m)
 
             if available_members:
                 # Agents are on duty - put caller in queue for them to pick up
@@ -1541,12 +1561,15 @@ def queue_no_answer(queue_id):
         members = db.get_queue_members(queue_id)
         active_members = [m for m in members if m.get('is_active')]
         available_members = []
-        for m in active_members:
-            settings = db.get_user_ring_settings(m['user_email'])
-            if settings.get('dnd'):
-                continue
-            if settings.get('ring_browser', True) or settings.get('ring_sip', True):
-                available_members.append(m)
+        if _is_queue_paused(queue):
+            logger.info(f"Queue '{queue.get('name')}' is paused — treating as no available agents")
+        else:
+            for m in active_members:
+                settings = db.get_user_ring_settings(m['user_email'])
+                if settings.get('dnd'):
+                    continue
+                if settings.get('ring_browser', True) or settings.get('ring_sip', True):
+                    available_members.append(m)
 
         if available_members:
             # Agents are on duty but busy - put caller in queue

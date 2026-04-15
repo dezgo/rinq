@@ -15,7 +15,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 
 logger = logging.getLogger(__name__)
 
-from rinq.services.auth import login_required, admin_required, get_current_user
+from rinq.services.auth import login_required, admin_required, manager_required, get_current_user
 from rinq.services.twilio_service import get_twilio_service
 from rinq.database.db import get_db
 from rinq.config import config
@@ -1199,15 +1199,33 @@ def admin_schedules():
 
 
 @web_bp.route('/admin/queues')
-@admin_required
+@manager_required
 def admin_queues():
     """Queues management page."""
+    import pytz
+    from datetime import datetime as _dt
+    from rinq.web.admin_queue_routes import _utc_to_local
+
     user = get_current_user()
     db = get_db()
 
     queues = db.get_queues()
+    _tz = pytz.timezone('Australia/Sydney')
+    now_utc = _dt.now(pytz.utc).isoformat()
     for queue in queues:
         queue['members'] = db.get_queue_members(queue['id'])
+        queue['paused_from_local'] = _utc_to_local(queue.get('paused_from'))
+        queue['paused_until_local'] = _utc_to_local(queue.get('paused_until'))
+        pf, pu = queue.get('paused_from'), queue.get('paused_until')
+        if pf:
+            if now_utc < pf:
+                queue['pause_status'] = 'scheduled'
+            elif pu and now_utc > pu:
+                queue['pause_status'] = 'expired'
+            else:
+                queue['pause_status'] = 'active'  # active or indefinite
+        else:
+            queue['pause_status'] = None
 
     # Get all staff who have logged into Rinq (have extensions)
     all_staff = db.get_all_staff_extensions()
@@ -1645,6 +1663,50 @@ def admin_remove():
         flash('Failed to remove admin.', 'danger')
 
     return redirect(url_for('web.admin'))
+
+
+@web_bp.route('/admin/users')
+@admin_required
+def admin_users():
+    """User role management page."""
+    from rinq.database.master import get_master_db
+    from rinq.tenant.context import get_current_tenant
+    user = get_current_user()
+    tenant = get_current_tenant()
+    master_db = get_master_db()
+    users = master_db.get_tenant_users(tenant['id'])
+    return render_template('admin_users.html', users=users, current_user=user)
+
+
+@web_bp.route('/admin/users/set-role', methods=['POST'])
+@admin_required
+def admin_set_user_role():
+    """Change a user's role within this tenant."""
+    from rinq.database.master import get_master_db
+    from rinq.tenant.context import get_current_tenant
+    user = get_current_user()
+    tenant = get_current_tenant()
+    target_user_id = request.form.get('user_id', '').strip()
+    role = request.form.get('role', '').strip()
+
+    if not target_user_id or role not in ('admin', 'manager', 'user'):
+        flash('Invalid request.', 'danger')
+        return redirect(url_for('web.admin_users'))
+
+    target_user_id = int(target_user_id)
+    master_db = get_master_db()
+
+    # Prevent self-demotion
+    if str(target_user_id) == str(user.id):
+        flash("You can't change your own role.", 'danger')
+        return redirect(url_for('web.admin_users'))
+
+    if master_db.set_user_role_in_tenant(target_user_id, tenant['id'], role):
+        flash(f'Role updated to {role}.', 'success')
+    else:
+        flash('User not found in this tenant.', 'danger')
+
+    return redirect(url_for('web.admin_users'))
 
 
 @web_bp.route('/recordings')

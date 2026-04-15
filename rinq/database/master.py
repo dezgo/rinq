@@ -224,6 +224,18 @@ class MasterDatabase:
         finally:
             conn.close()
 
+    def set_user_role_in_tenant(self, user_id: int, tenant_id: str, role: str) -> bool:
+        conn = self._get_conn()
+        try:
+            cursor = conn.execute("""
+                UPDATE tenant_users SET role = ?
+                WHERE user_id = ? AND tenant_id = ?
+            """, (role, user_id, tenant_id))
+            conn.commit()
+            return cursor.rowcount > 0
+        finally:
+            conn.close()
+
     def get_tenant_users(self, tenant_id: str):
         conn = self._get_conn()
         try:

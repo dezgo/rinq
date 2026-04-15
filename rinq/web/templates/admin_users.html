@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <div>
+        <h2 style="margin: 0;">Users</h2>
+        <p class="text-muted" style="margin: 5px 0 0 0;">Manage roles for users in this tenant.</p>
+    </div>
+    <a href="{{ url_for('web.admin') }}" class="btn btn-secondary">← Back to Admin</a>
+</div>
+
+<div class="card">
+    <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+            <tr style="border-bottom: 2px solid #e9ecef;">
+                <th style="text-align: left; padding: 10px 12px; font-size: 0.85em; color: #666; font-weight: 600;">User</th>
+                <th style="text-align: left; padding: 10px 12px; font-size: 0.85em; color: #666; font-weight: 600;">Current Role</th>
+                <th style="padding: 10px 12px;"></th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for u in users %}
+        <tr style="border-bottom: 1px solid #f0f0f0;">
+            <td style="padding: 12px;">
+                <strong>{{ u.name or u.email }}</strong>
+                {% if u.name %}<br><small class="text-muted">{{ u.email }}</small>{% endif %}
+            </td>
+            <td style="padding: 12px;">
+                {% if u.role == 'admin' %}
+                <span class="badge badge-danger">Admin</span>
+                {% elif u.role == 'manager' %}
+                <span class="badge badge-info">Manager</span>
+                {% else %}
+                <span class="badge">User</span>
+                {% endif %}
+            </td>
+            <td style="padding: 12px; text-align: right;">
+                {% if u.id != current_user.id %}
+                <form method="post" action="{{ url_for('web.admin_set_user_role') }}" style="display: inline-flex; gap: 6px; align-items: center;">
+                    <input type="hidden" name="user_id" value="{{ u.id }}">
+                    <select name="role" style="padding: 5px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.85em;">
+                        <option value="user" {% if u.role == 'user' or not u.role %}selected{% endif %}>User</option>
+                        <option value="manager" {% if u.role == 'manager' %}selected{% endif %}>Manager</option>
+                        <option value="admin" {% if u.role == 'admin' %}selected{% endif %}>Admin</option>
+                    </select>
+                    <button type="submit" class="btn btn-small">Save</button>
+                </form>
+                {% else %}
+                <span class="text-muted" style="font-size: 0.85em;">You</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+
+    {% if not users %}
+    <p class="text-muted" style="padding: 15px;">No users found for this tenant.</p>
+    {% endif %}
+
+    <div style="padding: 12px 16px; background: #f8f9fa; border-top: 1px solid #e9ecef; border-radius: 0 0 8px 8px; margin-top: 8px;">
+        <p style="margin: 0; font-size: 0.85em; color: #666;">
+            <strong>Admin</strong> — full access to all settings.<br>
+            <strong>Manager</strong> — can manage queue pauses and operational controls.<br>
+            <strong>User</strong> — standard access only.
+        </p>
+    </div>
+</div>
+{% endblock %}

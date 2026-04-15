@@ -26,6 +26,7 @@ class User:
         self._role = role
         self.role = role
         self.is_admin = (role == 'admin')
+        self.is_manager = (role in ('admin', 'manager'))
         self.is_authenticated = True
 
     def __repr__(self):
@@ -91,6 +92,25 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated
 
+
+
+def manager_required(f):
+    """Require authenticated manager or admin user."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get('user_id'):
+            if request.headers.get('X-API-Key'):
+                return jsonify({'error': 'Authentication required'}), 401
+            return redirect(url_for('standalone_auth.login'))
+
+        user = get_current_user()
+        if not user or not user.is_manager:
+            if request.headers.get('X-API-Key'):
+                return jsonify({'error': 'Manager access required'}), 403
+            return "Access denied", 403
+
+        return f(*args, **kwargs)
+    return decorated
 
 
 def api_or_session_auth(view_func):

@@ -1721,6 +1721,26 @@ class Database(StatsMixin, CallLogMixin):
                   now, updated_by, queue_id))
             conn.commit()
 
+    def schedule_queue_pause(self, queue_id: int, paused_from: str, paused_until: str, updated_by: str) -> None:
+        """Set a scheduled pause window on a queue (UTC ISO strings)."""
+        now = datetime.now(timezone.utc).isoformat()
+        with self._get_conn() as conn:
+            conn.execute("""
+                UPDATE queues SET paused_from = ?, paused_until = ?, updated_at = ?, updated_by = ?
+                WHERE id = ?
+            """, (paused_from, paused_until, now, updated_by, queue_id))
+            conn.commit()
+
+    def clear_queue_pause(self, queue_id: int, updated_by: str) -> None:
+        """Remove any scheduled pause window from a queue."""
+        now = datetime.now(timezone.utc).isoformat()
+        with self._get_conn() as conn:
+            conn.execute("""
+                UPDATE queues SET paused_from = NULL, paused_until = NULL, updated_at = ?, updated_by = ?
+                WHERE id = ?
+            """, (now, updated_by, queue_id))
+            conn.commit()
+
     def delete_queue(self, queue_id: int) -> None:
         """Delete a queue and its members."""
         with self._get_conn() as conn:

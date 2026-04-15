@@ -55,11 +55,12 @@ import rinq.services.auth as auth_module
 if auth_mode == 'standalone':
     from rinq.auth.oauth import auth_bp as standalone_auth_bp
     from rinq.auth.decorators import (
-        login_required, admin_required, get_current_user,
+        login_required, admin_required, manager_required, get_current_user,
     )
     app.register_blueprint(standalone_auth_bp)
     auth_module.login_required = login_required
     auth_module.admin_required = admin_required
+    auth_module.manager_required = manager_required
     auth_module.get_current_user = get_current_user
     logger.info("Auth mode: standalone (direct Google OAuth)")
 else:
@@ -68,6 +69,7 @@ else:
     auth_module.auth = auth
     auth_module.login_required = auth.login_required
     auth_module.admin_required = auth.admin_required
+    auth_module.manager_required = getattr(auth, 'manager_required', auth.admin_required)
     auth_module.get_current_user = auth.get_current_user
     logger.info("Auth mode: gateway (Chester/GatewayAuth)")
 

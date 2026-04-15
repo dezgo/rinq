@@ -11,6 +11,7 @@ with routes that import from here.
 auth = None
 login_required = None
 admin_required = None
+manager_required = None
 get_current_user = None
 
 

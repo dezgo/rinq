@@ -4,10 +4,31 @@ Extracted from web/routes.py. Registered via register(web_bp).
 """
 
 import logging
+import pytz
+from datetime import datetime
 from flask import request, redirect, url_for, flash, jsonify, render_template
-from rinq.services.auth import admin_required, get_current_user
+from rinq.services.auth import admin_required, manager_required, get_current_user
 from rinq.database.db import get_db
 from rinq.config import config
+
+_TZ = pytz.timezone('Australia/Sydney')
+
+
+def _parse_local_dt(value: str):
+    """Parse a datetime-local input (naive, treated as Australia/Sydney) to UTC ISO string."""
+    dt = datetime.strptime(value, '%Y-%m-%dT%H:%M')
+    dt_local = _TZ.localize(dt)
+    return dt_local.astimezone(pytz.utc).isoformat()
+
+
+def _utc_to_local(iso: str) -> str:
+    """Convert a UTC ISO string to Australia/Sydney datetime-local input format."""
+    if not iso:
+        return ''
+    dt = datetime.fromisoformat(iso)
+    if dt.tzinfo is None:
+        dt = pytz.utc.localize(dt)
+    return dt.astimezone(_TZ).strftime('%Y-%m-%dT%H:%M')
 
 logger = logging.getLogger(__name__)
 
@@ -194,6 +215,63 @@ def register(bp):
         return redirect(url_for('web.admin_queues') + f'#queue_{queue_id}')
     
     
+    @bp.route('/admin/queue/<int:queue_id>/schedule-pause', methods=['POST'])
+    @manager_required
+    def schedule_queue_pause(queue_id):
+        """Schedule a pause window for a queue.
+
+        Both fields are optional:
+        - paused_from: defaults to now (immediate pause)
+        - paused_until: if omitted, queue is paused indefinitely
+        """
+        paused_from_str = request.form.get('paused_from', '').strip()
+        paused_until_str = request.form.get('paused_until', '').strip()
+
+        try:
+            if paused_from_str:
+                paused_from_utc = _parse_local_dt(paused_from_str)
+            else:
+                paused_from_utc = datetime.now(pytz.utc).isoformat()
+
+            paused_until_utc = _parse_local_dt(paused_until_str) if paused_until_str else None
+        except ValueError:
+            flash("Invalid date/time format.", "error")
+            return redirect(url_for('web.admin_queues') + f'#queue_{queue_id}')
+
+        if paused_until_utc and paused_from_utc >= paused_until_utc:
+            flash("'Resume at' must be after 'Pause from'.", "error")
+            return redirect(url_for('web.admin_queues') + f'#queue_{queue_id}')
+
+        user = get_current_user()
+        db = get_db()
+        db.schedule_queue_pause(queue_id, paused_from_utc, paused_until_utc, _audit_tag(user))
+        db.log_activity(
+            action="schedule_queue_pause",
+            target=str(queue_id),
+            details=f"Pause {paused_from_utc} → {paused_until_utc or 'indefinite'}",
+            performed_by=_audit_tag(user)
+        )
+        flash("Pause scheduled." if paused_from_str else "Queue paused.", "success")
+        return redirect(url_for('web.admin_queues') + f'#queue_{queue_id}')
+
+
+    @bp.route('/admin/queue/<int:queue_id>/clear-pause', methods=['POST'])
+    @manager_required
+    def clear_queue_pause(queue_id):
+        """Remove the scheduled pause window from a queue."""
+        user = get_current_user()
+        db = get_db()
+        db.clear_queue_pause(queue_id, _audit_tag(user))
+        db.log_activity(
+            action="clear_queue_pause",
+            target=str(queue_id),
+            details="Pause cleared",
+            performed_by=_audit_tag(user)
+        )
+        flash("Pause cleared.", "success")
+        return redirect(url_for('web.admin_queues') + f'#queue_{queue_id}')
+
+
     @bp.route('/admin/queue/<int:queue_id>/delete', methods=['POST'])
     @admin_required
     def delete_queue(queue_id):
