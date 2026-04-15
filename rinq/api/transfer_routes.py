@@ -581,7 +581,7 @@ def _handle_failed_blind_transfer(original_call, transfer_state, db):
 
 
 def _unhold_and_rejoin_agent(conference_name, consult_conference):
-    """Take caller off hold and redirect agent back to original conference."""
+    """Take caller off hold and (if separate) redirect agent back to original conference."""
     try:
         twilio_service = get_twilio_service()
         conferences = twilio_list(twilio_service.client.conferences,
@@ -595,7 +595,10 @@ def _unhold_and_rejoin_agent(conference_name, consult_conference):
     except Exception as e:
         logger.warning(f"Could not take caller off hold: {e}")
 
-    if consult_conference:
+    # Only redirect agents back if there is a separate consult conference.
+    # In the single-conference warm transfer model consult_conference == conference_name,
+    # so skip the redirect (agents are already in the right place).
+    if consult_conference and consult_conference != conference_name:
         try:
             twilio_service = get_twilio_service()
             consult_confs = twilio_list(twilio_service.client.conferences,

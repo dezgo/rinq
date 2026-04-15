@@ -5317,8 +5317,8 @@ async function pollCallState() {
             startCallStatePolling();  // Revert to normal 3s interval
         }
         if (isConsulting && transferType === 'warm'
-            && state.transfer && state.transfer.consult_participants
-            && state.transfer.consult_participants.length >= 2
+            && state.transfer
+            && state.participants && state.participants.some(p => p.isTransferTarget)
             && !consultTargetAnswered) {
             consultTargetAnswered = true;
             stopRingback();
@@ -5382,7 +5382,11 @@ function renderCallStatePanel(state) {
     let extraCard = null;
 
     if (transfer && transfer.type === 'warm') {
-        if (transfer.status === 'pending') {
+        // If the transfer target has joined the conference, the server flags
+        // their participant entry with isTransferTarget=true. If they're not
+        // in participants yet (still ringing), show a synthetic ringing card.
+        const targetInParticipants = allParticipants.some(p => p.isTransferTarget);
+        if (!targetInParticipants) {
             extraCard = {
                 call_sid: null,
                 name: transfer.target_name || 'Ringing…',
@@ -5390,28 +5394,6 @@ function renderCallStatePanel(state) {
                 ringing: true,
                 isTransferTarget: true,
             };
-        } else if (transfer.status === 'consulting') {
-            const mainSids = new Set(allParticipants.map(p => p.call_sid).filter(Boolean));
-            const targetEntry = (transfer.consult_participants || []).find(
-                cp => cp.call_sid && !mainSids.has(cp.call_sid)
-            );
-            if (targetEntry) {
-                extraCard = {
-                    call_sid: targetEntry.call_sid,
-                    name: targetEntry.name || transfer.target_name || 'Consulting…',
-                    role: 'agent',
-                    ringing: false,
-                    isTransferTarget: true,
-                };
-            } else {
-                extraCard = {
-                    call_sid: null,
-                    name: transfer.target_name || 'Ringing…',
-                    role: 'agent',
-                    ringing: true,
-                    isTransferTarget: true,
-                };
-            }
         }
     }
 

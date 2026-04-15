@@ -13,7 +13,6 @@ Architecture:
 """
 
 import logging
-import secrets
 from datetime import datetime
 
 from twilio.base.exceptions import TwilioRestException
@@ -580,49 +579,40 @@ class TransferService:
                     'consult_conference': conference_name,
                 }
 
-            # Warm transfer: put caller on hold, create consult conference,
-            # redirect agent to consult conference.
+            # Warm transfer (single-conference model): put caller on hold, then
+            # call Agent 2 into the SAME main conference. Agent 1 stays put —
+            # no redirect to a separate consult conference.
             hold_url = f"{self.base_url}/api/voice/hold-music"
             self.twilio.client.conferences(conference.sid).participants(call_sid).update(
                 hold=True,
                 hold_url=hold_url
             )
 
-            # IMPORTANT: Set agent's endConferenceOnExit to false BEFORE
-            # redirecting them out, otherwise the conference (and caller) dies
-            # when the agent leaves to join the consultation conference.
+            # Set endConferenceOnExit=false for all existing participants so
+            # anyone can leave without killing the conference for others.
             try:
-                self.twilio.client.conferences(conference.sid).participants(agent_call_sid).update(
-                    end_conference_on_exit=False
-                )
+                for p in twilio_list(self.twilio.client.conferences(conference.sid).participants):
+                    self.twilio.client.conferences(conference.sid).participants(p.call_sid).update(
+                        end_conference_on_exit=False
+                    )
             except Exception as e:
-                logger.warning(f"Could not update agent endConferenceOnExit: {e}")
+                logger.warning(f"Could not update endConferenceOnExit for warm transfer: {e}")
 
-            consult_conference = f"consult_{secrets.token_hex(8)}"
-
-            consult_twiml_url = (
-                f"{self.base_url}/api/voice/transfer/consult-join"
-                f"?conference={consult_conference}&original_call={call_sid}"
+            # Call Agent 2 directly into the existing conference (same as 3-way)
+            target_join_url = (
+                f"{self.base_url}/api/voice/conference/join"
+                f"?room={conference_name}&role=agent_no_exit"
             )
-
             consult_call = self.twilio.client.calls.create(
                 to=target_to,
                 from_=consult_from,
-                url=consult_twiml_url,
+                url=target_join_url,
                 status_callback=f"{self.base_url}/api/voice/transfer/consult-status?original_call={call_sid}",
-                status_callback_event=['initiated', 'ringing', 'answered', 'completed', 'busy', 'no-answer', 'failed', 'canceled']
+                status_callback_event=['answered', 'completed', 'busy', 'no-answer', 'failed', 'canceled']
             )
 
-            # Store consult SID immediately — before the redirect, so the
-            # transfer context lookup works when agent 2's browser checks it
-            self.db.update_transfer_consultation(call_sid, consult_call.sid, consult_conference)
-
-            # Move the agent to the consultation conference
-            agent_consult_url = (
-                f"{self.base_url}/api/voice/transfer/agent-consult"
-                f"?conference={consult_conference}&original_call={call_sid}"
-            )
-            self.twilio.client.calls(agent_call_sid).update(url=agent_consult_url)
+            # consult_conference IS the main conference in the single-conf model
+            self.db.update_transfer_consultation(call_sid, consult_call.sid, conference_name)
 
             self.db.log_activity(
                 action="call_transfer_warm_start",
@@ -635,7 +625,7 @@ class TransferService:
                 'success': True,
                 'transfer_type': 'warm',
                 'consult_call_sid': consult_call.sid,
-                'consult_conference': consult_conference,
+                'consult_conference': conference_name,
             }
 
         except TwilioRestException as e:
@@ -690,9 +680,8 @@ class TransferService:
                 logger.info(f"3-way call completed: {call_sid}")
                 return {'success': True, 'agent_should_hangup': True}
 
-            consult_conference = transfer_state['transfer_consult_conference']
-
-            # Find the original conference
+            # Single-conference model: Agent 2 is already in the main conference.
+            # Just unhold the customer and tell Agent 1 to hang up.
             conferences = twilio_list(self.twilio.client.conferences,
                 friendly_name=original_conference,
                 status='in-progress',
@@ -730,30 +719,6 @@ class TransferService:
                 hold=False
             )
 
-            # Clean up Agent 2's stale consult-conference participant entry
-            # BEFORE redirecting them, so the call panel doesn't show a ghost.
-            self.db.remove_participant(consult_call_sid)
-
-            # Redirect Agent 2 from the consult conference into the main conference.
-            target_join_url = (
-                f"{self.base_url}/api/voice/transfer/target-join"
-                f"?conference={original_conference}"
-            )
-            self.twilio.client.calls(consult_call_sid).update(url=target_join_url)
-
-            # Store the conference mapping for Agent 2's call SID so they can
-            # initiate further transfers without falling into the universal path.
-            self.db.set_call_conference(consult_call_sid, original_conference)
-
-            # End the consultation conference (Agent 1 drops when it ends)
-            consult_conferences = twilio_list(self.twilio.client.conferences,
-                friendly_name=consult_conference,
-                status='in-progress',
-                limit=1
-            )
-            if consult_conferences:
-                self.twilio.client.conferences(consult_conferences[0].sid).update(status='completed')
-
             self.db.complete_transfer(call_sid)
 
             self.db.log_activity(
@@ -763,7 +728,7 @@ class TransferService:
                 performed_by=transferred_by
             )
             logger.info(f"Warm transfer completed: {call_sid} -> {transfer_state['transfer_target']}")
-            return {'success': True}
+            return {'success': True, 'agent_should_hangup': True}
 
         except TwilioRestException as e:
             logger.error(f"Twilio error completing warm transfer: {e}")
@@ -822,19 +787,11 @@ class TransferService:
             consult_conference = transfer_state.get('transfer_consult_conference')
             is_three_way = transfer_state.get('transfer_type') == 'three_way'
 
-            # End or remove the transfer target:
-            # - Pending (still ringing): cancel the outbound call directly — they haven't
-            #   joined any conference yet so there's no participant to kick.
-            # - Consulting (answered): kick from conference cleanly without triggering
-            #   after-dial TwiML callbacks that could cascade and end the main conference.
-            current_status = transfer_state['transfer_status']
+            # Remove Agent 2: try conference participant.delete() first (if they've
+            # already joined), fall back to cancelling the outbound call (if still ringing).
             if consult_call_sid:
-                if current_status == 'pending':
-                    try:
-                        self.twilio.client.calls(consult_call_sid).update(status='completed')
-                    except Exception as e:
-                        logger.warning(f"Could not cancel ringing consult call: {e}")
-                elif current_status == 'consulting' and consult_conference:
+                kicked = False
+                if consult_conference:
                     try:
                         consult_confs = twilio_list(self.twilio.client.conferences,
                             friendly_name=consult_conference, status='in-progress', limit=1)
@@ -842,40 +799,23 @@ class TransferService:
                             self.twilio.client.conferences(consult_confs[0].sid).participants(
                                 consult_call_sid
                             ).delete()
-                        self.db.remove_participant(consult_call_sid)
+                            kicked = True
+                            self.db.remove_participant(consult_call_sid)
+                    except TwilioRestException as e:
+                        if e.status != 404:
+                            logger.warning(f"Could not kick consult participant: {e}")
                     except Exception as e:
-                        logger.warning(f"Could not remove consult participant: {e}")
+                        logger.warning(f"Could not kick consult participant: {e}")
+                if not kicked:
+                    # Not in conference yet (still ringing) — cancel outbound call
+                    try:
+                        self.twilio.client.calls(consult_call_sid).update(status='completed')
+                    except Exception as e:
+                        logger.warning(f"Could not cancel ringing consult call: {e}")
 
             if not is_three_way:
-                # Warm transfer: redirect Agent 1 back to the main conference
-                # BEFORE ending the consult conference (otherwise their call drops).
-                if consult_conference and original_conference and consult_conference != original_conference:
-                    try:
-                        consult_conferences = twilio_list(self.twilio.client.conferences,
-                            friendly_name=consult_conference,
-                            status='in-progress',
-                            limit=1
-                        )
-                        if consult_conferences:
-                            consult_participants = twilio_list(self.twilio.client.conferences(
-                                consult_conferences[0].sid
-                            ).participants)
-                            for p in consult_participants:
-                                # Skip agent 2's call — only redirect agent 1
-                                if consult_call_sid and p.call_sid == consult_call_sid:
-                                    continue
-                                rejoin_url = (
-                                    f"{self.base_url}/api/voice/conference/join"
-                                    f"?room={original_conference}&role=agent"
-                                )
-                                self.twilio.client.calls(p.call_sid).update(
-                                    url=rejoin_url, method='POST'
-                                )
-                                logger.info(f"Redirected agent {p.call_sid} back to {original_conference}")
-                    except Exception as e:
-                        logger.warning(f"Could not redirect agent back: {e}")
-
-                # Take caller off hold
+                # Single-conference warm: Agent 1 never left the main conference,
+                # so no redirect needed. Just unhold the customer.
                 conferences = twilio_list(self.twilio.client.conferences,
                     friendly_name=original_conference,
                     status='in-progress',

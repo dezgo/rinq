@@ -63,68 +63,34 @@ def get_call_state(agent_call_sid: str, caller_email: str = None) -> dict:
         if p['role'] == 'customer':
             result['customer_call_sid'] = p['call_sid']
 
-    # Check for active transfers — look up by customer SID first, then by
-    # conference name (Agent 2 in consult conference won't have a customer)
+    # Check for active transfers by customer SID
     customer_sid = result.get('customer_call_sid')
     transfer_state = None
-    main_conference = None
 
     if customer_sid:
         transfer_state = db.get_transfer_state(customer_sid)
         if not transfer_state:
             transfer_state = db.get_transfer_state_log(customer_sid)
 
-    # Agent 2 scenario: we're in the consult conference, no customer visible.
-    # Check if our conference IS someone's consult conference.
-    if not transfer_state and conf_name:
-        transfer_state = _find_transfer_by_consult_conf(db, conf_name)
-
     if transfer_state and transfer_state.get('transfer_status') in ('pending', 'consulting'):
-        main_conference = transfer_state.get('conference_name')
-        consult_conf = transfer_state.get('transfer_consult_conference')
+        consult_call_sid = transfer_state.get('transfer_consult_call_sid')
 
         result['transfer'] = {
             'status': transfer_state['transfer_status'],
             'type': transfer_state.get('transfer_type'),
             'target_name': transfer_state.get('transfer_target_name'),
-            'consult_participants': [],
+            'consult_participants': [],  # all participants are in the main conference now
         }
 
-        # Get consult conference participants
-        if consult_conf and consult_conf != conf_name:
-            consult_parts = db.get_participants(consult_conf)
-            for p in consult_parts:
-                result['transfer']['consult_participants'].append({
-                    'call_sid': p['call_sid'],
-                    'name': p['name'] or 'Unknown',
-                    'role': p['role'],
-                    'hold': False,
-                    'muted': False,
-                })
+        # Flag the transfer target in the main participants list so the UI
+        # can render their card with the cancel-transfer action.
+        if consult_call_sid:
+            for p in result['participants']:
+                if p['call_sid'] == consult_call_sid:
+                    p['isTransferTarget'] = True
 
-        # If we're Agent 2 (in consult conf), include main conference
-        # participants so the customer appears in the call panel
-        if main_conference and main_conference != conf_name:
-            main_parts = db.get_participants(main_conference)
-            for p in main_parts:
-                if not any(ep['call_sid'] == p['call_sid'] for ep in result['participants']):
-                    is_on_hold = (transfer_state['transfer_status'] == 'consulting'
-                                  and transfer_state.get('transfer_type') == 'warm'
-                                  and p['role'] == 'customer')
-                    result['participants'].append({
-                        'call_sid': p['call_sid'],
-                        'name': p['name'] or 'Unknown',
-                        'role': p['role'],
-                        'hold': is_on_hold,
-                        'muted': False,
-                    })
-                    if p['role'] == 'customer':
-                        result['customer_call_sid'] = p['call_sid']
-
-        # Mark customer as on hold in main participant list during warm consult
-        # (3-way calls keep the customer in the conference, not on hold)
-        if (transfer_state['transfer_status'] == 'consulting'
-                and transfer_state.get('transfer_type') == 'warm'):
+        # Mark customer as on hold during a warm transfer
+        if transfer_state.get('transfer_type') == 'warm':
             for p in result['participants']:
                 if p['role'] == 'customer':
                     p['hold'] = True
@@ -138,24 +104,3 @@ def get_call_state(agent_call_sid: str, caller_email: str = None) -> dict:
     return result
 
 
-def _find_transfer_by_consult_conf(db, conf_name: str) -> dict | None:
-    """Find a transfer where conf_name is the consult conference.
-
-    This handles Agent 2's perspective — they're in the consult conference
-    and need to find the transfer to see the main conference participants.
-    """
-    # Check queued_calls first, then call_log
-    with db._get_conn() as conn:
-        for table in ('queued_calls', 'call_log'):
-            row = conn.execute(f"""
-                SELECT transfer_status, transfer_type, transfer_target,
-                       transfer_target_name, transfer_consult_call_sid,
-                       transfer_consult_conference, transferred_by, transferred_at,
-                       conference_name
-                FROM {table}
-                WHERE transfer_consult_conference = ?
-                AND transfer_status IN ('pending', 'consulting')
-            """, (conf_name,)).fetchone()
-            if row:
-                return dict(row)
-    return None
