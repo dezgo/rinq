@@ -3367,8 +3367,94 @@ document.addEventListener('paste', (e) => {
     }
 });
 
+// =============================================================================
+// Multi-tab guard
+// =============================================================================
+// Twilio Device only allows one active registration per identity. Two tabs
+// open at once race for the same identity, and signals from one tab can
+// affect calls in the other (manifests as calls dropping a few seconds after
+// connecting). BroadcastChannel lets sibling tabs detect each other so only
+// one ever holds an active Device.
+const tabChannel = ('BroadcastChannel' in window) ? new BroadcastChannel('rinq-phone') : null;
+let isActiveTab = false;
+
+function showOtherTabBanner() {
+    let banner = document.getElementById('multi-tab-banner');
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'multi-tab-banner';
+        banner.style.cssText = 'background:#fff7e6;border:1px solid #f0c674;color:#8a5a00;padding:12px 16px;margin:12px;border-radius:8px;font-size:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;';
+        banner.innerHTML = '<span>Rinq is already open in another tab. Calls only work in one tab at a time.</span><button type="button" id="multi-tab-takeover" style="background:#8a5a00;color:#fff;border:none;border-radius:6px;padding:8px 14px;cursor:pointer;font-size:14px;">Use this tab</button>';
+        const container = document.querySelector('.phone-container') || document.body;
+        container.insertBefore(banner, container.firstChild);
+        document.getElementById('multi-tab-takeover').addEventListener('click', takeOverFromOtherTab);
+    }
+    setStatus('Open in another tab', 'offline');
+    if (typeof btnCall !== 'undefined' && btnCall) btnCall.disabled = true;
+}
+
+function hideOtherTabBanner() {
+    const banner = document.getElementById('multi-tab-banner');
+    if (banner) banner.remove();
+}
+
+async function takeOverFromOtherTab() {
+    if (tabChannel) tabChannel.postMessage({type: 'takeover'});
+    // Brief pause so the other tab can release its Device before we register
+    await new Promise(r => setTimeout(r, 400));
+    hideOtherTabBanner();
+    isActiveTab = true;
+    initPhone();
+}
+
+function checkOtherTabsAndInit() {
+    if (!tabChannel) {
+        // No BroadcastChannel support — proceed without guard
+        isActiveTab = true;
+        initPhone();
+        return;
+    }
+    let gotPong = false;
+    const pongHandler = (ev) => {
+        if (ev.data && ev.data.type === 'pong') gotPong = true;
+    };
+    tabChannel.addEventListener('message', pongHandler);
+    tabChannel.postMessage({type: 'ping'});
+    setTimeout(() => {
+        tabChannel.removeEventListener('message', pongHandler);
+        if (gotPong) {
+            console.warn('Rinq: another tab is already active, deferring Device init');
+            showOtherTabBanner();
+        } else {
+            isActiveTab = true;
+            initPhone();
+        }
+    }, 250);
+}
+
+if (tabChannel) {
+    tabChannel.addEventListener('message', (ev) => {
+        if (!ev.data) return;
+        if (ev.data.type === 'ping' && isActiveTab) {
+            tabChannel.postMessage({type: 'pong'});
+        } else if (ev.data.type === 'takeover' && isActiveTab) {
+            console.warn('Rinq: another tab took over, releasing Device');
+            isActiveTab = false;
+            try {
+                if (currentCall && typeof currentCall.disconnect === 'function') currentCall.disconnect();
+            } catch (e) {}
+            try {
+                if (device && typeof device.destroy === 'function') device.destroy();
+            } catch (e) {}
+            device = null;
+            currentCall = null;
+            showOtherTabBanner();
+        }
+    });
+}
+
 // Initialize on page load
-initPhone();
+checkOtherTabsAndInit();
 fetchRecordingPreference();  // Load user's recording preference
 loadDndState();  // Load DND state
 fetchContacts();  // Preload contacts for internal caller name resolution
