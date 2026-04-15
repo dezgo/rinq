@@ -3,6 +3,7 @@
 {% block title_suffix %} - Softphone{% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.css">
 /* Queue Dashboard Styles */
 .queue-dashboard {
     max-width: 800px;
@@ -1817,6 +1818,35 @@
     .phone-tab { padding: 8px 10px; font-size: 0.85em; }
     .contacts-list { max-height: 350px; }
 }
+
+/* Driver.js tour — Rinq theme */
+.rinq-tour-popover.driver-popover {
+    border-radius: 10px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    max-width: 320px;
+}
+.rinq-tour-popover .driver-popover-title {
+    font-size: 0.95em;
+    font-weight: 600;
+    color: #2c3e50;
+}
+.rinq-tour-popover .driver-popover-description {
+    font-size: 0.85em;
+    color: #495057;
+    line-height: 1.5;
+}
+.rinq-tour-popover .driver-popover-navigation-btns button {
+    border-radius: 6px;
+    font-size: 0.82em;
+    padding: 6px 14px;
+}
+.rinq-tour-popover .driver-popover-prev-btn {
+    background: #f8f9fa;
+    color: #495057;
+    border: 1px solid #dee2e6;
+}
+.rinq-tour-popover .driver-popover-prev-btn:hover { background: #e9ecef; }
+.rinq-tour-popover .driver-popover-close-btn { font-size: 1.1em; }
 {% endblock %}
 
 {% block content %}
@@ -1999,6 +2029,7 @@
                             <div class="dnd-toggle-thumb"></div>
                         </div>
                     </div>
+                    <button id="btnPhoneTour" onclick="rinqTour.start()" title="Tour the call features" style="background:none;border:none;cursor:pointer;color:#adb5bd;font-size:0.95em;padding:2px 4px;line-height:1;border-radius:50%;transition:color 0.15s;" onmouseover="this.style.color='#6c757d'" onmouseout="this.style.color='#adb5bd'">?</button>
                 </div>
 
         <div class="incoming-call" id="incomingCall">
@@ -5541,5 +5572,245 @@ function resolveInternalCaller(from) {
 
     return null;
 }
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.js.iife.js"></script>
+<script>
+/**
+ * Rinq softphone tour — introduces the card-based call panel.
+ *
+ * Uses Driver.js. Completion tracked in localStorage so the tour
+ * only auto-runs once. The ? button in the info bar replays it anytime.
+ *
+ * TOUR_VERSION: bump this (and tag new steps with that version) when
+ * adding steps for future features. Returning users will see only the
+ * new steps as a "What's new" pass.
+ */
+(function () {
+    'use strict';
+
+    var STORAGE_KEY = 'rinq_phone_tour_v';
+    var TOUR_VERSION = 1;
+
+    // Demo HTML injected into the panel during tour so staff see real cards.
+    var DEMO_PANEL_HTML = [
+        '<div class="conf-participant-card">',
+        '  <div class="conf-participant-dot connected"></div>',
+        '  <div class="conf-participant-info">',
+        '    <div class="conf-participant-name">Sarah Chen <span style="font-size:0.8em;color:#95a5a6">(customer)</span></div>',
+        '  </div>',
+        '  <div class="conf-card-actions">',
+        '    <button class="conf-card-btn" title="Mute">🎤</button>',
+        '    <button class="conf-card-btn" title="Hold">⏸</button>',
+        '    <button class="conf-card-btn kick" title="Remove">✕</button>',
+        '  </div>',
+        '</div>',
+        '<div class="conf-participant-card">',
+        '  <div class="conf-participant-dot connected"></div>',
+        '  <div class="conf-participant-info">',
+        '    <div class="conf-participant-name">You</div>',
+        '  </div>',
+        '  <div class="conf-card-actions">',
+        '    <button class="conf-card-btn" title="Mute">🎤</button>',
+        '  </div>',
+        '</div>',
+        '<div class="conf-participant-card add-card">+ Add to Call</div>',
+    ].join('');
+
+    var _panelSavedHTML = null;
+    var _panelSavedDisplay = null;
+
+    function showDemoPanel() {
+        var panel = document.getElementById('conferencePanel');
+        var list  = document.getElementById('conferencePanelList');
+        if (!panel || !list) return;
+        _panelSavedHTML    = list.innerHTML;
+        _panelSavedDisplay = panel.style.display;
+        list.innerHTML     = DEMO_PANEL_HTML;
+        panel.style.display = '';
+    }
+
+    function hideDemoPanel() {
+        var panel = document.getElementById('conferencePanel');
+        var list  = document.getElementById('conferencePanelList');
+        if (!panel || !list) return;
+        if (_panelSavedHTML    !== null) list.innerHTML     = _panelSavedHTML;
+        if (_panelSavedDisplay !== null) panel.style.display = _panelSavedDisplay;
+        _panelSavedHTML    = null;
+        _panelSavedDisplay = null;
+    }
+
+    var steps = [
+        {
+            v: 1, intro: true,
+            popover: {
+                title: "What's new: Call Panel",
+                description: "The softphone call panel has been redesigned. Each person in the call now gets their own card with individual controls. This quick tour shows you the key changes.",
+            }
+        },
+        {
+            v: 1,
+            element: '.phone-panel',
+            popover: {
+                title: 'Your softphone',
+                description: 'The status light shows whether you\'re connected and ready. Green = online, red = offline. The DND toggle pauses inbound calls.',
+                side: 'right', align: 'start',
+            }
+        },
+        {
+            v: 1,
+            element: '#btnMute',
+            popover: {
+                title: 'Mute yourself',
+                description: 'This mutes your own microphone — only you. Per-call mute for other participants is now on their card in the panel.',
+                side: 'top', align: 'start',
+            }
+        },
+        {
+            v: 1,
+            element: '#btnTransfer',
+            popover: {
+                title: 'Transfer',
+                description: '<strong>Blind</strong> — hand the call off immediately.<br><strong>Warm</strong> — speak to the other person first, then choose <em>Hand off</em> (complete) or <em>Go back</em> (cancel and return to the caller).',
+                side: 'top', align: 'start',
+            }
+        },
+        {
+            v: 1,
+            element: '#conferencePanel',
+            showDemoOnEnter: true,
+            popover: {
+                title: 'The "In this call" panel',
+                description: 'During any call, this panel appears in the bottom-right corner showing everyone in the conference.',
+                side: 'left', align: 'end',
+            }
+        },
+        {
+            v: 1,
+            element: '#conferencePanel',
+            showDemoOnEnter: false,
+            popover: {
+                title: 'Per-participant controls',
+                description: 'Each card has its own <strong>Mute</strong>, <strong>Hold</strong>, and <strong>Remove (✕)</strong> buttons. Changes apply instantly — muting one person doesn\'t affect anyone else.',
+                side: 'left', align: 'end',
+            }
+        },
+        {
+            v: 1,
+            element: '#conferencePanel',
+            showDemoOnEnter: false,
+            popover: {
+                title: 'Add to Call',
+                description: 'The <strong>+ Add to Call</strong> card brings another person into the conference. This replaces the old "3-Way" option — just click it and pick a contact.',
+                side: 'left', align: 'end',
+            }
+        },
+        {
+            v: 1,
+            element: '#confBtnRecord',
+            showDemoOnEnter: false,
+            popover: {
+                title: 'Recording',
+                description: 'The Record button moved to the panel header. It\'s always visible while you\'re in a call.',
+                side: 'left', align: 'end',
+            }
+        },
+        {
+            v: 1, intro: true,
+            showDemoOnEnter: false,
+            popover: {
+                title: "That's it!",
+                description: 'Same calls, same transfers — just a clearer picture of who\'s on the line. Click the <strong>?</strong> button in the info bar to replay this tour anytime.',
+            }
+        },
+    ];
+
+    function completedVersion() {
+        try { return parseInt(localStorage.getItem(STORAGE_KEY) || '0', 10); } catch (e) { return 0; }
+    }
+
+    function markComplete() {
+        try { localStorage.setItem(STORAGE_KEY, String(TOUR_VERSION)); } catch (e) { /* ok */ }
+    }
+
+    function filterSteps(sinceVersion) {
+        var present = steps.filter(function (s) {
+            if (!s.element) return true;
+            // Elements that are in the DOM but hidden are OK — we'll handle them
+            return document.querySelector(s.element) !== null;
+        });
+        if (sinceVersion <= 0) return present;
+        var newSteps = present.filter(function (s) { return (s.v || 1) > sinceVersion && !s.intro; });
+        if (!newSteps.length) return [];
+        newSteps.unshift({
+            popover: {
+                title: "What's new in Rinq",
+                description: "A few things changed since you last saw the tour. Here's a quick look at what's new.",
+            }
+        });
+        return newSteps;
+    }
+
+    function runTour(sinceVersion) {
+        if (typeof window.driver === 'undefined' || !window.driver.js) {
+            console.warn('Driver.js not loaded — tour skipped');
+            return;
+        }
+        var filtered = filterSteps(sinceVersion);
+        if (filtered.length < 2) return;
+
+        // Track which steps need the demo panel
+        var demoPanelActive = false;
+
+        var driverObj = window.driver.js.driver({
+            showProgress: true,
+            animate: true,
+            overlayColor: 'rgba(0,0,0,0.45)',
+            stagePadding: 10,
+            stageRadius: 10,
+            popoverClass: 'rinq-tour-popover',
+            nextBtnText: 'Next →',
+            prevBtnText: '← Back',
+            doneBtnText: 'Done',
+            allowClose: true,
+            onHighlightStarted: function (el, step) {
+                var idx = filtered.indexOf(step);
+                var s = filtered[idx];
+                if (s && s.showDemoOnEnter === true && !demoPanelActive) {
+                    showDemoPanel();
+                    demoPanelActive = true;
+                } else if (s && s.showDemoOnEnter === false && demoPanelActive) {
+                    // keep panel visible for subsequent panel steps
+                }
+            },
+            onDeHighlighted: function (el, step) {
+                // panel cleanup happens in onDestroyed / on close
+            },
+            onDestroyed: function () {
+                if (demoPanelActive) { hideDemoPanel(); demoPanelActive = false; }
+                markComplete();
+            },
+            steps: filtered.map(function (s) {
+                var step = { popover: s.popover };
+                if (s.element) step.element = s.element;
+                return step;
+            }),
+        });
+        driverObj.drive();
+    }
+
+    // Public API
+    window.rinqTour = {
+        start: function () { runTour(0); },
+        reset: function () { try { localStorage.removeItem(STORAGE_KEY); } catch (e) {} },
+    };
+
+    // Auto-run once for users who haven't seen it
+    document.addEventListener('DOMContentLoaded', function () {
+        var done = completedVersion();
+        if (done >= TOUR_VERSION) return;
+        setTimeout(function () { runTour(done); }, 1200);
+    });
+})();
 </script>
 {% endblock %}
