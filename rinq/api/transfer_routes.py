@@ -346,6 +346,13 @@ def register(bp):
         call_status = request.form.get('CallStatus', '')
         conference = request.args.get('conference', '')
         customer_call = request.args.get('customer_call', '')
+        callback_call_sid = request.form.get('CallSid', '')
+
+        # Always clean up the participant entry — the callback call is now done
+        if callback_call_sid:
+            from rinq.api.routes import _handle_participant_left
+            db = get_db()
+            _handle_participant_left(callback_call_sid, db)
 
         if call_status in ('busy', 'no-answer', 'failed', 'canceled'):
             logger.info(f"Agent callback failed ({call_status}) — redirecting customer to voicemail")
