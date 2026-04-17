@@ -216,6 +216,7 @@ class CallLogMixin:
                   AND status = 'ringing'
                   AND started_at < datetime('now', '-2 minutes')
             """)
+            conn.commit()
 
             # Close calls that Twilio says are no longer active
             rows = conn.execute("""
@@ -224,17 +225,14 @@ class CallLogMixin:
             """).fetchall()
 
             stale_sids = [r['call_sid'] for r in rows if r['call_sid'] not in active_sids]
-            if stale_sids:
-                placeholders = ','.join('?' * len(stale_sids))
-                conn.execute(f"""
-                    UPDATE call_log
-                    SET status = 'completed', ended_at = datetime('now'),
-                        updated_at = datetime('now')
-                    WHERE call_sid IN ({placeholders})
-                """, stale_sids)
 
-            conn.commit()
-            return len(stale_sids)
+        # Route through complete_call so talk_seconds is calculated from
+        # started_at / ring_seconds. Twilio's own status callback doesn't
+        # fire reliably for SIP-answered customer calls, so this path is
+        # how those calls get their talk time populated.
+        for sid in stale_sids:
+            self.complete_call(call_sid=sid, status='completed')
+        return len(stale_sids)
 
     def get_call_log_by_sids(self, sids: set[str]) -> dict:
         """Get call_log entries for a set of call SIDs.
