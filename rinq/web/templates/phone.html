@@ -658,9 +658,11 @@
 
 .dnd-toggle {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     cursor: pointer;
+    min-width: 72px;
 }
 
 .dnd-toggle-track {
@@ -692,9 +694,12 @@
 }
 
 .dnd-label {
-    font-weight: 600;
-    font-size: 0.95em;
+    font-weight: 500;
+    font-size: 0.78em;
     color: #6c757d;
+    line-height: 1.1;
+    text-align: center;
+    white-space: nowrap;
 }
 
 .dnd-label.active {
@@ -2140,17 +2145,17 @@
                         {% endif %}
                         {% endif %}
                     </div>
-                    <div class="dnd-toggle" onclick="toggleQueueMute()" title="Mute queue alert sounds">
-                        <span class="dnd-label" id="queueMuteLabel">🔔</span>
+                    <div class="dnd-toggle" onclick="toggleQueueMute()" title="Mute the beep that plays when a new queue call arrives. Does not stop calls from ringing you.">
                         <div class="dnd-toggle-track" id="queueMuteTrack">
                             <div class="dnd-toggle-thumb"></div>
                         </div>
+                        <span class="dnd-label" id="queueMuteLabel">Queue alerts</span>
                     </div>
-                    <div class="dnd-toggle" onclick="toggleDnd()">
-                        <span class="dnd-label" id="dndLabel">DND</span>
+                    <div class="dnd-toggle" onclick="toggleDnd()" title="Do Not Disturb — stops incoming calls from ringing your phones.">
                         <div class="dnd-toggle-track" id="dndTrack">
                             <div class="dnd-toggle-thumb"></div>
                         </div>
+                        <span class="dnd-label" id="dndLabel">Do not disturb</span>
                     </div>
                     <button id="btnPhoneTour" onclick="rinqTour.start()" title="Tour the call features" style="background:none;border:none;cursor:pointer;color:#adb5bd;font-size:0.95em;padding:2px 4px;line-height:1;border-radius:50%;transition:color 0.15s;" onmouseover="this.style.color='#6c757d'" onmouseout="this.style.color='#adb5bd'">?</button>
                 </div>
@@ -2684,10 +2689,12 @@ function updateQueueMuteUi() {
     const label = document.getElementById('queueMuteLabel');
     if (queueAlertsMuted) {
         track.classList.add('active');
-        label.textContent = '🔕';
+        label.classList.add('active');
+        label.textContent = 'Alerts muted';
     } else {
         track.classList.remove('active');
-        label.textContent = '🔔';
+        label.classList.remove('active');
+        label.textContent = 'Queue alerts';
     }
 }
 
@@ -2717,12 +2724,12 @@ function updateDndUi() {
     if (isDndEnabled) {
         bar.classList.add('dnd-active');
         track.classList.add('active');
-        label.textContent = 'DND';
+        label.textContent = 'Do not disturb';
         label.classList.add('active');
     } else {
         bar.classList.remove('dnd-active');
         track.classList.remove('active');
-        label.textContent = 'DND';
+        label.textContent = 'Do not disturb';
         label.classList.remove('active');
     }
 }
