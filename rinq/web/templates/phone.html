@@ -2774,8 +2774,27 @@ async function initPhone() {
             }
 
             currentCall = call;
-            const from = call.parameters.From || 'Unknown';
+            let from = call.parameters.From || 'Unknown';
             const callSid = call.parameters.CallSid;
+
+            // REST-API-created calls to this Client (e.g. extension directory
+            // ringing a browser) don't always surface From via the SDK, so it
+            // falls through to 'Unknown'. Try the server as a canonical source
+            // before any name resolution runs.
+            if (from === 'Unknown' && callSid) {
+                try {
+                    const r = await fetch(
+                        `/api/voice/incoming-caller?call_sid=${encodeURIComponent(callSid)}`,
+                        { credentials: 'same-origin' }
+                    );
+                    if (r.ok && currentCall === call) {
+                        const data = await r.json();
+                        if (data.from_number) from = data.from_number;
+                    }
+                } catch (err) {
+                    console.warn('Incoming caller fallback failed:', err);
+                }
+            }
 
             // Check for internal call custom parameters first (extension-to-extension)
             const callerName = call.customParameters ? call.customParameters.get('callerName') : null;

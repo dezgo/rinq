@@ -4047,6 +4047,42 @@ def voice_call_outcome():
     return jsonify({"status": status or "unknown"})
 
 
+@api_bp.route('/voice/incoming-caller', methods=['GET'])
+@login_required
+def voice_incoming_caller():
+    """Return the From number for an incoming call.
+
+    Fallback for the browser's `device.on('incoming')` handler when
+    `call.parameters.From` is empty — which happens for REST-API-created
+    calls to Client destinations (e.g. the extension directory ringing
+    a user's browser) because the Twilio Voice SDK doesn't always
+    surface the non-Twilio From number in that flow.
+
+    Query params:
+        call_sid: The call SID as seen by the browser
+
+    Returns:
+        {"from_number": "+61..."} or {"from_number": null}
+    """
+    call_sid = request.args.get('call_sid', '').strip()
+    if not call_sid:
+        return jsonify({"error": "call_sid required"}), 400
+
+    service = get_twilio_service()
+    if not service.is_configured:
+        return jsonify({"from_number": None}), 503
+
+    try:
+        call = service.client.calls(call_sid).fetch()
+    except Exception as e:
+        logger.warning(f"Could not fetch call {call_sid} for caller lookup: {e}")
+        return jsonify({"from_number": None}), 404
+
+    # SDK 9.x stores the From on `_from`
+    from_number = getattr(call, '_from', None) or None
+    return jsonify({"from_number": from_number})
+
+
 @api_bp.route('/voice/call-ended', methods=['POST'])
 @login_required
 def voice_call_ended():
