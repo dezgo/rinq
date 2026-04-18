@@ -1,29 +1,37 @@
 {
   "_description": "System health snapshot for Rinq. Updated by memory-updater agent at end of sessions.",
-  "_last_updated": "2026-04-16",
+  "_last_updated": "2026-04-17",
   "_last_updated_by": "memory-updater",
-  "_notes": "2026-04-16: Fixed queue ring cancellation race condition (terminal-status-only cleanup). Removed 'Connecting.' announcement (replaced with Pause). Migration 072 enables voicemail escape defaults on existing queues. httpx added to requirements.",
+  "_notes": "2026-04-17 (afternoon/evening): Twelve commits shipped. Transfer UX overhaul — migration 073 adds transfer_failure_reason, server-side DND check, persistent #callNotice banner (old #transferError was invisible inside closed modal). Reports correctness — 'transferred' now counted as answered in 12 SQL sites (call_log_mixin.py). Huge SIP bug fixed: close_stale_calls now populates talk_seconds (was leaving NULL; Watson DB backfilled 422 rows). Leaderboard relabel 'Most Calls Handled'. PWA manifest uses tenant product_name. Caller-ID fallback for REST-API Client destinations.",
   "repo": {
     "branch": "main",
     "remote": "dezgo/rinq",
     "status": "clean",
     "recent_commits": [
-      "85f6bde docs: session log 2026-04-16 (talk time attribution, warm transfer credits)",
-      "021eee3 Credit talk time to all conference participants at call end",
-      "d07091a Fix talk_seconds NULL for outbound calls (Ayanda leaderboard bug)",
-      "ae2c7bc Fix stale call_participants entry after failed blind transfer callback"
+      "c4e68fa Clarify Queue Alerts vs DND toggles with underneath labels",
+      "4a1b607 Check DND before transfer and surface failures persistently",
+      "931753b Populate talk_seconds when closing stale call_log entries",
+      "39deb0a Align inbound and outbound agent tables with fixed column widths",
+      "0acf1c7 Coerce format_duration input to int",
+      "b3b1c71 Make inbound and outbound agent tables consistent",
+      "38b81a2 Simplify inbound agent table to just Calls and Talk Time",
+      "26a1c8c Count transferred calls as answered in reports",
+      "081e631 Relabel leaderboard as Most Calls Handled and fix inbound fallback",
+      "f234511 Fall back to server lookup when incoming call From is missing",
+      "b18a79e Show specific reason when a warm transfer fails",
+      "36c232f Use tenant product_name in PWA manifest"
     ]
   },
   "migrations": {
-    "latest": 72,
-    "notes": "072 enables allow_voicemail_escape=1 and sets escape_announcement_delay=2, escape_repeat_interval=3 on all queues where they were unset."
+    "latest": 73,
+    "notes": "073 adds transfer_failure_reason TEXT to queued_calls and call_log. 072 enables voicemail escape defaults on existing queues."
   },
   "tenants": {
     "watson": {
       "domain": "tina.watsonblinds.com.au",
       "twilio_account": "master (ACe458...)",
       "phone_numbers": 8,
-      "notes": "Production. Address book synced from Peter daily 2am."
+      "notes": "Production. Address book synced from Peter daily 2am. talk_seconds backfill ran 2026-04-17 (422 rows)."
     },
     "derek": {
       "domain": "rinq.cc",
@@ -35,14 +43,18 @@
   "tests": {
     "automated": "none",
     "manual_runsheet": "/admin/test-runsheet",
-    "notes": "Queue ring cancellation fix to be verified in production (Phil's dual-ring bug)."
+    "notes": "End-user test plan for 2026-04-17 changes: leaderboard label, reports inbound/outbound parity, desk-phone talk time, caller-ID resolution for extension-directory calls, transfer failure messages, DND rejection, header toggle labels."
   },
   "pending_operations": [
-    "2026-04-16: Verify Phil's dual-ring bug is resolved after deploy.",
+    "2026-04-17: Sandrene to uninstall + re-pin Chromebox app to pick up 'Tina Phone' manifest name.",
+    "2026-04-17: Clean up draftcal friendly_name ('Watson Blinds') and audit other users.",
+    "2026-04-17: End-user test plan validation after deploy.",
     "2026-04-16: Watson team to record and upload Voicemail Escape audio in Audio Manager.",
     "2026-04-16: Add ELEVENLABS_API_KEY to /var/www/rinq/.env if ElevenLabs TTS needed."
   ],
   "known_issues": [
+    "Missed-call attribution on inbound agent table — impossible without ring_attempts (purges after 24h); Missed column dropped from UI for now",
+    "Consult-status callback runs _unhold_and_rejoin_agent salvage even after clean Cancel (transfer_status='cancelled') — noisy but harmless",
     "phone.html ~5,100 lines with 109 inline JS functions — refactor deferred, fits with frontend feature work",
     "api/routes.py ~5,100 lines — deeper service extraction (RingService, CallRoutingService, VoicemailService) deferred until automated tests exist",
     "database/db.py 3,528 lines — more mixin extractions possible (recordings, staff, participants, queues)",
