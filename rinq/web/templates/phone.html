@@ -985,6 +985,31 @@
     background: #c0392b;
 }
 
+.btn-hold {
+    background: #7f8c8d;
+    color: white;
+    padding: 8px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.9em;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.btn-hold:hover {
+    background: #6c7a7d;
+}
+
+.btn-hold.on-hold {
+    background: #e67e22;
+}
+
+.btn-hold.on-hold:hover {
+    background: #ca6f1e;
+}
+
 .btn-transfer {
     background: #9b59b6;
     color: white;
@@ -2173,9 +2198,9 @@
             <div class="call-duration" id="callDuration">00:00</div>
             <div class="call-number" id="callNumber"></div>
             <div class="call-controls">
-                <button class="btn-mute" id="btnMute" onclick="toggleMute()">
-                    <span id="muteIcon">🎤</span>
-                    <span id="muteText">Mute</span>
+                <button class="btn-hold" id="btnHold" onclick="toggleHold()">
+                    <span id="holdIcon">⏸</span>
+                    <span id="holdText">Hold</span>
                 </button>
                 <button class="btn-transfer" id="btnTransfer" onclick="openTransferModal()">
                     <span>🔀</span>
@@ -2621,11 +2646,11 @@ const phoneStatus = document.getElementById('phoneStatus');
 const btnCall = document.getElementById('btnCall');
 const btnHangup = document.getElementById('btnHangup');
 const btnMute = document.getElementById('btnMute');
-const btnHold = null; // Hold moved to per-participant cards
+const btnHold = document.getElementById('btnHold');
 const muteIcon = document.getElementById('muteIcon');
 const muteText = document.getElementById('muteText');
-const holdIcon = null; // Hold moved to per-participant cards
-const holdText = null; // Hold moved to per-participant cards
+const holdIcon = document.getElementById('holdIcon');
+const holdText = document.getElementById('holdText');
 const callInfo = document.getElementById('callInfo');
 const callDuration = document.getElementById('callDuration');
 const callNumber = document.getElementById('callNumber');
@@ -3348,6 +3373,7 @@ function endCall() {
 
     // Reset all per-call state in one shot
     resetCallState();
+    updateHoldButton();
 
     // Update UI
     setStatus('Ready', 'ready');
@@ -3445,6 +3471,7 @@ async function toggleHold() {
             return;
         }
         isOnHold = newHoldState;
+        updateHoldButton();
         if (!newHoldState && isMuted) currentCall.mute(true);
     } catch (error) {
         console.error('Error toggling hold:', error);
@@ -3452,7 +3479,16 @@ async function toggleHold() {
 }
 
 function updateHoldButton() {
-    // No-op: hold state is now reflected in participant cards
+    if (!btnHold) return;
+    if (isOnHold) {
+        btnHold.classList.add('on-hold');
+        holdIcon.textContent = '▶';
+        holdText.textContent = 'Unhold';
+    } else {
+        btnHold.classList.remove('on-hold');
+        holdIcon.textContent = '⏸';
+        holdText.textContent = 'Hold';
+    }
 }
 
 // ============================================
@@ -4616,15 +4652,15 @@ async function completeTransfer() {
                 consultCallSid = null;
                 currentTransferKey = null;
             } else {
-                showTransferError(data.error || 'Failed to complete transfer');
+                showCallNotice(data.error || 'Failed to complete transfer');
                 completeBtn.disabled = false;
-                completeBtn.textContent = 'Complete Transfer';
+                completeBtn.textContent = 'Hand off';
             }
         }
     } catch (error) {
-        showTransferError('Error: ' + error.message);
+        showCallNotice('Error completing transfer: ' + error.message);
         completeBtn.disabled = false;
-        completeBtn.textContent = 'Complete Transfer';
+        completeBtn.textContent = 'Hand off';
     }
 }
 

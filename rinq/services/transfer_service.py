@@ -766,7 +766,11 @@ class TransferService:
             if not transfer_state:
                 return {'success': False, 'error': 'No transfer in progress'}
 
-            # If transfer already failed (caller disconnected), just clean up
+            # Transfer already failed — clean up any lingering consult leg then
+            # check whether the customer's conference is still alive before
+            # telling the client the caller disconnected.  The transfer can fail
+            # because the target hung up (customer still waiting) OR because the
+            # customer themselves disconnected — we must distinguish the two.
             if transfer_state['transfer_status'] == 'failed':
                 # End any remaining consultation call/conference
                 consult_call_sid = transfer_state.get('transfer_consult_call_sid')
@@ -785,10 +789,29 @@ class TransferService:
                         pass
 
                 self.db.cancel_transfer(call_sid)
+
+                # Only tell the client the caller disconnected if the original
+                # conference is truly gone.  If it still exists the customer is
+                # still waiting (transfer failed because the target left, not the
+                # customer) and endCall() must NOT be triggered on the client.
+                original_conference = transfer_state.get('conference_name')
+                caller_gone = True
+                if original_conference:
+                    try:
+                        live_confs = twilio_list(self.twilio.client.conferences,
+                            friendly_name=original_conference, status='in-progress', limit=1)
+                        caller_gone = len(live_confs) == 0
+                    except Exception:
+                        pass
+
                 return {
                     'success': True,
-                    'caller_disconnected': True,
-                    'message': 'Transfer cancelled. The original caller had already disconnected.'
+                    'caller_disconnected': caller_gone,
+                    'message': (
+                        'Transfer cancelled. The original caller had already disconnected.'
+                        if caller_gone else
+                        'Transfer cancelled.'
+                    )
                 }
 
             if transfer_state['transfer_status'] not in ('pending', 'consulting', 'completed'):
