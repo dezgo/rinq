@@ -996,6 +996,16 @@
     animation: mute-warning-pulse 1.6s ease-in-out infinite;
 }
 
+.hold-warning {
+    background: #e67e22;
+    color: white;
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-weight: 600;
+    text-align: center;
+    margin-bottom: 10px;
+}
+
 @keyframes mute-warning-pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.75; }
@@ -2212,6 +2222,7 @@
 
         <div class="call-info" id="callInfo">
             <div class="mute-warning" id="muteWarning" style="display:none;">🔇 You are muted — the caller cannot hear you</div>
+            <div class="hold-warning" id="holdWarning" style="display:none;">⏸ Caller on hold — they're hearing music</div>
             <div class="call-duration" id="callDuration">00:00</div>
             <div class="call-number" id="callNumber"></div>
             <div class="call-controls" id="callControls">
@@ -3513,16 +3524,19 @@ async function toggleHold() {
 }
 
 function updateHoldButton() {
-    if (!btnHold) return;
-    if (isOnHold) {
-        btnHold.classList.add('on-hold');
-        holdIcon.textContent = '▶';
-        holdText.textContent = 'Unhold';
-    } else {
-        btnHold.classList.remove('on-hold');
-        holdIcon.textContent = '⏸';
-        holdText.textContent = 'Hold';
+    const holdWarning = document.getElementById('holdWarning');
+    if (btnHold) {
+        if (isOnHold) {
+            btnHold.classList.add('on-hold');
+            holdIcon.textContent = '▶';
+            holdText.textContent = 'Unhold';
+        } else {
+            btnHold.classList.remove('on-hold');
+            holdIcon.textContent = '⏸';
+            holdText.textContent = 'Hold';
+        }
     }
+    if (holdWarning) holdWarning.style.display = isOnHold ? 'block' : 'none';
 }
 
 // ============================================
