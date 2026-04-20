@@ -985,6 +985,22 @@
     background: #c0392b;
 }
 
+.mute-warning {
+    background: #e74c3c;
+    color: white;
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-weight: 600;
+    text-align: center;
+    margin-bottom: 10px;
+    animation: mute-warning-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes mute-warning-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.75; }
+}
+
 .btn-hold {
     background: #7f8c8d;
     color: white;
@@ -2195,6 +2211,7 @@
         </div>
 
         <div class="call-info" id="callInfo">
+            <div class="mute-warning" id="muteWarning" style="display:none;">🔇 You are muted — the caller cannot hear you</div>
             <div class="call-duration" id="callDuration">00:00</div>
             <div class="call-number" id="callNumber"></div>
             <div class="call-controls" id="callControls">
@@ -3441,16 +3458,19 @@ function toggleMute() {
 }
 
 function updateMuteButton() {
-    if (!btnMute) return;
-    if (isMuted) {
-        btnMute.classList.add('muted');
-        if (muteIcon) muteIcon.textContent = '🔇';
-        if (muteText) muteText.textContent = 'Unmute';
-    } else {
-        btnMute.classList.remove('muted');
-        if (muteIcon) muteIcon.textContent = '🎤';
-        if (muteText) muteText.textContent = 'Mute';
+    const muteWarning = document.getElementById('muteWarning');
+    if (btnMute) {
+        if (isMuted) {
+            btnMute.classList.add('muted');
+            if (muteIcon) muteIcon.textContent = '🔇';
+            if (muteText) muteText.textContent = 'Unmute';
+        } else {
+            btnMute.classList.remove('muted');
+            if (muteIcon) muteIcon.textContent = '🎤';
+            if (muteText) muteText.textContent = 'Mute';
+        }
     }
+    if (muteWarning) muteWarning.style.display = isMuted ? 'block' : 'none';
 }
 
 // toggleHold kept for internal use (e.g. auto-hold on transfer)
