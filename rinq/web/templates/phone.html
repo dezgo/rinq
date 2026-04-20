@@ -5617,10 +5617,15 @@ function renderCallStatePanel(state) {
 
     // Swap the main call controls for Go back / Hand off during warm transfer.
     // Server-authoritative: only when transfer.status is pending or consulting.
+    // Only the initiating agent gets the consult controls — NOT the transfer
+    // target (Agent 2), whose own call SID equals transfer.consult_call_sid.
     const isWarmActive = transfer && transfer.type === 'warm' &&
         ['pending', 'consulting'].includes(transfer.status);
-    if (callControls) callControls.style.display = isWarmActive ? 'none' : '';
-    if (callControlsConsulting) callControlsConsulting.style.display = isWarmActive ? 'flex' : 'none';
+    const iAmTheTarget = isWarmActive && myCallSid &&
+        transfer.consult_call_sid && myCallSid === transfer.consult_call_sid;
+    const showConsultControls = isWarmActive && !iAmTheTarget;
+    if (callControls) callControls.style.display = showConsultControls ? 'none' : '';
+    if (callControlsConsulting) callControlsConsulting.style.display = showConsultControls ? 'flex' : 'none';
 
     const addingToCall = window._addToCallPending;
     const cards = allParticipants.map(p => renderParticipantCard(p, myCallSid));

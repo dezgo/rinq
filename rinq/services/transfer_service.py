@@ -685,6 +685,14 @@ class TransferService:
             original_conference = transfer_state['conference_name']
             consult_call_sid = transfer_state['transfer_consult_call_sid']
 
+            # Guard: only the initiating agent can complete the handoff. If the
+            # caller (customer) or the consult target sends a complete request,
+            # refuse — otherwise a misclick by the recipient would prematurely
+            # take the caller off hold.
+            if agent_call_sid and agent_call_sid in (call_sid, consult_call_sid):
+                logger.warning(f"Rejecting handoff from wrong party: agent_call_sid={agent_call_sid}, call_sid={call_sid}, consult_call_sid={consult_call_sid}")
+                return {'success': False, 'error': 'Only the transferring agent can complete the handoff'}
+
             # 3-way: all parties are already in one conference — just mark done.
             if transfer_state.get('transfer_type') == 'three_way':
                 # Restore endConferenceOnExit=True on the caller and the new
