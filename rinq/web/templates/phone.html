@@ -3471,6 +3471,8 @@ async function toggleHold() {
             return;
         }
         isOnHold = newHoldState;
+        _cardHeld[targetSid] = newHoldState;
+        if (lastCallState) renderCallStatePanel(lastCallState);
         updateHoldButton();
         if (!newHoldState && isMuted) currentCall.mute(true);
     } catch (error) {
@@ -5701,6 +5703,11 @@ async function participantMute(callSid, currentlyMuted) {
 async function participantHold(callSid, currentlyHeld) {
     const newHeld = !currentlyHeld;
     _cardHeld[callSid] = newHeld;
+    // Keep the Hold button in sync when holding the customer via their card
+    if (callSid === currentQueueCallerSid) {
+        isOnHold = newHeld;
+        updateHoldButton();
+    }
     if (lastCallState) renderCallStatePanel(lastCallState);
 
     try {
@@ -5712,10 +5719,18 @@ async function participantHold(callSid, currentlyHeld) {
         });
         if (!resp.ok) {
             _cardHeld[callSid] = currentlyHeld;
+            if (callSid === currentQueueCallerSid) {
+                isOnHold = currentlyHeld;
+                updateHoldButton();
+            }
             if (lastCallState) renderCallStatePanel(lastCallState);
         }
     } catch (e) {
         _cardHeld[callSid] = currentlyHeld;
+        if (callSid === currentQueueCallerSid) {
+            isOnHold = currentlyHeld;
+            updateHoldButton();
+        }
         if (lastCallState) renderCallStatePanel(lastCallState);
     }
 }
