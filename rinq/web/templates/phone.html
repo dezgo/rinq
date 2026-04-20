@@ -4637,6 +4637,11 @@ async function completeTransfer() {
         } else {
             body.transfer_key = transferSid;
         }
+        // Pass our own browser-leg SID so the server can forcibly remove us
+        // from the conference if the client-side disconnect fails to propagate.
+        if (currentCall && currentCall.parameters && currentCall.parameters.CallSid) {
+            body.agent_call_sid = currentCall.parameters.CallSid;
+        }
         console.log('Complete transfer:', JSON.stringify(body));
 
         const response = await fetch('/api/voice/transfer/warm/complete', {

@@ -649,7 +649,8 @@ class TransferService:
             self.db.fail_transfer(call_sid, str(e))
             return {'success': False, 'error': str(e)}
 
-    def warm_transfer_complete(self, call_sid: str, transferred_by: str) -> dict:
+    def warm_transfer_complete(self, call_sid: str, transferred_by: str,
+                                agent_call_sid: str = None) -> dict:
         """Complete a warm transfer or 3-way call.
 
         Warm: bridges caller to target (agent drops off).
@@ -658,6 +659,10 @@ class TransferService:
         Args:
             call_sid: The original caller's call SID
             transferred_by: Agent email completing the transfer
+            agent_call_sid: The initiating agent's browser-leg SID. If provided,
+                we forcibly remove their participant from the conference to
+                guarantee their leg ends — the client-side disconnect has
+                proven flaky in the field.
 
         Returns:
             Dict with success status or error
@@ -684,8 +689,7 @@ class TransferService:
             if transfer_state.get('transfer_type') == 'three_way':
                 # Restore endConferenceOnExit=True on the caller and the new
                 # agent so either hanging up ends the conference cleanly. Agent
-                # 1 is left as-is — they're about to hang up and shouldn't end
-                # the conference for the others.
+                # 1 is removed below and shouldn't end the conference.
                 conferences = twilio_list(self.twilio.client.conferences,
                     friendly_name=original_conference,
                     status='in-progress',
@@ -699,6 +703,14 @@ class TransferService:
                             )
                         except Exception as e:
                             logger.warning(f"Could not restore endConferenceOnExit for 3-way participant {participant_sid}: {e}")
+
+                    # Forcibly remove Agent 1 — same reasoning as warm path.
+                    if agent_call_sid and agent_call_sid not in (call_sid, consult_call_sid):
+                        try:
+                            self.twilio.client.conferences(conferences[0].sid).participants(agent_call_sid).delete()
+                            logger.info(f"Removed initiating agent {agent_call_sid} from 3-way conference {original_conference}")
+                        except Exception as e:
+                            logger.warning(f"Could not remove initiating agent {agent_call_sid} from 3-way conference: {e}")
 
                 self.db.complete_transfer(call_sid)
                 self.db.log_activity(
@@ -752,8 +764,8 @@ class TransferService:
             # Restore endConferenceOnExit=True on the caller and the new agent
             # so either hanging up ends the conference cleanly. (Set to False
             # at warm-start so the consult could happen without killing it.)
-            # Agent 1 is left as-is — they're about to hang up immediately and
-            # their exit shouldn't end the conference.
+            # Agent 1 is left as-is — they're about to be removed immediately
+            # below, and we don't want their removal to end the conference.
             for participant_sid in (call_sid, consult_call_sid):
                 try:
                     self.twilio.client.conferences(conference.sid).participants(participant_sid).update(
@@ -761,6 +773,17 @@ class TransferService:
                     )
                 except Exception as e:
                     logger.warning(f"Could not restore endConferenceOnExit for {participant_sid}: {e}")
+
+            # Forcibly remove Agent 1 from the conference so their leg ends
+            # regardless of whether the browser-side disconnect fires. The
+            # client-side `callRef.disconnect()` has proven flaky in the field
+            # — agents reported staying on the line after pressing Hand off.
+            if agent_call_sid and agent_call_sid not in (call_sid, consult_call_sid):
+                try:
+                    self.twilio.client.conferences(conference.sid).participants(agent_call_sid).delete()
+                    logger.info(f"Removed initiating agent {agent_call_sid} from conference {conference_name}")
+                except Exception as e:
+                    logger.warning(f"Could not remove initiating agent {agent_call_sid} from conference: {e}")
 
             self.db.complete_transfer(call_sid)
 

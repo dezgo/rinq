@@ -181,7 +181,8 @@ def register(bp):
         if not call_sid:
             return jsonify({"error": "call_sid or transfer_key required"}), 400
 
-        result = transfer_service.warm_transfer_complete(call_sid, transferred_by)
+        agent_call_sid = data.get('agent_call_sid')
+        result = transfer_service.warm_transfer_complete(call_sid, transferred_by, agent_call_sid=agent_call_sid)
 
         return jsonify(result) if result.get('success') else (jsonify(result), 400)
 
