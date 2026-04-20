@@ -2645,10 +2645,7 @@ const phoneDisplay = document.getElementById('phoneDisplay');
 const phoneStatus = document.getElementById('phoneStatus');
 const btnCall = document.getElementById('btnCall');
 const btnHangup = document.getElementById('btnHangup');
-const btnMute = document.getElementById('btnMute');
 const btnHold = document.getElementById('btnHold');
-const muteIcon = document.getElementById('muteIcon');
-const muteText = document.getElementById('muteText');
 const holdIcon = document.getElementById('holdIcon');
 const holdText = document.getElementById('holdText');
 const callInfo = document.getElementById('callInfo');
@@ -3393,7 +3390,6 @@ function endCall() {
     closeTransferModal();
     clearCallNotice();
     updateDisplay();
-    updateMuteButton();
     updateHoldButton();
     updateRecordButton();
     clearCustomerContext();
@@ -3428,19 +3424,7 @@ function toggleMute() {
 
     isMuted = !isMuted;
     currentCall.mute(isMuted);
-    updateMuteButton();
-}
-
-function updateMuteButton() {
-    if (isMuted) {
-        btnMute.classList.add('muted');
-        muteIcon.textContent = '🔇';
-        muteText.textContent = 'Unmute';
-    } else {
-        btnMute.classList.remove('muted');
-        muteIcon.textContent = '🎤';
-        muteText.textContent = 'Mute';
-    }
+    if (lastCallState) renderCallStatePanel(lastCallState);
 }
 
 // toggleHold kept for internal use (e.g. auto-hold on transfer)
