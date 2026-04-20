@@ -66,6 +66,28 @@ def _get_ai_receptionist_url() -> str:
     return ai.get_answer_url() if ai else None
 
 
+def _emit_voicemail_record(record_url: str) -> str:
+    """Build the voicemail <Record> TwiML.
+
+    If OpenAI Whisper is configured we omit Twilio's transcribe params and
+    transcribe inline in voicemail_handler. Otherwise we keep Twilio's
+    transcribeCallback path (lower quality, but no extra dependency).
+    """
+    from rinq.integrations.openai.whisper import get_whisper_service
+
+    parts = [
+        f'<Record action="{xml_escape(record_url)}"',
+        f' recordingStatusCallback="{xml_escape(record_url)}"',
+        ' recordingStatusCallbackEvent="completed"',
+        ' maxLength="120"',
+    ]
+    if not get_whisper_service().is_configured:
+        transcription_url = f"{config.webhook_base_url}/api/voice/transcription"
+        parts.append(f' transcribe="true" transcribeCallback="{xml_escape(transcription_url)}"')
+    parts.append(' />')
+    return ''.join(parts)
+
+
 def _notify_ai_receptionist_call_ended(call_sid: str, call_status: str):
     """Notify the AI receptionist that a call has ended."""
     from rinq.integrations import get_ai_receptionist
@@ -1081,8 +1103,7 @@ def voice_incoming():
 
             # Record voicemail
             voicemail_url = f"{config.webhook_base_url}/api/voice/voicemail"
-            transcription_url = f"{config.webhook_base_url}/api/voice/transcription"
-            response_parts.append(f'    <Record maxLength="120" action="{xml_escape(voicemail_url)}" transcribe="true" transcribeCallback="{xml_escape(transcription_url)}" />')
+            response_parts.append('    ' + _emit_voicemail_record(voicemail_url))
 
         else:
             # Just play closed message
@@ -1465,8 +1486,7 @@ def _go_to_voicemail(response_parts, call_flow, called_number, from_number, call
             'Please leave a message after the tone.'))
 
     record_url = f"{config.webhook_base_url}/api/voice/voicemail"
-    transcription_url = f"{config.webhook_base_url}/api/voice/transcription"
-    response_parts.append(f'    <Record maxLength="120" action="{xml_escape(record_url)}" recordingStatusCallback="{xml_escape(record_url)}" recordingStatusCallbackEvent="completed" transcribe="true" transcribeCallback="{xml_escape(transcription_url)}" />')
+    response_parts.append('    ' + _emit_voicemail_record(record_url))
     response_parts.append('</Response>')
     return Response('\n'.join(response_parts), mimetype='application/xml')
 
@@ -1612,8 +1632,7 @@ def _handle_closed_call(response_parts, call_flow, schedule, matched_holiday,
         default_tts='We are currently closed. Please leave a message after the tone.'))
 
     record_url = f"{config.webhook_base_url}/api/voice/voicemail"
-    transcription_url = f"{config.webhook_base_url}/api/voice/transcription"
-    response_parts.append(f'    <Record maxLength="120" action="{xml_escape(record_url)}" recordingStatusCallback="{xml_escape(record_url)}" recordingStatusCallbackEvent="completed" transcribe="true" transcribeCallback="{xml_escape(transcription_url)}" />')
+    response_parts.append('    ' + _emit_voicemail_record(record_url))
     response_parts.append('</Response>')
 
     details = f"From: {from_number}, Status: CLOSED, Action: voicemail"
@@ -2729,11 +2748,10 @@ def inbound_no_answer():
     prompt = _say_or_play('queue_no_agents',
         'Sorry, no one is available to take your call. Please leave a message after the tone.')
     voicemail_url = f"{config.webhook_base_url}/api/voice/voicemail"
-    transcription_url = f"{config.webhook_base_url}/api/voice/transcription"
     twiml = f'''<?xml version="1.0" encoding="UTF-8"?>
 <Response>
 {prompt}
-    <Record action="{xml_escape(voicemail_url)}" maxLength="120" transcribe="true" transcribeCallback="{xml_escape(transcription_url)}" />
+    {_emit_voicemail_record(voicemail_url)}
 </Response>'''
     return Response(twiml, mimetype='application/xml')
 
@@ -3749,12 +3767,14 @@ def voicemail_handler():
                 # Twilio requires auth to download recordings
                 # Recording might not be immediately available - retry with backoff
                 auth = (get_twilio_config('twilio_account_sid'), get_twilio_config('twilio_auth_token'))
+                audio_bytes = None
                 audio_content = None
                 max_retries = 5
                 for attempt in range(max_retries):
                     audio_response = requests.get(audio_url, auth=auth, timeout=30)
                     if audio_response.status_code == 200:
-                        audio_content = base64.b64encode(audio_response.content).decode('utf-8')
+                        audio_bytes = audio_response.content
+                        audio_content = base64.b64encode(audio_bytes).decode('utf-8')
                         break
                     elif audio_response.status_code == 404 and attempt < max_retries - 1:
                         # Recording not ready yet - wait and retry
@@ -3766,6 +3786,22 @@ def voicemail_handler():
 
                 if not audio_content:
                     raise Exception("Failed to download recording after retries")
+
+                # Transcribe via Whisper if configured. The Twilio transcribe
+                # callback path is skipped at TwiML emit time when Whisper is
+                # on, so this is the only transcription source in that case.
+                if not transcription_text and audio_bytes:
+                    from rinq.integrations.openai.whisper import get_whisper_service
+                    whisper = get_whisper_service()
+                    if whisper.is_configured:
+                        whisper_text = whisper.transcribe(
+                            audio_bytes,
+                            filename=f"voicemail_{recording_sid}.mp3",
+                        )
+                        if whisper_text:
+                            transcription_text = whisper_text
+                            db.update_recording_transcription(recording_sid, whisper_text)
+                            logger.info(f"Whisper transcribed voicemail {recording_sid}: {len(whisper_text)} chars")
 
                 # Format the ticket
                 flow_name = call_flow.get('name', 'Unknown') if call_flow else 'Unknown'
