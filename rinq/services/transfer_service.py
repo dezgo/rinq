@@ -682,6 +682,24 @@ class TransferService:
 
             # 3-way: all parties are already in one conference — just mark done.
             if transfer_state.get('transfer_type') == 'three_way':
+                # Restore endConferenceOnExit=True on the caller and the new
+                # agent so either hanging up ends the conference cleanly. Agent
+                # 1 is left as-is — they're about to hang up and shouldn't end
+                # the conference for the others.
+                conferences = twilio_list(self.twilio.client.conferences,
+                    friendly_name=original_conference,
+                    status='in-progress',
+                    limit=1
+                )
+                if conferences:
+                    for participant_sid in (call_sid, consult_call_sid):
+                        try:
+                            self.twilio.client.conferences(conferences[0].sid).participants(participant_sid).update(
+                                end_conference_on_exit=True
+                            )
+                        except Exception as e:
+                            logger.warning(f"Could not restore endConferenceOnExit for 3-way participant {participant_sid}: {e}")
+
                 self.db.complete_transfer(call_sid)
                 self.db.log_activity(
                     action="call_transfer_three_way_complete",
@@ -730,6 +748,19 @@ class TransferService:
             self.twilio.client.conferences(conference.sid).participants(call_sid).update(
                 hold=False
             )
+
+            # Restore endConferenceOnExit=True on the caller and the new agent
+            # so either hanging up ends the conference cleanly. (Set to False
+            # at warm-start so the consult could happen without killing it.)
+            # Agent 1 is left as-is — they're about to hang up immediately and
+            # their exit shouldn't end the conference.
+            for participant_sid in (call_sid, consult_call_sid):
+                try:
+                    self.twilio.client.conferences(conference.sid).participants(participant_sid).update(
+                        end_conference_on_exit=True
+                    )
+                except Exception as e:
+                    logger.warning(f"Could not restore endConferenceOnExit for {participant_sid}: {e}")
 
             self.db.complete_transfer(call_sid)
 
