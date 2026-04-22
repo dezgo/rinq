@@ -960,6 +960,48 @@
 }
 .call-notice-dismiss:hover { opacity: 1; }
 
+.outbound-outcome {
+    margin: 0 0 16px;
+    padding: 14px 16px;
+    background: #fff4e5;
+    color: #7a4b00;
+    border: 1px solid #ffc069;
+    border-left: 4px solid #fa8c16;
+    border-radius: 8px;
+    font-size: 0.95em;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+.outbound-outcome-body {
+    flex: 1;
+    min-width: 0;
+}
+.outbound-outcome-title {
+    font-weight: 600;
+    font-size: 1em;
+    color: #613400;
+    margin-bottom: 2px;
+}
+.outbound-outcome-detail {
+    font-size: 0.85em;
+    color: #8a5a00;
+    opacity: 0.9;
+}
+.outbound-outcome-dismiss {
+    background: transparent;
+    border: none;
+    color: inherit;
+    font-size: 1.5em;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 6px;
+    opacity: 0.6;
+}
+.outbound-outcome-dismiss:hover { opacity: 1; }
+
 .btn-mute {
     background: #7f8c8d;
     color: white;
@@ -2211,6 +2253,14 @@
                     <button id="btnPhoneTour" onclick="rinqTour.start()" title="Tour the call features" style="background:none;border:none;cursor:pointer;color:#adb5bd;font-size:0.95em;padding:2px 4px;line-height:1;border-radius:50%;transition:color 0.15s;" onmouseover="this.style.color='#6c757d'" onmouseout="this.style.color='#adb5bd'">?</button>
                 </div>
 
+        <div class="outbound-outcome" id="outboundOutcome" style="display:none;">
+            <div class="outbound-outcome-body">
+                <div class="outbound-outcome-title" id="outboundOutcomeTitle"></div>
+                <div class="outbound-outcome-detail" id="outboundOutcomeDetail"></div>
+            </div>
+            <button class="outbound-outcome-dismiss" onclick="clearOutboundOutcome()" aria-label="Dismiss">&times;</button>
+        </div>
+
         <div class="incoming-call" id="incomingCall">
             <h3>Incoming Call</h3>
             <div class="call-number" id="incomingNumber">Unknown</div>
@@ -3257,6 +3307,8 @@ async function makeCall() {
     }
     if (!phoneNumber) return;
 
+    clearOutboundOutcome();
+
     // Fetch customer context in parallel — don't block the call
     fetchCustomerContext(phoneNumber);
 
@@ -3396,6 +3448,7 @@ function endCall() {
     const endSid = currentQueueCallerSid || currentOutboundCallSid
         || (currentCall && currentCall.parameters && currentCall.parameters.CallSid);
     const wasOutbound = !!currentOutboundCallSid;
+    const dialedNumber = wasOutbound ? (callNumber.textContent || phoneNumber || '') : '';
     if (endSid) {
         fetch('/api/voice/call-ended', {
             method: 'POST',
@@ -3445,18 +3498,38 @@ function endCall() {
                 const data = await res.json();
                 if (data.status && data.status !== 'answered' && data.status !== 'completed') {
                     const labels = {
-                        'busy': 'Busy',
+                        'busy': 'Number busy',
                         'missed': 'No answer',
                         'failed': 'Call failed',
                         'abandoned': 'Cancelled',
                     };
                     const label = labels[data.status] || data.status;
+                    showOutboundOutcome(label, dialedNumber);
                     setStatus(label, 'offline');
-                    setTimeout(() => setStatus('Ready', 'ready'), 4000);
+                    setTimeout(() => { if (!currentCall) setStatus('Ready', 'ready'); }, 4000);
                 }
             } catch (e) { /* ignore */ }
         }, 2000);
     }
+}
+
+let _outboundOutcomeTimer = null;
+function showOutboundOutcome(title, number) {
+    const el = document.getElementById('outboundOutcome');
+    const titleEl = document.getElementById('outboundOutcomeTitle');
+    const detailEl = document.getElementById('outboundOutcomeDetail');
+    if (!el || !titleEl || !detailEl) return;
+    titleEl.textContent = title;
+    detailEl.textContent = number ? `Last call to ${number}` : '';
+    el.style.display = 'flex';
+    if (_outboundOutcomeTimer) clearTimeout(_outboundOutcomeTimer);
+    _outboundOutcomeTimer = setTimeout(clearOutboundOutcome, 20000);
+}
+
+function clearOutboundOutcome() {
+    const el = document.getElementById('outboundOutcome');
+    if (el) el.style.display = 'none';
+    if (_outboundOutcomeTimer) { clearTimeout(_outboundOutcomeTimer); _outboundOutcomeTimer = null; }
 }
 
 function toggleMute() {
