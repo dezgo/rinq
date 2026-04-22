@@ -10,6 +10,7 @@ from rinq.integrations.watson.permissions import WatsonPermissionService
 from rinq.integrations.watson.customers import WatsonCustomerLookup
 from rinq.integrations.watson.orders import WatsonOrderLookup
 from rinq.integrations.watson.ai_receptionist import WatsonAIReceptionist
+from rinq.integrations.watson.email import WatsonMabelEmailService
 
 __all__ = [
     'WatsonStaffDirectory',
@@ -18,4 +19,5 @@ __all__ = [
     'WatsonCustomerLookup',
     'WatsonOrderLookup',
     'WatsonAIReceptionist',
+    'WatsonMabelEmailService',
 ]

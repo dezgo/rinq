@@ -69,10 +69,18 @@ def init_integrations(provider: str = 'none', **kwargs):
 
     # Email service
     email_provider = os.environ.get('RINQ_EMAIL_PROVIDER', '')
-    if email_provider == 'resend':
+    if email_provider == 'mabel':
+        from rinq.integrations.watson import WatsonMabelEmailService
+        _email_service = WatsonMabelEmailService()
+        logger.info("Email service: mabel (bot-team)")
+    elif email_provider == 'resend':
         from rinq.integrations.resend import ResendEmailService
         _email_service = ResendEmailService()
         logger.info("Email service: resend (native API)")
+    elif os.environ.get('WATSON_MABEL_URL'):
+        from rinq.integrations.watson import WatsonMabelEmailService
+        _email_service = WatsonMabelEmailService()
+        logger.info("Email service: mabel (auto-detected from env)")
     elif os.environ.get('RESEND_API_KEY'):
         from rinq.integrations.resend import ResendEmailService
         _email_service = ResendEmailService()

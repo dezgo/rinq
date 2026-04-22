@@ -85,7 +85,7 @@ rinq/
 ### Integrations
 Pluggable via env vars. Current setup:
 - **Tickets:** Native Zendesk (auto-detected from `ZENDESK_*` env vars)
-- **Email:** Native Resend (auto-detected from `RESEND_API_KEY`)
+- **Email:** Mabel bot (auto-detected from `WATSON_MABEL_URL`) — sends via Watson's Google Workspace SMTP. Falls back to Resend if `RESEND_API_KEY` set. Override with `RINQ_EMAIL_PROVIDER=mabel|resend`
 - **Customer lookup:** Watson/Clara (via `WATSON_CLARA_URL`)
 - **Order lookup:** Watson/Otto (via `WATSON_OTTO_URL`)
 - **Staff directory:** Local (staff_extensions table, no external dependency)
