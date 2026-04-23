@@ -4780,6 +4780,14 @@ async function completeTransfer() {
                 isConsulting = false;
                 consultCallSid = null;
                 currentTransferKey = null;
+            } else if (data.target_disconnected) {
+                // Target hung up just before hand-off — customer is back with us
+                stopTransferStatusPolling();
+                closeTransferModal();
+                isConsulting = false;
+                consultCallSid = null;
+                currentTransferKey = null;
+                showCallNotice(data.error || 'Transfer target disconnected — you are back with the caller.');
             } else {
                 showCallNotice(data.error || 'Failed to complete transfer');
                 if (completeBtn) {

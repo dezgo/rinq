@@ -749,11 +749,14 @@ class TransferService:
 
             conference = conferences[0]
 
-            # Check if the caller is still in the conference
+            # Check who is still in the conference before committing the hand-off.
+            # If the consult target already left we must NOT remove the agent —
+            # that would leave the customer alone. Abort and put them back together.
             try:
                 participants = twilio_list(self.twilio.client.conferences(conference.sid).participants)
-                caller_in_conference = any(p.call_sid == call_sid for p in participants)
-                if not caller_in_conference:
+                present_sids = {p.call_sid for p in participants}
+
+                if call_sid not in present_sids:
                     self.db.fail_transfer(call_sid, 'Original caller disconnected')
                     return {
                         'success': False,
@@ -761,6 +764,21 @@ class TransferService:
                                  'You can hang up or continue talking with the transfer target.',
                         'caller_disconnected': True
                     }
+
+                if consult_call_sid and consult_call_sid not in present_sids:
+                    # Target hung up before agent pressed Hand Off — abort and rejoin
+                    self.db.fail_transfer(call_sid, 'Transfer target disconnected before hand-off')
+                    try:
+                        self.twilio.client.conferences(conference.sid).participants(call_sid).update(hold=False)
+                    except Exception:
+                        pass
+                    target_name = transfer_state.get('transfer_target_name', 'The transfer target')
+                    return {
+                        'success': False,
+                        'error': f'{target_name} has ended the call. You are back with the caller.',
+                        'target_disconnected': True
+                    }
+
             except Exception as e:
                 logger.warning(f"Could not check conference participants: {e}")
 
