@@ -2352,9 +2352,9 @@ def _send_queue_caller_to_voicemail(queue_id: int, customer_call_sid: str, reaso
 def queue_agent_ring_status(queue_id):
     """Handle status callbacks for auto-ring outbound calls.
 
-    Called when an outbound call to an agent ends. When reject_action is 'voicemail'
-    and the rejecting agent is the last one still ringing, redirects the customer to
-    voicemail immediately via _send_queue_caller_to_voicemail.
+    Called when an outbound call to an agent ends. When the rejecting agent is the
+    last one still ringing, redirects the customer to voicemail immediately via
+    _send_queue_caller_to_voicemail.
 
     Query params:
         customer_call_sid: The call SID of the customer waiting in queue
@@ -2398,31 +2398,30 @@ def queue_agent_ring_status(queue_id):
     agent_email = call_info.get('user_email', 'unknown')
     logger.info(f"Queue {queue.get('name')} reject_action={reject_action}, agent {agent_email} rejected")
 
-    if reject_action != 'voicemail':
-        db.log_activity(
-            action="agent_rejected_call",
-            target=f"queue_{queue_id}",
-            details=f"Agent {agent_email} rejected on {call_info.get('device_type')}, continuing",
-            performed_by="twilio"
-        )
-        return Response('OK', status=200)
-
-    # Only voicemail when this was the last agent — if others are still ringing, let them answer
     remaining = db.get_ring_attempts(customer_call_sid)
-    if remaining:
+
+    if reject_action == 'voicemail':
+        # Any rejection → voicemail immediately, cancel remaining rings
+        _send_queue_caller_to_voicemail(
+            queue_id, customer_call_sid,
+            reason=f"Agent {agent_email} rejected (queue set to voicemail-on-reject)",
+            db=db
+        )
+    elif remaining:
+        # Others still ringing — let them answer
         db.log_activity(
             action="agent_rejected_call",
             target=f"queue_{queue_id}",
             details=f"Agent {agent_email} rejected, {len(remaining)} agent(s) still ringing",
             performed_by="twilio"
         )
-        return Response('OK', status=200)
-
-    _send_queue_caller_to_voicemail(
-        queue_id, customer_call_sid,
-        reason=f"Agent {agent_email} rejected and no agents remain",
-        db=db
-    )
+    else:
+        # Last agent rejected — no point leaving caller in queue
+        _send_queue_caller_to_voicemail(
+            queue_id, customer_call_sid,
+            reason=f"Agent {agent_email} rejected and no agents remain",
+            db=db
+        )
     return Response('OK', status=200)
 
 
