@@ -518,6 +518,11 @@ def _ring_agents_for_queue(queue_id: int, queue_name: str, customer_caller_id: s
 
             if not active_members:
                 logger.warning(f"No active members in queue {queue_name} to ring")
+                _send_queue_caller_to_voicemail(
+                    queue_id, customer_call_sid,
+                    reason="No active members in queue",
+                    db=db, base_url=base_url
+                )
                 return
 
             # URL that agent calls will hit when answered
@@ -574,6 +579,16 @@ def _ring_agents_for_queue(queue_id: int, queue_name: str, customer_caller_id: s
                 db.store_ring_attempts(customer_call_sid, agent_call_sids, 'queue',
                                        metadata_by_sid=metadata_by_sid)
                 logger.info(f"Stored {len(agent_call_sids)} agent calls for customer {customer_call_sid}")
+
+            if calls_initiated == 0:
+                # All active members were on DND or unreachable — no point leaving caller on hold
+                logger.info(f"No agents available for queue {queue_name} (all DND?) — sending customer to voicemail")
+                _send_queue_caller_to_voicemail(
+                    queue_id, customer_call_sid,
+                    reason="No agents available (all on DND or unreachable)",
+                    db=db, base_url=base_url
+                )
+                return
 
             db.log_activity(
                 action="agents_ringing",
@@ -2304,13 +2319,42 @@ def queue_agent_answer(queue_id):
     return Response(twiml, mimetype='application/xml')
 
 
+def _send_queue_caller_to_voicemail(queue_id: int, customer_call_sid: str, reason: str, db, base_url: str | None = None):
+    """Route a waiting queue caller to voicemail and cancel any remaining ring attempts.
+
+    Safe to call from both request context and background threads.
+    """
+    queued_call = db.get_queued_call_by_sid(customer_call_sid)
+    if not queued_call or queued_call.get('status') != 'waiting':
+        logger.info(f"Customer {customer_call_sid} no longer waiting — skipping voicemail redirect")
+        return
+
+    get_twilio_service().capture_for_thread()
+    threading.Thread(target=lambda: _cancel_agent_calls(customer_call_sid, db=db), daemon=True).start()
+
+    base = base_url or config.webhook_base_url
+    voicemail_url = f"{base}/api/voice/queue/{queue_id}/rejected-voicemail"
+    try:
+        get_twilio_service().client.calls(customer_call_sid).update(url=voicemail_url, method='POST')
+        db.update_queued_call_status(customer_call_sid, 'voicemail')
+        db.log_activity(
+            action="queue_no_agents_voicemail",
+            target=f"queue_{queue_id}",
+            details=reason,
+            performed_by="system"
+        )
+        logger.info(f"Redirected customer {customer_call_sid} to voicemail: {reason}")
+    except Exception as e:
+        logger.exception(f"Failed to redirect customer {customer_call_sid} to voicemail: {e}")
+
+
 @api_bp.route('/voice/queue/<int:queue_id>/agent-ring-status', methods=['POST'])
 def queue_agent_ring_status(queue_id):
     """Handle status callbacks for auto-ring outbound calls.
 
-    This is called when an outbound call to an agent ends (busy, no-answer, failed, etc.).
-    If the queue's reject_action is 'voicemail' and the agent rejected (busy), we
-    redirect the customer to voicemail immediately.
+    Called when an outbound call to an agent ends. When reject_action is 'voicemail'
+    and the rejecting agent is the last one still ringing, redirects the customer to
+    voicemail immediately via _send_queue_caller_to_voicemail.
 
     Query params:
         customer_call_sid: The call SID of the customer waiting in queue
@@ -2340,70 +2384,45 @@ def queue_agent_ring_status(queue_id):
         logger.debug(f"No tracking info for agent call {agent_call_sid}")
         return Response('OK', status=200)
 
-    # Only handle rejection (busy) - other statuses (no-answer, failed) are normal
-    # "busy" specifically means the agent rejected the call
+    # Only handle rejection (busy) — "busy" means the agent explicitly rejected
     if call_status != 'busy':
         logger.debug(f"Agent call {agent_call_sid} ended with {call_status} - not a rejection")
         return Response('OK', status=200)
 
-    # Get queue settings
     queue = db.get_queue(queue_id)
     if not queue:
         logger.warning(f"Queue {queue_id} not found for rejection handling")
         return Response('OK', status=200)
 
     reject_action = queue.get('reject_action', 'continue')
-    logger.info(f"Queue {queue.get('name')} reject_action={reject_action}, agent {call_info.get('user_email')} rejected")
+    agent_email = call_info.get('user_email', 'unknown')
+    logger.info(f"Queue {queue.get('name')} reject_action={reject_action}, agent {agent_email} rejected")
 
     if reject_action != 'voicemail':
-        # Default behavior: continue - other devices may still ring
         db.log_activity(
             action="agent_rejected_call",
             target=f"queue_{queue_id}",
-            details=f"Agent {call_info.get('user_email')} rejected on {call_info.get('device_type')}, continuing",
+            details=f"Agent {agent_email} rejected on {call_info.get('device_type')}, continuing",
             performed_by="twilio"
         )
         return Response('OK', status=200)
 
-    # Voicemail action: redirect customer to voicemail
-    logger.info(f"Rejection triggers voicemail for customer {customer_call_sid}")
-
-    # Cancel all other ringing agent calls
-    import threading
-    get_twilio_service().capture_for_thread()
-    def cancel_all(_db=db, _sid=customer_call_sid):
-        _cancel_agent_calls(_sid, db=_db)
-    threading.Thread(target=cancel_all, daemon=True).start()
-
-    # Check if customer is still in queue
-    queued_call = db.get_queued_call_by_sid(customer_call_sid)
-    if not queued_call or queued_call.get('status') != 'waiting':
-        logger.info(f"Customer {customer_call_sid} no longer waiting - skipping voicemail redirect")
-        return Response('OK', status=200)
-
-    # Redirect the customer's call to voicemail
-    try:
-        service = get_twilio_service()
-        voicemail_url = f"{config.webhook_base_url}/api/voice/queue/{queue_id}/rejected-voicemail"
-
-        service.client.calls(customer_call_sid).update(
-            url=voicemail_url,
-            method='POST'
-        )
-
-        # Update queued call status
-        db.update_queued_call_status(customer_call_sid, 'voicemail')
-
+    # Only voicemail when this was the last agent — if others are still ringing, let them answer
+    remaining = db.get_ring_attempts(customer_call_sid)
+    if remaining:
         db.log_activity(
-            action="agent_rejected_to_voicemail",
+            action="agent_rejected_call",
             target=f"queue_{queue_id}",
-            details=f"Agent {call_info.get('user_email')} rejected, redirecting to voicemail",
+            details=f"Agent {agent_email} rejected, {len(remaining)} agent(s) still ringing",
             performed_by="twilio"
         )
+        return Response('OK', status=200)
 
-    except Exception as e:
-        logger.exception(f"Failed to redirect customer {customer_call_sid} to voicemail: {e}")
-
+    _send_queue_caller_to_voicemail(
+        queue_id, customer_call_sid,
+        reason=f"Agent {agent_email} rejected and no agents remain",
+        db=db
+    )
     return Response('OK', status=200)
 
 

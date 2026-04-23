@@ -789,7 +789,7 @@ class TransferService:
             if agent_call_sid and agent_call_sid not in (call_sid, consult_call_sid):
                 try:
                     self.twilio.client.conferences(conference.sid).participants(agent_call_sid).delete()
-                    logger.info(f"Removed initiating agent {agent_call_sid} from conference {conference_name}")
+                    logger.info(f"Removed initiating agent {agent_call_sid} from conference {original_conference}")
                 except Exception as e:
                     logger.warning(f"Could not remove initiating agent {agent_call_sid} from conference: {e}")
 
