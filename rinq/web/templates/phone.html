@@ -2899,6 +2899,12 @@ async function initPhone() {
                 setTimeout(() => window.location.reload(), 2000);
                 return;
             }
+            // 31009: WebRTC transport closed — fires every time Twilio tears down
+            // a call (conference end, blind transfer, etc.). Normal teardown, not a fault.
+            if (error.code === 31009) {
+                console.warn('Twilio transport closed (31009) — normal call teardown');
+                return;
+            }
             setStatus('Error: ' + (error.message || error), 'offline');
         });
 
