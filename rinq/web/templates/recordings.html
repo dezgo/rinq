@@ -254,7 +254,9 @@ input:checked + .toggle-slider:before {
                oninput="filterRecordings()">
         <input type="search" name="phone" id="phoneSearch" placeholder="Phone number..."
                value="{{ filter_phone }}"
-               style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 5px; width: 160px;">
+               style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 5px; width: 160px;"
+               onkeydown="if(event.key==='Enter') this.form.submit()">
+        <button type="submit" class="btn btn-secondary" style="padding: 8px 14px; font-size: 0.9em;">Search</button>
         <label for="typeFilter">Type:</label>
         <select name="type" id="typeFilter" onchange="this.form.submit()">
             <option value="">All</option>
