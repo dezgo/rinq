@@ -321,7 +321,7 @@
         position: fixed; bottom: 8px; right: 12px;
         font-size: 0.7em; color: rgba(255,255,255,0.5);
         font-family: monospace; pointer-events: none;
-    ">{{ config.git_hash }}</div>
+    ">{{ config.git_hash }}{% if config.git_deploy_time %} · {{ config.git_deploy_time }}{% endif %}</div>
     {% endif %}
 
     <!-- Two-click delete confirmation handler -->

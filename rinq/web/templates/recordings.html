@@ -248,23 +248,27 @@ input:checked + .toggle-slider:before {
         Use the toggle above to enable/disable auto-recording for your calls.
     </div>
 
-    <div class="filter-form">
-        <input type="search" id="searchInput" placeholder="Search by name or phone..."
-               style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 5px; width: 200px;"
+    <form class="filter-form" method="get" action="{{ url_for('web.recordings') }}">
+        <input type="search" id="searchInput" placeholder="Search by name..."
+               style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 5px; width: 180px;"
                oninput="filterRecordings()">
+        <input type="search" name="phone" id="phoneSearch" placeholder="Phone number..."
+               value="{{ filter_phone }}"
+               style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 5px; width: 160px;">
         <label for="typeFilter">Type:</label>
-        <select id="typeFilter" onchange="filterRecordings()">
+        <select name="type" id="typeFilter" onchange="this.form.submit()">
             <option value="">All</option>
             <option value="inbound" {% if filter_type == 'inbound' %}selected{% endif %}>Inbound</option>
             <option value="outbound" {% if filter_type == 'outbound' %}selected{% endif %}>Outbound</option>
         </select>
+        {% if filter_staff == 'mine' %}<input type="hidden" name="staff" value="mine">{% endif %}
         {% if can_filter_staff %}
         <div class="staff-toggle">
             <a href="{{ url_for('web.recordings') }}" class="{% if filter_staff != 'mine' %}active{% endif %}">All staff</a>
             <a href="{{ url_for('web.recordings', staff='mine') }}" class="{% if filter_staff == 'mine' %}active{% endif %}">Mine</a>
         </div>
         {% endif %}
-    </div>
+    </form>
 
     {% if recordings %}
     <table>

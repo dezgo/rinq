@@ -639,7 +639,8 @@ class Database(StatsMixin, CallLogMixin):
 
     def get_recording_log(self, limit: int = 100, call_type: str = None,
                           exclude_voicemail: bool = False,
-                          staff_emails: list[str] = None) -> list[dict]:
+                          staff_emails: list[str] = None,
+                          phone_number: str = None) -> list[dict]:
         """Get recent recording log entries.
 
         Args:
@@ -647,7 +648,9 @@ class Database(StatsMixin, CallLogMixin):
             call_type: Filter by call type ('inbound', 'outbound', etc.)
             exclude_voicemail: If True, exclude voicemail recordings
             staff_emails: If provided, only return recordings for these staff
+            phone_number: If provided, filter by phone number (normalized match)
         """
+        import re
         with self._get_conn() as conn:
             query = "SELECT * FROM recording_log WHERE 1=1"
             params = []
@@ -663,6 +666,18 @@ class Database(StatsMixin, CallLogMixin):
 
             if exclude_voicemail:
                 query += " AND (call_type IS NULL OR call_type != 'voicemail')"
+
+            if phone_number:
+                # Normalize: keep only digits, strip country code prefix
+                digits = re.sub(r'\D', '', phone_number)
+                if digits.startswith('61') and len(digits) > 10:
+                    digits = digits[2:]  # +61... -> local digits
+                elif digits.startswith('0') and len(digits) > 1:
+                    digits = digits[1:]  # 0... -> subscriber digits
+                pattern = f'%{digits}%'
+                query += " AND (from_number LIKE ? OR to_number LIKE ?)"
+                params.extend([pattern, pattern])
+                limit = 500  # wider search when filtering by number
 
             query += " ORDER BY created_at DESC LIMIT ?"
             params.append(limit)

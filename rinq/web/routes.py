@@ -1760,6 +1760,7 @@ def recordings():
     # Get filter parameters
     filter_type = request.args.get('type')
     filter_staff = request.args.get('staff')
+    filter_phone = request.args.get('phone', '').strip()
 
     # Get user's recording preference
     recording_enabled = db.get_user_recording_default(user.email)
@@ -1789,6 +1790,7 @@ def recordings():
         call_type=filter_type,
         exclude_voicemail=True,
         staff_emails=staff_emails,
+        phone_number=filter_phone or None,
     )
 
     return render_template('recordings.html',
@@ -1797,6 +1799,7 @@ def recordings():
                          recordings_group=config.recordings_group_email,
                          filter_type=filter_type,
                          filter_staff=filter_staff,
+                         filter_phone=filter_phone,
                          can_filter_staff=has_reportees,
                          current_user=user)
 

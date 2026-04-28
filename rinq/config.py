@@ -33,7 +33,7 @@ class Config:
         self.description = config["description"]
         self.version = config["version"]
         self.personality = config.get("personality", "")
-        self.git_hash = self._read_git_hash()
+        self.git_hash, self.git_deploy_time = self._read_git_version()
 
         # Data paths
         data_dir = os.environ.get("RINQ_DATA_DIR", str(self.base_dir.parent / "data"))
@@ -78,11 +78,15 @@ class Config:
         self.recordings_group_email = recordings.get("group_email", "")
         self.recordings_default_enabled = recordings.get("default_enabled", True)
 
-    def _read_git_hash(self) -> str | None:
-        # Prefer VERSION file written by deploy.sh (avoids needing git in PATH)
+    def _read_git_version(self) -> tuple[str | None, str | None]:
+        # Prefer VERSION file written by deploy.sh (line 1: hash, line 2: date)
         version_file = self.base_dir.parent / 'VERSION'
         try:
-            return version_file.read_text().strip() or None
+            lines = version_file.read_text().strip().splitlines()
+            git_hash = lines[0].strip() if lines else None
+            deploy_time = lines[1].strip() if len(lines) > 1 else None
+            if git_hash:
+                return git_hash, deploy_time
         except Exception:
             pass
         try:
@@ -91,9 +95,10 @@ class Config:
                 capture_output=True, text=True,
                 cwd=str(self.base_dir.parent)
             )
-            return result.stdout.strip() if result.returncode == 0 else None
+            git_hash = result.stdout.strip() if result.returncode == 0 else None
+            return git_hash, None
         except Exception:
-            return None
+            return None, None
 
     @property
     def webhook_base_url(self):

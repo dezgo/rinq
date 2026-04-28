@@ -9,7 +9,7 @@ git fetch origin main
 git reset --hard origin/main
 
 echo "=== Writing version ==="
-git rev-parse --short HEAD > VERSION
+printf "%s\n%s\n" "$(git rev-parse --short HEAD)" "$(date '+%d %b %H:%M')" > VERSION
 
 echo "=== Installing dependencies ==="
 source venv/bin/activate
